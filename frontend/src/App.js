@@ -257,18 +257,18 @@ const css = `
 const AVATAR_COLORS = ['#e07b4f','#6d28d9','#0369a1','#166534','#9d174d','#b45309'];
 const getColor = n => AVATAR_COLORS[(n || 'A').charCodeAt(0) % AVATAR_COLORS.length];
 
-const REL_EMOJI = {Self:'ðŸ‘¤',Father:'ðŸ‘¨',Mother:'ðŸ‘©',Son:'ðŸ‘¦',Daughter:'ðŸ‘§',Brother:'ðŸ‘±',Sister:'ðŸ‘±â€â™€ï¸',Spouse:'ðŸ’‘',Husband:'ðŸ’‘',Wife:'ðŸ’‘',Grandfather:'ðŸ‘´',Grandmother:'ðŸ‘µ'};
+const REL_EMOJI = {Self:'👤',Father:'👨',Mother:'👩',Son:'👦',Daughter:'👧',Brother:'👱',Sister:'👱‍♀️',Spouse:'💑',Husband:'💑',Wife:'💑',Grandfather:'👴',Grandmother:'👵'};
 
 const TYPE_CONFIG = {
-  'Prescription':{cls:'type-prescription',icon:'ðŸ’Š'},
-  'Lab Report':{cls:'type-lab',icon:'ðŸ§ª'},
-  'Medical Certificate':{cls:'type-certificate',icon:'ðŸ“‹'},
-  'Discharge Summary':{cls:'type-discharge',icon:'ðŸ¥'},
-  'Radiology Report':{cls:'type-radiology',icon:'ðŸ©»'},
-  'Other':{cls:'type-other',icon:'ðŸ“„'},
-  'Unknown':{cls:'type-unknown',icon:'ðŸ“„'},
+  'Prescription':{cls:'type-prescription',icon:'💊'},
+  'Lab Report':{cls:'type-lab',icon:'🧪'},
+  'Medical Certificate':{cls:'type-certificate',icon:'📋'},
+  'Discharge Summary':{cls:'type-discharge',icon:'🏥'},
+  'Radiology Report':{cls:'type-radiology',icon:'🩻'},
+  'Other':{cls:'type-other',icon:'📄'},
+  'Unknown':{cls:'type-unknown',icon:'📄'},
 };
-const getTypeConfig = t => TYPE_CONFIG[t] || {cls:'type-unknown',icon:'ðŸ“„'};
+const getTypeConfig = t => TYPE_CONFIG[t] || {cls:'type-unknown',icon:'📄'};
 
 const DOC_TYPES = ['Prescription','Lab Report','Medical Certificate','Discharge Summary','Radiology Report','Other'];
 const POLL = 4000;
@@ -297,12 +297,12 @@ function Toast({msg,type,onDone}){
   return <div className={`toast ${type}`}>{msg}</div>;
 }
 
-/* â”€â”€ CONFIRM â”€â”€ */
+/* ── CONFIRM ── */
 function Confirm({msg,onConfirm,onCancel}){
   return(
     <div className="overlay" onClick={onCancel}>
       <div className="confirm-box" onClick={e=>e.stopPropagation()}>
-        <div className="confirm-icon">ðŸ—‘ï¸</div>
+        <div className="confirm-icon">🗑️</div>
         <div className="confirm-title">Delete record?</div>
         <div className="confirm-text">{msg}</div>
         <div className="confirm-btns">
@@ -314,7 +314,7 @@ function Confirm({msg,onConfirm,onCancel}){
   );
 }
 
-/* â”€â”€ RECORD MODAL â”€â”€ */
+/* ── RECORD MODAL ── */
 function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
   const [tab,setTab]=useState('details');
   const [editing,setEditing]=useState(false);
@@ -362,13 +362,13 @@ function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-handle"/>
         <div className="modal-header">
-          <button className="modal-close" onClick={onClose}>âœ•</button>
+          <button className="modal-close" onClick={onClose}>✕</button>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
             <span className={`card-type-pill ${tc.cls}`}>{tc.icon} {record.document_type}</span>
             <span className={`status-badge status-${record.status}`}>{record.status}</span>
           </div>
           <div className="modal-title">{record.doctor_name?`Dr. ${record.doctor_name}`:record.hospital_name||'Medical Record'}</div>
-          <div className="modal-sub">{fmtRelTime(record.created_at)}{record.document_date&&` Â· Doc date: ${fmt(record.document_date)}`}</div>
+          <div className="modal-sub">{fmtRelTime(record.created_at)}{record.document_date&&` · Doc date: ${fmt(record.document_date)}`}</div>
         </div>
         <div className="modal-body">
           <div className="modal-tabs">
@@ -382,11 +382,11 @@ function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
           {tab==='details'&&!editing&&(
             <div>
               {[
-                {icon:'ðŸ‘¨â€âš•ï¸',bg:'#fef3e8',key:'doctor_name',lbl:'Doctor',val:record.doctor_name},
-                {icon:'ðŸ¥',bg:'#eff6ff',key:'hospital_name',lbl:'Hospital',val:record.hospital_name},
-                {icon:'ðŸ”¬',bg:'#f0fdf4',key:'specialty',lbl:'Specialty',val:record.specialty},
-                {icon:'ðŸ©º',bg:'#fdf2f8',key:'diagnosis',lbl:'Diagnosis',val:record.diagnosis},
-                {icon:'ðŸ“‹',bg:'#f0f9ff',key:'recommendations',lbl:'Recommendations',val:record.recommendations},
+                {icon:'👨‍⚕️',bg:'#fef3e8',key:'doctor_name',lbl:'Doctor',val:record.doctor_name},
+                {icon:'🏥',bg:'#eff6ff',key:'hospital_name',lbl:'Hospital',val:record.hospital_name},
+                {icon:'🔬',bg:'#f0fdf4',key:'specialty',lbl:'Specialty',val:record.specialty},
+                {icon:'🩺',bg:'#fdf2f8',key:'diagnosis',lbl:'Diagnosis',val:record.diagnosis},
+                {icon:'📋',bg:'#f0f9ff',key:'recommendations',lbl:'Recommendations',val:record.recommendations},
               ].filter(f=>f.val).map(f=>(
                 <div key={f.key} className="detail-row">
                   <div className="detail-icon" style={{background:f.bg}}>{f.icon}</div>
@@ -437,7 +437,7 @@ function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
               ?<div style={{color:'#bbb',fontSize:13}}>No medicines extracted.</div>
               :record.medicines.map(m=>(
                 <div key={m.id} className="med-card">
-                  <div className="med-name">ðŸ’Š {m.name}</div>
+                  <div className="med-name">💊 {m.name}</div>
                   <div className="med-meta">
                     {m.dosage&&<span>Dose: {m.dosage}</span>}
                     {m.frequency&&<span>Freq: {m.frequency}</span>}
@@ -461,8 +461,8 @@ function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
             :history.map(h=>(
               <div key={h.id} className="history-row">
                 <span className="history-field">{h.field_name}</span>
-                <span className="history-old">{h.old_value||'â€”'}</span>
-                <span style={{color:'#bbb',margin:'0 4px'}}>â†’</span>
+                <span className="history-old">{h.old_value||'—'}</span>
+                <span style={{color:'#bbb',margin:'0 4px'}}>→</span>
                 <span className="history-new">{h.new_value}</span>
                 <span className="history-time">{fmtDt(h.edited_at)}</span>
               </div>
@@ -473,7 +473,7 @@ function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
         <div className="modal-footer">
           {tab==='details'&&editing?(
             <><button className="btn-cancel" onClick={()=>setEditing(false)}>Cancel</button>
-            <button className="btn-save" onClick={save} disabled={saving}>{saving?'Savingâ€¦':'Save'}</button></>
+            <button className="btn-save" onClick={save} disabled={saving}>{saving?'Saving…':'Save'}</button></>
           ):(
             <><button className="btn-del" onClick={()=>setConfirmDel(true)}>Delete</button>
             {record.status==='done'&&<button className="btn-save" onClick={()=>{setTab('details');setEditing(true);}}>Edit</button>}</>
@@ -485,7 +485,7 @@ function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
   );
 }
 
-/* â”€â”€ RECORD CARD â”€â”€ */
+/* ── RECORD CARD ── */
 function RecordCard({record,onClick,onDelete}){
   const tc=getTypeConfig(record.document_type);
   return(
@@ -494,47 +494,47 @@ function RecordCard({record,onClick,onDelete}){
         <span className={`card-type-pill ${tc.cls}`}>{tc.icon} {record.document_type}</span>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span className={`status-badge status-${record.status}`}>{record.status}</span>
-          <button className="card-delete-btn" onClick={e=>{e.stopPropagation();onDelete();}}>ðŸ—‘ï¸</button>
+          <button className="card-delete-btn" onClick={e=>{e.stopPropagation();onDelete();}}>🗑️</button>
         </div>
       </div>
       <div className="card-title">{record.doctor_name?`Dr. ${record.doctor_name}`:record.hospital_name||'Medical Record'}</div>
       <div className="card-date">
         {record.document_date?fmt(record.document_date):fmtRelTime(record.created_at)}
-        {record.profiles&&` Â· ${record.profiles.name}`}
+        {record.profiles&&` · ${record.profiles.name}`}
       </div>
       {record.hospital_name&&record.doctor_name&&(
         <div className="card-field">
-          <div className="card-field-icon" style={{background:'#eff6ff'}}>ðŸ¥</div>
+          <div className="card-field-icon" style={{background:'#eff6ff'}}>🏥</div>
           <div><div className="card-field-lbl">Hospital</div><div className="card-field-val">{record.hospital_name}</div></div>
         </div>
       )}
       {record.specialty&&(
         <div className="card-field">
-          <div className="card-field-icon" style={{background:'#f0fdf4'}}>ðŸ”¬</div>
+          <div className="card-field-icon" style={{background:'#f0fdf4'}}>🔬</div>
           <div><div className="card-field-lbl">Specialty</div><div className="card-field-val">{record.specialty}</div></div>
         </div>
       )}
       {record.diagnosis&&(
         <div className="card-field">
-          <div className="card-field-icon" style={{background:'#fdf2f8'}}>ðŸ©º</div>
+          <div className="card-field-icon" style={{background:'#fdf2f8'}}>🩺</div>
           <div><div className="card-field-lbl">Diagnosis</div><div className="card-field-val">{record.diagnosis}</div></div>
         </div>
       )}
       {record.medicines?.length>0&&(
         <><div className="card-divider"/>
         <div className="med-chips">
-          {record.medicines.slice(0,3).map(m=><span key={m.id} className="med-chip">ðŸ’Š {m.name}</span>)}
+          {record.medicines.slice(0,3).map(m=><span key={m.id} className="med-chip">💊 {m.name}</span>)}
           {record.medicines.length>3&&<span className="med-chip">+{record.medicines.length-3}</span>}
         </div></>
       )}
       {record.raw_ocr_text&&record.status!=='processing'&&(
-        <div className="card-ocr">{record.raw_ocr_text.slice(0,90)}â€¦</div>
+        <div className="card-ocr">{record.raw_ocr_text.slice(0,90)}…</div>
       )}
     </div>
   );
 }
 
-/* â”€â”€ ADD PROFILE MODAL â”€â”€ */
+/* ── ADD PROFILE MODAL ── */
 function AddProfileModal({onClose,onAdded}){
   const [form,setForm]=useState({name:'',relationship:''});
   const [loading,setLoading]=useState(false);
@@ -556,20 +556,20 @@ function AddProfileModal({onClose,onAdded}){
         <div className="form-group">
           <label className="form-label">Relationship</label>
           <select className="form-input" value={form.relationship} onChange={e=>setForm({...form,relationship:e.target.value})}>
-            <option value="">Selectâ€¦</option>
+            <option value="">Select…</option>
             {['Self','Father','Mother','Spouse','Son','Daughter','Brother','Sister','Grandfather','Grandmother','Other'].map(r=><option key={r}>{r}</option>)}
           </select>
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <button className="btn-cancel" style={{flex:1}} onClick={onClose}>Cancel</button>
-          <button className="btn-save" style={{flex:1}} onClick={save} disabled={loading}>{loading?'Addingâ€¦':'Add Profile'}</button>
+          <button className="btn-save" style={{flex:1}} onClick={save} disabled={loading}>{loading?'Adding…':'Add Profile'}</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* â”€â”€ AUTH â”€â”€ */
+/* ── AUTH ── */
 function Auth({onLogin}){
   const [mode,setMode]=useState('login');
   const [forgot,setForgot]=useState(false);
@@ -587,7 +587,7 @@ function Auth({onLogin}){
     setLoading(true);setErr('');setInfo('');
     try{
       if(forgot){
-        setInfo('If an account exists, a reset link has been sent. (Feature coming soon â€” contact support.)');
+        setInfo('If an account exists, a reset link has been sent. (Feature coming soon — contact support.)');
         setForgot(false);setLoading(false);return;
       }
       if(mode==='register'){
@@ -625,7 +625,7 @@ function Auth({onLogin}){
                   <label className="form-label">Email</label>
                   <input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
                 </div>
-                <button className="btn-auth" onClick={handle} disabled={loading}>{loading?'Sendingâ€¦':'Send Reset Link'}</button>
+                <button className="btn-auth" onClick={handle} disabled={loading}>{loading?'Sending…':'Send Reset Link'}</button>
                 <button className="btn-cancel" style={{width:'100%',marginTop:8}} onClick={()=>{setForgot(false);setErr('');setInfo('');}}>Back to Sign In</button>
               </>
             ):(
@@ -650,10 +650,10 @@ function Auth({onLogin}){
                 </div>
                 <div className="form-group">
                   <label className="form-label">Password</label>
-                  <input className="form-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" onKeyDown={e=>e.key==='Enter'&&handle()}/>
+                  <input className="form-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&handle()}/>
                 </div>
-                {mode==='login'&&<div className="forgot-link"><a href="/#" onClick={e=>{e.preventDefault();setForgot(true);setErr('');setInfo('');}}>Forgot password?</a></div>}
-                <button className="btn-auth" onClick={handle} disabled={loading}>{loading?(mode==='login'?'Signing inâ€¦':'Creating accountâ€¦'):(mode==='login'?'Sign In â†’':'Create Account â†’')}</button>
+                {mode==='login'&&<div className="forgot-link"><a href="#" onClick={e=>{e.preventDefault();setForgot(true);setErr('');setInfo('');}}>Forgot password?</a></div>}
+                <button className="btn-auth" onClick={handle} disabled={loading}>{loading?(mode==='login'?'Signing in…':'Creating account…'):(mode==='login'?'Sign In →':'Create Account →')}</button>
               </>
             )}
           </div>
@@ -664,9 +664,9 @@ function Auth({onLogin}){
             <h2>Your health records,<br/>always with you.</h2>
             <p>Upload prescriptions, lab reports, and medical documents. AI extracts and organises everything instantly.</p>
             {[
-              {icon:'ðŸ”’',text:'End-to-end secure storage'},
-              {icon:'ðŸ¤–',text:'AI-powered OCR extraction'},
-              {icon:'ðŸ‘¨â€ðŸ‘©â€ðŸ‘§',text:'Manage entire family profiles'},
+              {icon:'🔒',text:'End-to-end secure storage'},
+              {icon:'🤖',text:'AI-powered OCR extraction'},
+              {icon:'👨‍👩‍👧',text:'Manage entire family profiles'},
             ].map(f=>(
               <div key={f.text} className="auth-feature">
                 <div className="auth-feature-icon">{f.icon}</div>
@@ -680,7 +680,7 @@ function Auth({onLogin}){
   );
 }
 
-/* â”€â”€ DASHBOARD â”€â”€ */
+/* ── DASHBOARD ── */
 function Dashboard({onLogout}){
   const [profiles,setProfiles]=useState([]);
   const [selectedProfile,setSelectedProfile]=useState(null);
@@ -736,7 +736,7 @@ function Dashboard({onLogout}){
     try{
       await API.post(`/upload/${selectedProfile.id}`,form,{headers:{'Content-Type':'multipart/form-data'}});
       await loadRecords(selectedProfile.id);
-      showToast('Document uploaded â€” processing in background');
+      showToast('Document uploaded — processing in background');
     }catch(e){showToast(e?.response?.data?.detail||'Upload failed','error');}
     finally{setUploading(false);}
   };
@@ -825,12 +825,12 @@ function Dashboard({onLogout}){
             </div>
           ))}
           <div className="nav-item" onClick={()=>setShowAddProfile(true)} style={{marginTop:8}}>
-            <div className="nav-icon" style={{fontSize:20,color:'rgba(255,255,255,0.3)'}}>ï¼‹</div>
+            <div className="nav-icon" style={{fontSize:20,color:'rgba(255,255,255,0.3)'}}>＋</div>
             <span className="nav-label" style={{color:'rgba(255,255,255,0.4)'}}>Add member</span>
           </div>
           <div className="sidebar-bottom">
             <div className="nav-item" onClick={()=>{localStorage.removeItem('token');onLogout();}}>
-              <div className="nav-icon" style={{fontSize:18}}>â†©</div>
+              <div className="nav-icon" style={{fontSize:18}}>↩</div>
               <span className="nav-label" style={{color:'rgba(255,255,255,0.4)'}}>Sign out</span>
             </div>
           </div>
@@ -841,7 +841,7 @@ function Dashboard({onLogout}){
             <div className="topbar-left">
               <div>
                 <div className="topbar-title">{selectedProfile?`${selectedProfile.name}'s Records`:'MediVault'}</div>
-                <div className="topbar-sub">{selectedProfile?`${selectedProfile.relationship} Â· ${records.length} record${records.length!==1?'s':''}`:' '}</div>
+                <div className="topbar-sub">{selectedProfile?`${selectedProfile.relationship} · ${records.length} record${records.length!==1?'s':''}`:' '}</div>
               </div>
             </div>
             <div className="topbar-right">
@@ -883,14 +883,14 @@ function Dashboard({onLogout}){
             {selectedProfile&&(
               <div className="search-row">
                 <div className="search-wrap">
-                  <span className="search-icon">ðŸ”</span>
-                  <input className="search-input" placeholder="Search doctor, diagnosis, medicine, hospitalâ€¦"
+                  <span className="search-icon">🔍</span>
+                  <input className="search-input" placeholder="Search doctor, diagnosis, medicine, hospital…"
                     value={search} onChange={e=>{setSearch(e.target.value);if(!e.target.value)setSearchResults(null);}}
                     onKeyDown={e=>e.key==='Enter'&&doSearch()}/>
                 </div>
                 {searchResults!==null
-                  ?<button className="btn-clear" onClick={()=>{setSearch('');setSearchResults(null);}}>âœ• Clear</button>
-                  :<button className="btn-search" onClick={doSearch}>{searching?'â€¦':'Search'}</button>
+                  ?<button className="btn-clear" onClick={()=>{setSearch('');setSearchResults(null);}}>✕ Clear</button>
+                  :<button className="btn-search" onClick={doSearch}>{searching?'…':'Search'}</button>
                 }
               </div>
             )}
@@ -912,7 +912,7 @@ function Dashboard({onLogout}){
 
             {!selectedProfile&&(
               <div className="empty">
-                <div className="empty-icon">ðŸ¥</div>
+                <div className="empty-icon">🏥</div>
                 <div className="empty-title">Welcome to MediVault</div>
                 <div className="empty-sub">Select or add a family member to get started.</div>
               </div>
@@ -920,7 +920,7 @@ function Dashboard({onLogout}){
 
             {selectedProfile&&display.length===0&&!uploading&&(
               <div className="empty">
-                <div className="empty-icon">{searchResults!==null?'ðŸ”':'ðŸ“„'}</div>
+                <div className="empty-icon">{searchResults!==null?'🔍':'📄'}</div>
                 <div className="empty-title">{searchResults!==null?'No results found':'No records yet'}</div>
                 <div className="empty-sub">{searchResults!==null?'Try a different search term.':'Upload a prescription, lab report, or medical certificate.'}</div>
               </div>
@@ -946,5 +946,3 @@ export default function App(){
     ?<Dashboard onLogout={()=>setLoggedIn(false)}/>
     :<Auth onLogin={()=>setLoggedIn(true)}/>;
 }
-
-
