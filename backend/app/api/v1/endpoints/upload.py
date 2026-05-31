@@ -13,10 +13,48 @@ def process_ocr(record_id: str, file_path: str):
     try:
         image_bytes = supabase.storage.from_("medical-records").download(file_path)
         text = extract_text_from_bytes(image_bytes)
+
+        # Update with OCR text first
         supabase.table("records").update({
             "raw_ocr_text": text,
-            "status": "ocr_done"
+            "status": "extracting"
         }).eq("id", record_id).execute()
+
+        # Run AI extraction
+        from app.services.ai_extractor import extract_medical_data
+        data = extract_medical_data(text)
+
+        # Build update payload
+        update_data = {"status": "done"}
+        if data.get("document_type"):
+            update_data["document_type"] = data["document_type"]
+        if data.get("doctor_name"):
+            update_data["doctor_name"] = data["doctor_name"]
+        if data.get("hospital_name"):
+            update_data["hospital_name"] = data["hospital_name"]
+        if data.get("document_date"):
+            update_data["document_date"] = data["document_date"]
+        if data.get("specialty"):
+            update_data["specialty"] = data["specialty"]
+        if data.get("diagnosis"):
+            update_data["diagnosis"] = data["diagnosis"]
+        if data.get("recommendations"):
+            update_data["recommendations"] = data["recommendations"]
+
+        supabase.table("records").update(update_data).eq("id", record_id).execute()
+
+        # Insert medicines
+        medicines = data.get("medicines", [])
+        if medicines:
+            for med in medicines:
+                supabase.table("medicines").insert({
+                    "record_id": record_id,
+                    "name": med.get("name", "Unknown"),
+                    "dosage": med.get("dosage"),
+                    "frequency": med.get("frequency"),
+                    "duration": med.get("duration")
+                }).execute()
+
     except Exception as e:
         supabase.table("records").update({
             "status": "failed",
