@@ -1,1142 +1,938 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import API from './api';
 
-/* ─────────────────────────────────────────────
-   GLOBAL STYLES
-───────────────────────────────────────────── */
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:'Plus Jakarta Sans',sans-serif;background:#f5f3ef;color:#1a1a2e;min-height:100vh;}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px;}
 
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: #080d1a;
-    color: #e2e8f0;
-    min-height: 100vh;
-  }
+  @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes slideRight{from{opacity:0;transform:translateX(-12px);}to{opacity:1;transform:translateX(0);}}
+  @keyframes modalIn{from{opacity:0;transform:scale(0.95)translateY(12px);}to{opacity:1;transform:scale(1)translateY(0);}}
+  @keyframes toastIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
+  .fade-up{animation:fadeUp 0.4s ease forwards;}
+  .fade-in{animation:fadeIn 0.3s ease forwards;}
 
-  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  @keyframes slideIn { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
-  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
+  /* AUTH */
+  .auth-root{min-height:100vh;display:flex;background:#f5f3ef;}
+  .auth-left{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;}
+  .auth-right{width:420px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 40px;position:relative;overflow:hidden;}
+  .auth-right::before{content:'';position:absolute;width:300px;height:300px;background:rgba(99,179,237,0.06);border-radius:50%;top:-80px;right:-80px;}
+  .auth-right::after{content:'';position:absolute;width:200px;height:200px;background:rgba(154,117,234,0.08);border-radius:50%;bottom:-60px;left:-60px;}
+  .auth-card{width:100%;max-width:420px;animation:fadeUp 0.5s ease forwards;}
+  .auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:32px;}
+  .logo-mark{width:40px;height:40px;background:#1a1a2e;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .logo-mark svg{width:22px;height:22px;}
+  .logo-text{font-family:'Instrument Serif',serif;font-size:24px;color:#1a1a2e;letter-spacing:-0.5px;}
+  .logo-text span{color:#e07b4f;}
+  .auth-heading{font-size:28px;font-weight:700;color:#1a1a2e;margin-bottom:6px;letter-spacing:-0.5px;}
+  .auth-sub{font-size:14px;color:#888;margin-bottom:28px;font-weight:400;}
+  .auth-tabs{display:flex;background:#ede9e3;border-radius:12px;padding:4px;margin-bottom:28px;gap:4px;}
+  .auth-tab{flex:1;padding:9px;border:none;background:transparent;border-radius:9px;font-size:14px;font-weight:500;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;color:#888;transition:all 0.2s;}
+  .auth-tab.active{background:#fff;color:#1a1a2e;box-shadow:0 1px 4px rgba(0,0,0,0.08);}
+  .form-group{margin-bottom:14px;}
+  .form-label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;}
+  .form-input{width:100%;padding:13px 16px;border:1.5px solid #e8e4dc;border-radius:12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;color:#1a1a2e;background:#fff;outline:none;transition:all 0.2s;}
+  .form-input:focus{border-color:#1a1a2e;background:#fff;}
+  .form-input::placeholder{color:#bbb;}
+  .btn-auth{width:100%;padding:14px;background:#1a1a2e;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;margin-top:4px;letter-spacing:0.02em;}
+  .btn-auth:hover{background:#0f1420;transform:translateY(-1px);}
+  .btn-auth:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+  .forgot-link{text-align:right;margin-top:-8px;margin-bottom:12px;}
+  .forgot-link a{font-size:12px;color:#e07b4f;text-decoration:none;font-weight:500;}
+  .forgot-link a:hover{text-decoration:underline;}
+  .auth-err{color:#c0392b;font-size:13px;padding:10px 14px;background:#fdf0ee;border-radius:10px;border:1px solid #f5c6be;margin-bottom:12px;}
+  .auth-info{color:#1a6e4e;font-size:13px;padding:10px 14px;background:#edfaf5;border-radius:10px;border:1px solid #b9f0d8;margin-bottom:12px;}
+  .auth-right-content{position:relative;z-index:1;text-align:center;}
+  .auth-right h2{font-family:'Instrument Serif',serif;font-size:32px;color:#fff;margin-bottom:12px;line-height:1.2;}
+  .auth-right p{font-size:14px;color:rgba(255,255,255,0.55);line-height:1.7;}
+  .auth-feature{display:flex;align-items:center;gap:10px;margin-top:20px;text-align:left;}
+  .auth-feature-icon{width:32px;height:32px;background:rgba(255,255,255,0.08);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;}
+  .auth-feature-text{font-size:13px;color:rgba(255,255,255,0.6);}
 
-  .fade-in { animation: fadeIn 0.35s ease forwards; }
+  /* APP LAYOUT */
+  .app-root{display:flex;min-height:100vh;}
 
-  /* ── Auth ── */
-  .login-bg {
-    min-height: 100vh;
-    background: #080d1a;
-    display: flex; align-items: center; justify-content: center;
-    position: relative; overflow: hidden;
-  }
-  .login-bg::before {
-    content:''; position:absolute;
-    width:700px; height:700px;
-    background: radial-gradient(circle, rgba(56,189,248,0.07) 0%, transparent 65%);
-    top:-150px; left:-150px; border-radius:50%;
-  }
-  .login-bg::after {
-    content:''; position:absolute;
-    width:500px; height:500px;
-    background: radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 65%);
-    bottom:-100px; right:-100px; border-radius:50%;
-  }
-  .login-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
-    padding: 48px;
-    width: 420px;
-    backdrop-filter: blur(20px);
-    position: relative; z-index:1;
-    animation: fadeIn 0.45s ease forwards;
-  }
-  .login-logo {
-    font-family: 'DM Serif Display', serif;
-    font-size: 28px; color: #f8fafc;
-    margin-bottom: 8px;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .login-logo span { color: #38bdf8; }
-  .login-subtitle { color: #64748b; font-size: 14px; margin-bottom: 36px; font-weight:300; }
+  /* SIDEBAR */
+  .sidebar{width:72px;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;padding:20px 0;position:fixed;height:100vh;z-index:50;transition:width 0.3s ease;}
+  .sidebar.expanded{width:240px;}
+  .sidebar-logo{width:40px;height:40px;background:#e07b4f;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:28px;flex-shrink:0;cursor:pointer;}
+  .sidebar-logo svg{width:22px;height:22px;}
+  .sidebar-logo-text{font-family:'Instrument Serif',serif;font-size:18px;color:#fff;white-space:nowrap;overflow:hidden;margin-left:10px;opacity:0;transition:opacity 0.2s;}
+  .sidebar.expanded .sidebar-logo-text{opacity:1;}
+  .sidebar-logo-row{display:flex;align-items:center;padding:0 16px;margin-bottom:28px;width:100%;}
+  .nav-item{width:100%;display:flex;align-items:center;padding:10px 16px;cursor:pointer;border-radius:0;transition:all 0.2s;color:rgba(255,255,255,0.4);font-size:13px;font-weight:500;gap:12px;white-space:nowrap;position:relative;}
+  .nav-item:hover{color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.05);}
+  .nav-item.active{color:#fff;background:rgba(224,123,79,0.15);}
+  .nav-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#e07b4f;border-radius:0 2px 2px 0;}
+  .nav-icon{font-size:20px;flex-shrink:0;}
+  .nav-label{opacity:0;transition:opacity 0.2s;overflow:hidden;}
+  .sidebar.expanded .nav-label{opacity:1;}
+  .sidebar-bottom{margin-top:auto;width:100%;padding:0 0 8px;}
 
-  /* ── Form elements ── */
-  .input-group { margin-bottom: 16px; }
-  .input-label {
-    font-size: 11px; font-weight:600; color:#94a3b8;
-    margin-bottom:6px; display:block;
-    letter-spacing:0.07em; text-transform:uppercase;
-  }
-  .input-field {
-    width:100%;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius:10px; padding:12px 16px;
-    color:#f1f5f9; font-size:14px;
-    font-family:'DM Sans',sans-serif;
-    outline:none; transition: border-color 0.2s, background 0.2s;
-  }
-  .input-field:focus { border-color:#38bdf8; background: rgba(56,189,248,0.05); }
-  .input-field::placeholder { color:#475569; }
-  .input-field.sm { padding:9px 12px; font-size:13px; }
+  /* MAIN */
+  .main{margin-left:72px;flex:1;min-height:100vh;transition:margin-left 0.3s;}
+  .main.sidebar-expanded{margin-left:240px;}
 
-  /* ── Buttons ── */
-  .btn-primary {
-    width:100%; background:#38bdf8; color:#080d1a;
-    border:none; border-radius:10px; padding:13px;
-    font-size:14px; font-weight:600;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s; margin-top:8px;
-  }
-  .btn-primary:hover { background:#7dd3fc; transform:translateY(-1px); }
-  .btn-primary:active { transform:translateY(0); }
-  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  /* TOP BAR */
+  .topbar{background:#fff;border-bottom:1px solid #ede9e3;padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;}
+  .topbar-left{display:flex;align-items:center;gap:16px;}
+  .topbar-title{font-size:16px;font-weight:700;color:#1a1a2e;letter-spacing:-0.2px;}
+  .topbar-sub{font-size:13px;color:#aaa;font-weight:400;}
+  .topbar-right{display:flex;align-items:center;gap:10px;}
+  .upload-btn{display:flex;align-items:center;gap:6px;background:#1a1a2e;color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .upload-btn:hover{background:#e07b4f;transform:translateY(-1px);}
+  .upload-btn svg{width:14px;height:14px;}
 
-  .btn-secondary {
-    width:100%; background:transparent; color:#94a3b8;
-    border:1px solid rgba(255,255,255,0.1);
-    border-radius:10px; padding:13px;
-    font-size:14px; font-weight:500;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s; margin-top:8px;
-  }
-  .btn-secondary:hover { border-color:#475569; color:#e2e8f0; }
+  /* PAGE CONTENT */
+  .page{padding:28px;}
 
-  .btn-ghost {
-    background:transparent; border:none; cursor:pointer;
-    font-family:'DM Sans',sans-serif; transition: all 0.2s;
-  }
+  /* PROFILE SELECTOR */
+  .profile-tabs{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
+  .profile-tab{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#fff;border:1.5px solid #e8e4dc;border-radius:40px;cursor:pointer;transition:all 0.2s;font-size:13px;font-weight:500;color:#555;}
+  .profile-tab:hover{border-color:#1a1a2e;color:#1a1a2e;}
+  .profile-tab.active{background:#1a1a2e;border-color:#1a1a2e;color:#fff;}
+  .profile-tab-avatar{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
+  .add-profile-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;background:transparent;border:1.5px dashed #ccc;border-radius:40px;cursor:pointer;font-size:13px;font-weight:500;color:#aaa;transition:all 0.2s;font-family:'Plus Jakarta Sans',sans-serif;}
+  .add-profile-btn:hover{border-color:#e07b4f;color:#e07b4f;}
 
-  .btn-danger {
-    background: rgba(248,113,113,0.1); color:#f87171;
-    border:1px solid rgba(248,113,113,0.25);
-    border-radius:8px; padding:7px 14px;
-    font-size:12px; font-weight:600;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s;
-  }
-  .btn-danger:hover { background: rgba(248,113,113,0.2); }
+  /* STATS */
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;}
+  .stat-card{background:#fff;border:1px solid #ede9e3;border-radius:16px;padding:16px 20px;}
+  .stat-val{font-size:28px;font-weight:700;color:#1a1a2e;letter-spacing:-1px;}
+  .stat-lbl{font-size:12px;color:#aaa;margin-top:2px;font-weight:500;}
+  .stat-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
 
-  .btn-edit {
-    background: rgba(56,189,248,0.1); color:#38bdf8;
-    border:1px solid rgba(56,189,248,0.25);
-    border-radius:8px; padding:7px 14px;
-    font-size:12px; font-weight:600;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s;
-  }
-  .btn-edit:hover { background: rgba(56,189,248,0.2); }
+  /* SEARCH */
+  .search-row{display:flex;gap:10px;margin-bottom:24px;}
+  .search-wrap{flex:1;position:relative;}
+  .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#bbb;font-size:16px;}
+  .search-input{width:100%;padding:11px 16px 11px 40px;background:#fff;border:1.5px solid #e8e4dc;border-radius:12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;color:#1a1a2e;outline:none;transition:all 0.2s;}
+  .search-input:focus{border-color:#1a1a2e;}
+  .search-input::placeholder{color:#bbb;}
+  .btn-search{padding:11px 20px;background:#fff;border:1.5px solid #e8e4dc;border-radius:12px;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;color:#1a1a2e;transition:all 0.2s;}
+  .btn-search:hover{background:#1a1a2e;color:#fff;border-color:#1a1a2e;}
+  .btn-clear{padding:11px 20px;background:#fdf0ee;border:1.5px solid #f5c6be;border-radius:12px;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;color:#c0392b;transition:all 0.2s;}
 
-  .error-msg {
-    color:#f87171; font-size:13px;
-    margin-top:8px; padding:10px 14px;
-    background: rgba(248,113,113,0.1);
-    border-radius:8px; border:1px solid rgba(248,113,113,0.2);
-  }
+  /* FILTER ROW */
+  .filter-row{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .filter-chip{padding:5px 12px;border-radius:20px;border:1.5px solid #e8e4dc;background:#fff;font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;color:#888;transition:all 0.2s;}
+  .filter-chip:hover{border-color:#1a1a2e;color:#1a1a2e;}
+  .filter-chip.active{background:#1a1a2e;border-color:#1a1a2e;color:#fff;}
 
-  /* ── Layout ── */
-  .app-layout { display:flex; min-height:100vh; }
+  /* RECORDS GRID */
+  .records-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
 
-  .sidebar {
-    width:260px;
-    background: #0b1120;
-    border-right:1px solid rgba(255,255,255,0.05);
-    display:flex; flex-direction:column;
-    padding:20px 14px;
-    position:fixed; height:100vh;
-    overflow-y:auto;
-  }
-  .sidebar-logo {
-    font-family:'DM Serif Display',serif; font-size:21px; color:#f8fafc;
-    padding:6px 10px 20px;
-    display:flex; align-items:center; gap:8px;
-    border-bottom:1px solid rgba(255,255,255,0.05);
-    margin-bottom:18px;
-  }
-  .sidebar-logo span { color:#38bdf8; }
-  .sidebar-section {
-    font-size:10px; font-weight:700; letter-spacing:0.1em;
-    text-transform:uppercase; color:#334155;
-    padding:0 10px; margin-bottom:8px;
-  }
+  /* RECORD CARD */
+  .record-card{background:#fff;border:1px solid #ede9e3;border-radius:20px;padding:20px;cursor:pointer;transition:all 0.25s;animation:fadeUp 0.35s ease forwards;position:relative;overflow:hidden;}
+  .record-card:hover{border-color:#1a1a2e;transform:translateY(-3px);box-shadow:0 12px 32px rgba(26,26,46,0.08);}
+  .card-type-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .card-type-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.04em;}
+  .type-prescription{background:#fef3e8;color:#b45309;}
+  .type-lab{background:#eef9f0;color:#166534;}
+  .type-certificate{background:#eff6ff;color:#1d4ed8;}
+  .type-discharge{background:#fdf2f8;color:#9d174d;}
+  .type-radiology{background:#f0f9ff;color:#0369a1;}
+  .type-other{background:#f5f3ef;color:#555;}
+  .type-unknown{background:#f5f3ef;color:#888;}
+  .card-delete-btn{width:28px;height:28px;border-radius:8px;border:none;background:#fdf0ee;color:#e07b4f;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all 0.2s;opacity:0;}
+  .record-card:hover .card-delete-btn{opacity:1;}
+  .card-delete-btn:hover{background:#fee2d5;color:#c0392b;}
+  .card-title{font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:4px;letter-spacing:-0.2px;}
+  .card-date{font-size:12px;color:#aaa;margin-bottom:14px;}
+  .card-field{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+  .card-field-icon{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px;}
+  .card-field-lbl{font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:0.05em;}
+  .card-field-val{font-size:13px;color:#444;line-height:1.4;}
+  .card-divider{height:1px;background:#f0ede8;margin:12px 0;}
+  .med-chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .med-chip{background:#f5f0ff;color:#6d28d9;border-radius:16px;padding:3px 9px;font-size:11px;font-weight:600;}
+  .card-ocr{font-size:11px;color:#bbb;margin-top:10px;line-height:1.5;font-family:monospace;background:#fafaf9;border-radius:8px;padding:8px 10px;border:1px solid #f0ede8;max-height:48px;overflow:hidden;}
+  .status-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:16px;font-size:10px;font-weight:700;letter-spacing:0.04em;}
+  .status-done{background:#eef9f0;color:#166534;}
+  .status-processing{background:#fef9e8;color:#b45309;animation:pulse 2s infinite;}
+  .status-extracting{background:#eff6ff;color:#1d4ed8;animation:pulse 1.5s infinite;}
+  .status-failed{background:#fef0ee;color:#c0392b;}
 
-  .profile-item {
-    display:flex; align-items:center; gap:10px;
-    padding:9px 10px; border-radius:10px;
-    cursor:pointer; transition: all 0.2s;
-    margin-bottom:3px; border:1px solid transparent;
-  }
-  .profile-item:hover { background: rgba(255,255,255,0.04); }
-  .profile-item.active { background: rgba(56,189,248,0.09); border-color: rgba(56,189,248,0.18); }
-  .profile-avatar {
-    width:34px; height:34px; border-radius:9px;
-    display:flex; align-items:center; justify-content:center;
-    font-size:15px; font-weight:600; flex-shrink:0;
-  }
-  .profile-info { flex:1; min-width:0; }
-  .profile-name { font-size:13px; font-weight:500; color:#e2e8f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .profile-rel { font-size:11px; color:#475569; }
+  /* EMPTY */
+  .empty{text-align:center;padding:80px 20px;animation:fadeIn 0.5s ease forwards;}
+  .empty-icon{width:64px;height:64px;background:#f0ede8;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px;}
+  .empty-title{font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:6px;}
+  .empty-sub{font-size:14px;color:#aaa;}
 
-  .add-profile-form {
-    margin-top:14px; padding:13px;
-    background: rgba(255,255,255,0.025);
-    border-radius:11px; border:1px solid rgba(255,255,255,0.05);
-  }
-  .add-profile-form .input-field { margin-bottom:7px; }
+  /* UPLOAD OVERLAY */
+  .overlay{position:fixed;inset:0;background:rgba(26,26,46,0.5);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
+  .overlay-box{background:#fff;border-radius:20px;padding:36px 48px;text-align:center;animation:fadeUp 0.25s ease forwards;}
+  .spinner{width:36px;height:36px;border:3px solid #f0ede8;border-top-color:#e07b4f;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+  .overlay-title{font-size:15px;font-weight:700;color:#1a1a2e;}
+  .overlay-sub{font-size:13px;color:#aaa;margin-top:4px;}
 
-  .btn-add {
-    width:100%;
-    background: rgba(56,189,248,0.12); color:#38bdf8;
-    border:1px solid rgba(56,189,248,0.25);
-    border-radius:8px; padding:8px;
-    font-size:13px; font-weight:500;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s;
-  }
-  .btn-add:hover { background: rgba(56,189,248,0.22); }
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(26,26,46,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:300;backdrop-filter:blur(4px);padding:0;}
+  @media(min-width:600px){.modal-overlay{align-items:center;padding:20px;}}
+  .modal{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;animation:modalIn 0.3s ease forwards;position:relative;}
+  @media(min-width:600px){.modal{border-radius:24px;}}
+  .modal-handle{width:36px;height:4px;background:#e8e4dc;border-radius:2px;margin:12px auto 0;}
+  .modal-header{padding:20px 24px 0;position:sticky;top:0;background:#fff;z-index:1;border-bottom:1px solid #f0ede8;padding-bottom:16px;}
+  .modal-title{font-family:'Instrument Serif',serif;font-size:22px;color:#1a1a2e;}
+  .modal-sub{font-size:12px;color:#aaa;margin-top:2px;}
+  .modal-close{position:absolute;right:20px;top:20px;width:32px;height:32px;border-radius:10px;background:#f5f3ef;border:none;cursor:pointer;font-size:16px;color:#555;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+  .modal-close:hover{background:#1a1a2e;color:#fff;}
+  .modal-body{padding:20px 24px;}
+  .modal-tabs{display:flex;gap:4px;margin-bottom:20px;background:#f5f3ef;border-radius:10px;padding:4px;}
+  .modal-tab{flex:1;padding:8px;border:none;background:transparent;border-radius:7px;font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;color:#888;transition:all 0.2s;}
+  .modal-tab.active{background:#fff;color:#1a1a2e;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+  .detail-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f5f3ef;}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+  .detail-key{font-size:11px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;}
+  .detail-val{font-size:14px;color:#1a1a2e;line-height:1.5;}
+  .med-card{background:#f8f5ff;border:1px solid #e9e0ff;border-radius:14px;padding:14px 16px;margin-bottom:8px;}
+  .med-name{font-size:14px;font-weight:700;color:#6d28d9;margin-bottom:6px;}
+  .med-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#9d80d8;}
+  .ocr-box{font-size:12px;font-family:monospace;color:#666;background:#fafaf9;border:1px solid #f0ede8;border-radius:12px;padding:14px;line-height:1.7;white-space:pre-wrap;max-height:220px;overflow-y:auto;}
+  .history-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f3ef;font-size:12px;}
+  .history-field{font-weight:700;color:#1a1a2e;min-width:110px;}
+  .history-old{color:#c0392b;text-decoration:line-through;}
+  .history-new{color:#166534;}
+  .history-time{margin-left:auto;color:#bbb;white-space:nowrap;font-size:11px;}
+  .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .edit-grid .full{grid-column:1/-1;}
+  .edit-input{width:100%;padding:10px 14px;border:1.5px solid #e8e4dc;border-radius:10px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;color:#1a1a2e;background:#fff;outline:none;transition:all 0.2s;}
+  .edit-input:focus{border-color:#1a1a2e;}
+  .edit-label{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:5px;}
+  .modal-footer{padding:16px 24px;border-top:1px solid #f0ede8;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
+  .btn-save{padding:10px 22px;background:#1a1a2e;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .btn-save:hover{background:#e07b4f;}
+  .btn-cancel{padding:10px 22px;background:#f5f3ef;color:#555;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .btn-cancel:hover{background:#e8e4dc;}
+  .btn-del{padding:10px 22px;background:#fdf0ee;color:#c0392b;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .btn-del:hover{background:#fee2d5;}
 
-  .sidebar-footer {
-    margin-top:auto; padding-top:14px;
-    border-top:1px solid rgba(255,255,255,0.05);
-  }
-  .btn-logout {
-    width:100%; background:transparent; color:#475569;
-    border:none; padding:9px 10px; border-radius:9px;
-    font-size:13px; font-family:'DM Sans',sans-serif;
-    cursor:pointer; text-align:left;
-    transition: all 0.2s; display:flex; align-items:center; gap:8px;
-  }
-  .btn-logout:hover { color:#f87171; background: rgba(248,113,113,0.07); }
+  /* CONFIRM */
+  .confirm-wrap{min-height:200px;background:rgba(26,26,46,0.5);display:flex;align-items:center;justify-content:center;border-radius:20px;}
+  .confirm-box{background:#fff;border-radius:20px;padding:28px;max-width:340px;text-align:center;width:100%;}
+  .confirm-icon{font-size:32px;margin-bottom:12px;}
+  .confirm-title{font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:6px;}
+  .confirm-text{font-size:13px;color:#888;margin-bottom:20px;line-height:1.5;}
+  .confirm-btns{display:flex;gap:8px;justify-content:center;}
 
-  /* ── Main content ── */
-  .main-content { margin-left:260px; flex:1; padding:28px 32px; min-height:100vh; }
+  /* ADD PROFILE MODAL */
+  .add-profile-modal{background:#fff;border-radius:24px;padding:28px;width:100%;max-width:400px;animation:modalIn 0.3s ease forwards;}
 
-  .topbar {
-    display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:24px;
-  }
-  .page-title { font-family:'DM Serif Display',serif; font-size:24px; color:#f8fafc; }
-  .page-subtitle { font-size:13px; color:#64748b; margin-top:2px; }
+  /* TOAST */
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:500;animation:toastIn 0.3s ease forwards;white-space:nowrap;}
+  .toast.success{background:#166534;}
+  .toast.error{background:#c0392b;}
 
-  .upload-btn {
-    background:#38bdf8; color:#080d1a;
-    border:none; border-radius:10px; padding:9px 18px;
-    font-size:13px; font-weight:600;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s; display:flex; align-items:center; gap:6px;
+  /* RESPONSIVE */
+  @media(max-width:768px){
+    .auth-right{display:none;}
+    .auth-left{padding:24px 20px;}
+    .sidebar{width:60px;}
+    .main{margin-left:60px;}
+    .page{padding:16px;}
+    .topbar{padding:0 16px;}
+    .records-grid{grid-template-columns:1fr;}
+    .stats-row{grid-template-columns:repeat(3,1fr);}
+    .profile-tabs{gap:6px;}
+    .profile-tab{padding:6px 12px;font-size:12px;}
+    .edit-grid{grid-template-columns:1fr;}
+    .edit-grid .full{grid-column:1;}
   }
-  .upload-btn:hover { background:#7dd3fc; transform:translateY(-1px); }
-
-  /* ── Stats ── */
-  .stats-bar { display:flex; gap:10px; margin-bottom:20px; }
-  .stat-card {
-    background: rgba(255,255,255,0.025);
-    border:1px solid rgba(255,255,255,0.06);
-    border-radius:12px; padding:13px 16px; flex:1;
+  @media(max-width:400px){
+    .stats-row{grid-template-columns:1fr 1fr;}
+    .topbar-title{font-size:14px;}
   }
-  .stat-number { font-size:22px; font-weight:600; color:#38bdf8; }
-  .stat-label { font-size:11px; color:#475569; margin-top:2px; }
-
-  /* ── Search ── */
-  .search-bar { display:flex; gap:10px; margin-bottom:20px; }
-  .search-input {
-    flex:1; background: rgba(255,255,255,0.04);
-    border:1px solid rgba(255,255,255,0.07);
-    border-radius:10px; padding:10px 14px;
-    color:#f1f5f9; font-size:14px;
-    font-family:'DM Sans',sans-serif; outline:none;
-    transition: border-color 0.2s;
-  }
-  .search-input:focus { border-color:#38bdf8; }
-  .search-input::placeholder { color:#475569; }
-  .btn-search {
-    background: rgba(56,189,248,0.12); color:#38bdf8;
-    border:1px solid rgba(56,189,248,0.25);
-    border-radius:10px; padding:10px 18px;
-    font-size:13px; font-weight:500;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s;
-  }
-  .btn-search:hover { background: rgba(56,189,248,0.22); }
-
-  /* ── Records grid ── */
-  .records-grid {
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap:14px;
-  }
-  .record-card {
-    background: rgba(255,255,255,0.025);
-    border:1px solid rgba(255,255,255,0.06);
-    border-radius:14px; padding:18px;
-    transition: all 0.2s; animation: fadeIn 0.35s ease forwards;
-    cursor:pointer;
-  }
-  .record-card:hover {
-    border-color: rgba(56,189,248,0.2);
-    background: rgba(255,255,255,0.04);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  }
-  .record-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
-  .record-type { font-size:14px; font-weight:600; color:#f1f5f9; }
-  .record-date { font-size:11px; color:#475569; margin-top:2px; }
-
-  .status-badge {
-    padding:3px 9px; border-radius:20px;
-    font-size:10px; font-weight:700;
-    letter-spacing:0.06em; text-transform:uppercase;
-    flex-shrink:0;
-  }
-  .status-done { background: rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
-  .status-processing { background: rgba(251,191,36,0.12); color:#fbbf24; border:1px solid rgba(251,191,36,0.2); animation: pulse 2s infinite; }
-  .status-extracting { background: rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.2); animation: pulse 1.5s infinite; }
-  .status-failed { background: rgba(248,113,113,0.12); color:#f87171; border:1px solid rgba(248,113,113,0.2); }
-
-  .record-field { display:flex; align-items:flex-start; gap:8px; margin-bottom:7px; font-size:13px; }
-  .field-icon { font-size:13px; flex-shrink:0; margin-top:1px; }
-  .field-label { color:#64748b; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; }
-  .field-value { color:#cbd5e1; line-height:1.4; }
-
-  .record-divider { height:1px; background: rgba(255,255,255,0.05); margin:12px 0; }
-
-  .medicines-pills { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-  .med-pill {
-    background: rgba(168,85,247,0.1); color:#c084fc;
-    border:1px solid rgba(168,85,247,0.2);
-    border-radius:20px; padding:3px 10px;
-    font-size:11px; font-weight:500;
-  }
-
-  .ocr-preview {
-    font-size:11px; color:#475569;
-    background: rgba(0,0,0,0.2);
-    border-radius:8px; padding:8px 10px; margin-top:10px;
-    line-height:1.5; font-family:monospace;
-    border:1px solid rgba(255,255,255,0.04);
-    max-height:56px; overflow:hidden;
-    position:relative;
-  }
-
-  /* ── Empty ── */
-  .empty-state { text-align:center; padding:70px 40px; color:#475569; animation: fadeIn 0.5s ease forwards; }
-  .empty-icon { font-size:44px; margin-bottom:14px; opacity:0.4; }
-  .empty-title { font-size:17px; color:#64748b; margin-bottom:6px; font-weight:500; }
-  .empty-sub { font-size:13px; color:#334155; }
-
-  /* ── Upload overlay ── */
-  .uploading-overlay {
-    position:fixed; inset:0;
-    background: rgba(0,0,0,0.65);
-    display:flex; align-items:center; justify-content:center;
-    z-index:200; backdrop-filter:blur(4px);
-  }
-  .uploading-box {
-    background:#0b1120; border:1px solid rgba(56,189,248,0.25);
-    border-radius:16px; padding:32px 48px; text-align:center;
-    animation: fadeIn 0.25s ease forwards;
-  }
-  .spinner {
-    width:36px; height:36px;
-    border:3px solid rgba(56,189,248,0.15);
-    border-top-color:#38bdf8;
-    border-radius:50%; animation: spin 0.8s linear infinite;
-    margin: 0 auto 14px;
-  }
-
-  /* ── Modal ── */
-  .modal-overlay {
-    position:fixed; inset:0;
-    background: rgba(0,0,0,0.75);
-    display:flex; align-items:center; justify-content:center;
-    z-index:300; backdrop-filter:blur(6px);
-    padding:20px;
-  }
-  .modal {
-    background:#0f1829; border:1px solid rgba(255,255,255,0.08);
-    border-radius:18px; padding:28px;
-    width:100%; max-width:600px; max-height:85vh;
-    overflow-y:auto; position:relative;
-    animation: modalIn 0.3s ease forwards;
-  }
-  .modal-close {
-    position:absolute; top:16px; right:18px;
-    background:transparent; border:none; color:#64748b;
-    font-size:20px; cursor:pointer; line-height:1;
-    transition: color 0.2s;
-  }
-  .modal-close:hover { color:#f1f5f9; }
-  .modal-title {
-    font-family:'DM Serif Display',serif;
-    font-size:20px; color:#f8fafc; margin-bottom:6px;
-  }
-  .modal-subtitle { font-size:12px; color:#64748b; margin-bottom:20px; }
-
-  .modal-section { margin-bottom:18px; }
-  .modal-section-title {
-    font-size:10px; font-weight:700; letter-spacing:0.1em;
-    text-transform:uppercase; color:#334155;
-    margin-bottom:10px; padding-bottom:6px;
-    border-bottom:1px solid rgba(255,255,255,0.04);
-  }
-
-  .detail-row { display:flex; gap:12px; margin-bottom:10px; align-items:flex-start; }
-  .detail-icon { font-size:14px; flex-shrink:0; margin-top:2px; }
-  .detail-key { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px; }
-  .detail-val { font-size:14px; color:#e2e8f0; line-height:1.5; }
-
-  .med-card {
-    background: rgba(168,85,247,0.07); border:1px solid rgba(168,85,247,0.15);
-    border-radius:10px; padding:12px 14px; margin-bottom:8px;
-  }
-  .med-name { font-size:14px; font-weight:600; color:#c084fc; margin-bottom:4px; }
-  .med-meta { font-size:12px; color:#7c6fa0; display:flex; gap:16px; flex-wrap:wrap; }
-
-  .ocr-full {
-    font-size:11px; color:#475569; font-family:monospace;
-    background: rgba(0,0,0,0.3); border-radius:10px;
-    padding:12px; line-height:1.6; white-space:pre-wrap;
-    border:1px solid rgba(255,255,255,0.04);
-    max-height:180px; overflow-y:auto;
-  }
-
-  .history-item {
-    display:flex; align-items:flex-start; gap:10px;
-    padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04);
-    font-size:12px;
-  }
-  .history-field { color:#38bdf8; font-weight:600; min-width:120px; }
-  .history-old { color:#f87171; text-decoration:line-through; }
-  .history-new { color:#4ade80; }
-  .history-time { color:#475569; font-size:11px; margin-left:auto; white-space:nowrap; }
-
-  /* ── Edit form ── */
-  .edit-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .edit-grid .full { grid-column:1/-1; }
-
-  .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
-  .btn-save {
-    background:#38bdf8; color:#080d1a;
-    border:none; border-radius:8px; padding:9px 20px;
-    font-size:13px; font-weight:600;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s;
-  }
-  .btn-save:hover { background:#7dd3fc; }
-  .btn-cancel {
-    background:transparent; color:#64748b;
-    border:1px solid rgba(255,255,255,0.08);
-    border-radius:8px; padding:9px 20px;
-    font-size:13px; font-weight:500;
-    font-family:'DM Sans',sans-serif; cursor:pointer;
-    transition: all 0.2s;
-  }
-  .btn-cancel:hover { border-color:#475569; color:#e2e8f0; }
-
-  .tab-bar { display:flex; gap:4px; margin-bottom:16px; }
-  .tab {
-    padding:7px 14px; border-radius:8px;
-    font-size:12px; font-weight:600; cursor:pointer;
-    transition: all 0.2s; border:none;
-    font-family:'DM Sans',sans-serif;
-    background:transparent; color:#64748b;
-  }
-  .tab.active { background: rgba(56,189,248,0.12); color:#38bdf8; }
-  .tab:hover:not(.active) { background: rgba(255,255,255,0.04); color:#94a3b8; }
-
-  .confirm-dialog {
-    background:#0f1829; border:1px solid rgba(248,113,113,0.2);
-    border-radius:14px; padding:24px; text-align:center;
-    max-width:360px; animation: modalIn 0.25s ease forwards;
-  }
-  .confirm-title { font-size:16px; font-weight:600; color:#f1f5f9; margin-bottom:8px; }
-  .confirm-text { font-size:13px; color:#64748b; margin-bottom:20px; }
-  .confirm-actions { display:flex; gap:8px; justify-content:center; }
 `;
 
-/* ─────────────────────────────────────────────
-   CONSTANTS
-───────────────────────────────────────────── */
-const AVATAR_COLORS = ['#38bdf8','#a78bfa','#34d399','#fb923c','#f472b6','#facc15'];
-const getAvatarColor = (name) => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+const AVATAR_COLORS = ['#e07b4f','#6d28d9','#0369a1','#166534','#9d174d','#b45309'];
+const getColor = n => AVATAR_COLORS[(n || 'A').charCodeAt(0) % AVATAR_COLORS.length];
 
-const REL_EMOJI = {
-  Self:'👤', Father:'👨', Mother:'👩', Son:'👦',
-  Daughter:'👧', Brother:'👱', Sister:'👱‍♀️', Spouse:'💑',
+const REL_EMOJI = {Self:'👤',Father:'👨',Mother:'👩',Son:'👦',Daughter:'👧',Brother:'👱',Sister:'👱‍♀️',Spouse:'💑',Husband:'💑',Wife:'💑',Grandfather:'👴',Grandmother:'👵'};
+
+const TYPE_CONFIG = {
+  'Prescription':{cls:'type-prescription',icon:'💊'},
+  'Lab Report':{cls:'type-lab',icon:'🧪'},
+  'Medical Certificate':{cls:'type-certificate',icon:'📋'},
+  'Discharge Summary':{cls:'type-discharge',icon:'🏥'},
+  'Radiology Report':{cls:'type-radiology',icon:'🩻'},
+  'Other':{cls:'type-other',icon:'📄'},
+  'Unknown':{cls:'type-unknown',icon:'📄'},
 };
+const getTypeConfig = t => TYPE_CONFIG[t] || {cls:'type-unknown',icon:'📄'};
 
 const DOC_TYPES = ['Prescription','Lab Report','Medical Certificate','Discharge Summary','Radiology Report','Other'];
+const POLL = 4000;
 
-const POLL_INTERVAL = 4000; // ms
-
-/* ─────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────── */
-const formatDate = (d) => {
-  if (!d) return null;
-  try { return new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }); }
-  catch { return d; }
+const fmt = d => {if(!d)return null;try{return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});}catch{return d;}};
+const fmtDt = d => {if(!d)return '';try{return new Date(d).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}catch{return d;}};
+const fmtRelTime = d => {
+  if(!d)return '';
+  const diff = Date.now()-new Date(d).getTime();
+  const m=Math.floor(diff/60000),h=Math.floor(diff/3600000),dy=Math.floor(diff/86400000);
+  if(m<1)return 'just now';if(m<60)return `${m}m ago`;if(h<24)return `${h}h ago`;if(dy<7)return `${dy}d ago`;
+  return fmt(d);
 };
 
-const formatDateTime = (d) => {
-  if (!d) return '';
-  try { return new Date(d).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); }
-  catch { return d; }
-};
+function Logo({size=22,dark=false}){
+  return(
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6L12 2z" fill={dark?"#fff":"#e07b4f"} opacity="0.9"/>
+      <path d="M9 12l2 2 4-4" stroke={dark?"#1a1a2e":"#fff"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
 
-/* ─────────────────────────────────────────────
-   CONFIRM DIALOG
-───────────────────────────────────────────── */
-function ConfirmDialog({ message, onConfirm, onCancel }) {
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-        <div className="confirm-title">Are you sure?</div>
-        <div className="confirm-text">{message}</div>
-        <div className="confirm-actions">
+function Toast({msg,type,onDone}){
+  useEffect(()=>{const t=setTimeout(onDone,2800);return()=>clearTimeout(t);},[onDone]);
+  return <div className={`toast ${type}`}>{msg}</div>;
+}
+
+/* ── CONFIRM ── */
+function Confirm({msg,onConfirm,onCancel}){
+  return(
+    <div className="overlay" onClick={onCancel}>
+      <div className="confirm-box" onClick={e=>e.stopPropagation()}>
+        <div className="confirm-icon">🗑️</div>
+        <div className="confirm-title">Delete record?</div>
+        <div className="confirm-text">{msg}</div>
+        <div className="confirm-btns">
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-          <button className="btn-danger" onClick={onConfirm}>Delete</button>
+          <button className="btn-del" onClick={onConfirm}>Delete</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   RECORD DETAIL MODAL
-───────────────────────────────────────────── */
-function RecordModal({ record, profileId, onClose, onDeleted, onUpdated }) {
-  const [tab, setTab] = useState('details');
-  const [editing, setEditing] = useState(false);
-  const [history, setHistory] = useState([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [form, setForm] = useState({
-    document_type: record.document_type || '',
-    doctor_name: record.doctor_name || '',
-    hospital_name: record.hospital_name || '',
-    document_date: record.document_date || '',
-    specialty: record.specialty || '',
-    diagnosis: record.diagnosis || '',
-    recommendations: record.recommendations || '',
+/* ── RECORD MODAL ── */
+function RecordModal({record,profileId,onClose,onDeleted,onUpdated}){
+  const [tab,setTab]=useState('details');
+  const [editing,setEditing]=useState(false);
+  const [history,setHistory]=useState([]);
+  const [histLoaded,setHistLoaded]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [confirmDel,setConfirmDel]=useState(false);
+  const [form,setForm]=useState({
+    document_type:record.document_type||'',
+    doctor_name:record.doctor_name||'',
+    hospital_name:record.hospital_name||'',
+    document_date:record.document_date||'',
+    specialty:record.specialty||'',
+    diagnosis:record.diagnosis||'',
+    recommendations:record.recommendations||'',
   });
 
-  useEffect(() => {
-    if (tab === 'history' && !historyLoaded) {
+  useEffect(()=>{
+    if(tab==='history'&&!histLoaded){
       API.get(`/profiles/${profileId}/records/${record.id}/history`)
-        .then(r => { setHistory(r.data); setHistoryLoaded(true); })
-        .catch(() => setHistoryLoaded(true));
+        .then(r=>{setHistory(r.data);setHistLoaded(true);})
+        .catch(()=>setHistLoaded(true));
     }
-  }, [tab, historyLoaded, profileId, record.id]);
+  },[tab,histLoaded,profileId,record.id]);
 
-  const saveEdit = async () => {
+  const save=async()=>{
     setSaving(true);
-    try {
-      const payload = {};
-      Object.entries(form).forEach(([k, v]) => { if (v !== '') payload[k] = v; });
-      const res = await API.put(`/profiles/${profileId}/records/${record.id}`, payload);
-      onUpdated(res.data);
-      setEditing(false);
-      setHistoryLoaded(false); // refresh history on next open
-    } catch (e) {
-      alert('Save failed: ' + (e?.response?.data?.detail || e.message));
-    } finally {
-      setSaving(false);
-    }
+    try{
+      const p={};Object.entries(form).forEach(([k,v])=>{if(v!=='')p[k]=v;});
+      const r=await API.put(`/profiles/${profileId}/records/${record.id}`,p);
+      onUpdated(r.data);setEditing(false);setHistLoaded(false);
+    }catch(e){alert('Save failed: '+(e?.response?.data?.detail||e.message));}
+    finally{setSaving(false);}
   };
 
-  const handleDelete = async () => {
-    try {
-      await API.delete(`/profiles/${profileId}/records/${record.id}`);
-      onDeleted(record.id);
-      onClose();
-    } catch (e) {
-      alert('Delete failed: ' + (e?.response?.data?.detail || e.message));
-    }
+  const del=async()=>{
+    try{await API.delete(`/profiles/${profileId}/records/${record.id}`);onDeleted(record.id);onClose();}
+    catch(e){alert('Delete failed: '+(e?.response?.data?.detail||e.message));}
   };
 
-  const statusClass = `status-${record.status}`;
+  const tc=getTypeConfig(record.document_type);
 
-  return (
+  return(
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
-
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', paddingRight:32 }}>
-          <div>
-            <div className="modal-title">{record.document_type || 'Document'}</div>
-            <div className="modal-subtitle">
-              {formatDate(record.created_at) || 'Unknown date'}
-              {record.document_date && ` · Doc date: ${formatDate(record.document_date)}`}
-            </div>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-handle"/>
+        <div className="modal-header">
+          <button className="modal-close" onClick={onClose}>✕</button>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+            <span className={`card-type-pill ${tc.cls}`}>{tc.icon} {record.document_type}</span>
+            <span className={`status-badge status-${record.status}`}>{record.status}</span>
           </div>
-          <span className={`status-badge ${statusClass}`}>{record.status}</span>
+          <div className="modal-title">{record.doctor_name?`Dr. ${record.doctor_name}`:record.hospital_name||'Medical Record'}</div>
+          <div className="modal-sub">{fmtRelTime(record.created_at)}{record.document_date&&` · Doc date: ${fmt(record.document_date)}`}</div>
         </div>
-
-        <div className="tab-bar">
-          {['details','medicines','ocr','history'].map(t => (
-            <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-              {t === 'medicines' && record.medicines?.length > 0 && ` (${record.medicines.length})`}
-            </button>
-          ))}
-        </div>
-
-        {/* ─ DETAILS TAB ─ */}
-        {tab === 'details' && !editing && (
-          <div>
-            {[
-              { icon:'👨‍⚕️', key:'doctor_name', label:'Doctor', val:record.doctor_name },
-              { icon:'🏥', key:'hospital_name', label:'Hospital', val:record.hospital_name },
-              { icon:'🔬', key:'specialty', label:'Specialty', val:record.specialty },
-              { icon:'🩺', key:'diagnosis', label:'Diagnosis', val:record.diagnosis },
-              { icon:'📋', key:'recommendations', label:'Recommendations', val:record.recommendations },
-            ].filter(f => f.val).map(f => (
-              <div key={f.key} className="detail-row">
-                <span className="detail-icon">{f.icon}</span>
-                <div>
-                  <div className="detail-key">{f.label}</div>
-                  <div className="detail-val">{f.val}</div>
-                </div>
-              </div>
+        <div className="modal-body">
+          <div className="modal-tabs">
+            {['details','medicines','ocr','history'].map(t=>(
+              <button key={t} className={`modal-tab${tab===t?' active':''}`} onClick={()=>setTab(t)}>
+                {t.charAt(0).toUpperCase()+t.slice(1)}{t==='medicines'&&record.medicines?.length>0?` (${record.medicines.length})`:''}
+              </button>
             ))}
-            {!record.doctor_name && !record.diagnosis && (
-              <div style={{ color:'#475569', fontSize:13, padding:'10px 0' }}>
-                No structured data extracted yet.
-              </div>
-            )}
           </div>
-        )}
 
-        {/* ─ EDIT FORM ─ */}
-        {tab === 'details' && editing && (
-          <div>
+          {tab==='details'&&!editing&&(
+            <div>
+              {[
+                {icon:'👨‍⚕️',bg:'#fef3e8',key:'doctor_name',lbl:'Doctor',val:record.doctor_name},
+                {icon:'🏥',bg:'#eff6ff',key:'hospital_name',lbl:'Hospital',val:record.hospital_name},
+                {icon:'🔬',bg:'#f0fdf4',key:'specialty',lbl:'Specialty',val:record.specialty},
+                {icon:'🩺',bg:'#fdf2f8',key:'diagnosis',lbl:'Diagnosis',val:record.diagnosis},
+                {icon:'📋',bg:'#f0f9ff',key:'recommendations',lbl:'Recommendations',val:record.recommendations},
+              ].filter(f=>f.val).map(f=>(
+                <div key={f.key} className="detail-row">
+                  <div className="detail-icon" style={{background:f.bg}}>{f.icon}</div>
+                  <div><div className="detail-key">{f.lbl}</div><div className="detail-val">{f.val}</div></div>
+                </div>
+              ))}
+              {!record.doctor_name&&!record.diagnosis&&<div style={{color:'#bbb',fontSize:13,padding:'10px 0'}}>No structured data extracted yet.</div>}
+            </div>
+          )}
+
+          {tab==='details'&&editing&&(
             <div className="edit-grid">
               <div>
-                <label className="input-label">Document Type</label>
-                <select className="input-field sm" value={form.document_type}
-                  onChange={e => setForm({...form, document_type: e.target.value})}
-                  style={{ background:'rgba(255,255,255,0.04)', color:'#f1f5f9' }}>
-                  {DOC_TYPES.map(t => <option key={t} value={t} style={{background:'#0f1829'}}>{t}</option>)}
+                <label className="edit-label">Document Type</label>
+                <select className="edit-input" value={form.document_type} onChange={e=>setForm({...form,document_type:e.target.value})}>
+                  {DOC_TYPES.map(t=><option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="input-label">Document Date</label>
-                <input className="input-field sm" type="date" value={form.document_date}
-                  onChange={e => setForm({...form, document_date: e.target.value})} />
+                <label className="edit-label">Document Date</label>
+                <input className="edit-input" type="date" value={form.document_date} onChange={e=>setForm({...form,document_date:e.target.value})}/>
               </div>
               <div>
-                <label className="input-label">Doctor</label>
-                <input className="input-field sm" value={form.doctor_name}
-                  onChange={e => setForm({...form, doctor_name: e.target.value})} placeholder="Dr. Name" />
+                <label className="edit-label">Doctor</label>
+                <input className="edit-input" value={form.doctor_name} onChange={e=>setForm({...form,doctor_name:e.target.value})} placeholder="Dr. Name"/>
               </div>
               <div>
-                <label className="input-label">Hospital / Clinic</label>
-                <input className="input-field sm" value={form.hospital_name}
-                  onChange={e => setForm({...form, hospital_name: e.target.value})} placeholder="Hospital name" />
+                <label className="edit-label">Hospital</label>
+                <input className="edit-input" value={form.hospital_name} onChange={e=>setForm({...form,hospital_name:e.target.value})} placeholder="Hospital name"/>
               </div>
               <div>
-                <label className="input-label">Specialty</label>
-                <input className="input-field sm" value={form.specialty}
-                  onChange={e => setForm({...form, specialty: e.target.value})} placeholder="e.g. Cardiology" />
+                <label className="edit-label">Specialty</label>
+                <input className="edit-input" value={form.specialty} onChange={e=>setForm({...form,specialty:e.target.value})} placeholder="e.g. Cardiology"/>
               </div>
               <div className="full">
-                <label className="input-label">Diagnosis</label>
-                <input className="input-field sm" value={form.diagnosis}
-                  onChange={e => setForm({...form, diagnosis: e.target.value})} placeholder="Diagnosis or condition" />
+                <label className="edit-label">Diagnosis</label>
+                <input className="edit-input" value={form.diagnosis} onChange={e=>setForm({...form,diagnosis:e.target.value})} placeholder="Diagnosis or condition"/>
               </div>
               <div className="full">
-                <label className="input-label">Recommendations</label>
-                <textarea className="input-field sm" rows={3} value={form.recommendations}
-                  onChange={e => setForm({...form, recommendations: e.target.value})}
-                  placeholder="Doctor instructions..."
-                  style={{ resize:'vertical', lineHeight:1.5 }} />
+                <label className="edit-label">Recommendations</label>
+                <textarea className="edit-input" rows={3} value={form.recommendations} onChange={e=>setForm({...form,recommendations:e.target.value})} placeholder="Doctor instructions..." style={{resize:'vertical',lineHeight:1.5}}/>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ─ MEDICINES TAB ─ */}
-        {tab === 'medicines' && (
-          <div>
-            {(!record.medicines || record.medicines.length === 0) ? (
-              <div style={{ color:'#475569', fontSize:13 }}>No medicines extracted.</div>
-            ) : record.medicines.map(m => (
-              <div key={m.id} className="med-card">
-                <div className="med-name">{m.name}</div>
-                <div className="med-meta">
-                  {m.dosage && <span>💊 {m.dosage}</span>}
-                  {m.frequency && <span>🔁 {m.frequency}</span>}
-                  {m.duration && <span>📅 {m.duration}</span>}
+          {tab==='medicines'&&(
+            !record.medicines?.length
+              ?<div style={{color:'#bbb',fontSize:13}}>No medicines extracted.</div>
+              :record.medicines.map(m=>(
+                <div key={m.id} className="med-card">
+                  <div className="med-name">💊 {m.name}</div>
+                  <div className="med-meta">
+                    {m.dosage&&<span>Dose: {m.dosage}</span>}
+                    {m.frequency&&<span>Freq: {m.frequency}</span>}
+                    {m.duration&&<span>Duration: {m.duration}</span>}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))
+          )}
 
-        {/* ─ OCR TAB ─ */}
-        {tab === 'ocr' && (
-          <div>
-            {record.file_url && (
-              <div style={{ marginBottom:14 }}>
-                <img src={record.file_url} alt="document"
-                  style={{ width:'100%', borderRadius:10, border:'1px solid rgba(255,255,255,0.07)' }}
-                  onError={e => { e.target.style.display='none'; }} />
-              </div>
-            )}
-            <div className="modal-section-title">Raw OCR Text</div>
-            <div className="ocr-full">{record.raw_ocr_text || 'No OCR text available.'}</div>
-          </div>
-        )}
+          {tab==='ocr'&&(
+            <div>
+              {record.file_url&&<img src={record.file_url} alt="doc" style={{width:'100%',borderRadius:12,border:'1px solid #f0ede8',marginBottom:14}} onError={e=>e.target.style.display='none'}/>}
+              <div className="detail-key" style={{marginBottom:8}}>Raw OCR Text</div>
+              <div className="ocr-box">{record.raw_ocr_text||'No OCR text available.'}</div>
+            </div>
+          )}
 
-        {/* ─ HISTORY TAB ─ */}
-        {tab === 'history' && (
-          <div>
-            {!historyLoaded ? (
-              <div style={{ color:'#475569', fontSize:13 }}>Loading...</div>
-            ) : history.length === 0 ? (
-              <div style={{ color:'#475569', fontSize:13 }}>No edits recorded.</div>
-            ) : history.map(h => (
-              <div key={h.id} className="history-item">
+          {tab==='history'&&(
+            !histLoaded?<div style={{color:'#bbb',fontSize:13}}>Loading...</div>
+            :!history.length?<div style={{color:'#bbb',fontSize:13}}>No edits recorded.</div>
+            :history.map(h=>(
+              <div key={h.id} className="history-row">
                 <span className="history-field">{h.field_name}</span>
-                <span className="history-old">{h.old_value || 'empty'}</span>
-                <span style={{ color:'#475569', margin:'0 4px' }}>→</span>
+                <span className="history-old">{h.old_value||'—'}</span>
+                <span style={{color:'#bbb',margin:'0 4px'}}>→</span>
                 <span className="history-new">{h.new_value}</span>
-                <span className="history-time">{formatDateTime(h.edited_at)}</span>
+                <span className="history-time">{fmtDt(h.edited_at)}</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* ─ ACTIONS ─ */}
-        <div className="modal-actions">
-          {record.status === 'done' && tab === 'details' && (
-            editing ? (
-              <>
-                <button className="btn-cancel" onClick={() => setEditing(false)}>Cancel</button>
-                <button className="btn-save" onClick={saveEdit} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </>
-            ) : (
-              <>
-                <button className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete</button>
-                <button className="btn-edit" onClick={() => setEditing(true)}>Edit</button>
-              </>
-            )
+            ))
           )}
-          {tab !== 'details' && (
-            <button className="btn-danger" onClick={() => setConfirmDelete(true)}>Delete Record</button>
+        </div>
+
+        <div className="modal-footer">
+          {tab==='details'&&editing?(
+            <><button className="btn-cancel" onClick={()=>setEditing(false)}>Cancel</button>
+            <button className="btn-save" onClick={save} disabled={saving}>{saving?'Saving…':'Save'}</button></>
+          ):(
+            <><button className="btn-del" onClick={()=>setConfirmDel(true)}>Delete</button>
+            {record.status==='done'&&<button className="btn-save" onClick={()=>{setTab('details');setEditing(true);}}>Edit</button>}</>
           )}
         </div>
       </div>
-
-      {confirmDelete && (
-        <ConfirmDialog
-          message="This will permanently delete the record and its file. This cannot be undone."
-          onConfirm={handleDelete}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
+      {confirmDel&&<Confirm msg="This will permanently delete the record and its file." onConfirm={del} onCancel={()=>setConfirmDel(false)}/>}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   RECORD CARD
-───────────────────────────────────────────── */
-function RecordCard({ record, onClick }) {
-  const statusClass = `status-${record.status}`;
-  return (
+/* ── RECORD CARD ── */
+function RecordCard({record,onClick,onDelete}){
+  const tc=getTypeConfig(record.document_type);
+  return(
     <div className="record-card" onClick={onClick}>
-      <div className="record-header">
-        <div>
-          <div className="record-type">{record.document_type}</div>
-          {record.document_date && <div className="record-date">📅 {formatDate(record.document_date)}</div>}
-          {record.profiles && (
-            <div className="record-date">👤 {record.profiles.name} · {record.profiles.relationship}</div>
-          )}
+      <div className="card-type-bar">
+        <span className={`card-type-pill ${tc.cls}`}>{tc.icon} {record.document_type}</span>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span className={`status-badge status-${record.status}`}>{record.status}</span>
+          <button className="card-delete-btn" onClick={e=>{e.stopPropagation();onDelete();}}>🗑️</button>
         </div>
-        <span className={`status-badge ${statusClass}`}>{record.status}</span>
       </div>
-
-      {record.doctor_name && (
-        <div className="record-field">
-          <span className="field-icon">👨‍⚕️</span>
-          <div>
-            <div className="field-label">Doctor</div>
-            <div className="field-value">{record.doctor_name}</div>
-          </div>
+      <div className="card-title">{record.doctor_name?`Dr. ${record.doctor_name}`:record.hospital_name||'Medical Record'}</div>
+      <div className="card-date">
+        {record.document_date?fmt(record.document_date):fmtRelTime(record.created_at)}
+        {record.profiles&&` · ${record.profiles.name}`}
+      </div>
+      {record.hospital_name&&record.doctor_name&&(
+        <div className="card-field">
+          <div className="card-field-icon" style={{background:'#eff6ff'}}>🏥</div>
+          <div><div className="card-field-lbl">Hospital</div><div className="card-field-val">{record.hospital_name}</div></div>
         </div>
       )}
-      {record.hospital_name && (
-        <div className="record-field">
-          <span className="field-icon">🏥</span>
-          <div>
-            <div className="field-label">Hospital</div>
-            <div className="field-value">{record.hospital_name}</div>
-          </div>
+      {record.specialty&&(
+        <div className="card-field">
+          <div className="card-field-icon" style={{background:'#f0fdf4'}}>🔬</div>
+          <div><div className="card-field-lbl">Specialty</div><div className="card-field-val">{record.specialty}</div></div>
         </div>
       )}
-      {record.diagnosis && (
-        <div className="record-field">
-          <span className="field-icon">🩺</span>
-          <div>
-            <div className="field-label">Diagnosis</div>
-            <div className="field-value">{record.diagnosis}</div>
-          </div>
+      {record.diagnosis&&(
+        <div className="card-field">
+          <div className="card-field-icon" style={{background:'#fdf2f8'}}>🩺</div>
+          <div><div className="card-field-lbl">Diagnosis</div><div className="card-field-val">{record.diagnosis}</div></div>
         </div>
       )}
-
-      {record.medicines?.length > 0 && (
-        <>
-          <div className="record-divider" />
-          <div className="medicines-pills">
-            {record.medicines.slice(0, 3).map(m => (
-              <span key={m.id} className="med-pill">💊 {m.name}</span>
-            ))}
-            {record.medicines.length > 3 && (
-              <span className="med-pill">+{record.medicines.length - 3} more</span>
-            )}
-          </div>
-        </>
+      {record.medicines?.length>0&&(
+        <><div className="card-divider"/>
+        <div className="med-chips">
+          {record.medicines.slice(0,3).map(m=><span key={m.id} className="med-chip">💊 {m.name}</span>)}
+          {record.medicines.length>3&&<span className="med-chip">+{record.medicines.length-3}</span>}
+        </div></>
       )}
-
-      {record.raw_ocr_text && record.status !== 'processing' && (
-        <div className="ocr-preview">{record.raw_ocr_text.slice(0, 100)}…</div>
+      {record.raw_ocr_text&&record.status!=='processing'&&(
+        <div className="card-ocr">{record.raw_ocr_text.slice(0,90)}…</div>
       )}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   LOGIN
-───────────────────────────────────────────── */
-function Login({ onLogin }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+/* ── ADD PROFILE MODAL ── */
+function AddProfileModal({onClose,onAdded}){
+  const [form,setForm]=useState({name:'',relationship:''});
+  const [loading,setLoading]=useState(false);
+  const save=async()=>{
+    if(!form.name||!form.relationship)return;
+    setLoading(true);
+    try{const r=await API.post('/profiles',form);onAdded(r.data);onClose();}
+    catch(e){alert('Failed: '+(e?.response?.data?.detail||e.message));}
+    finally{setLoading(false);}
+  };
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="add-profile-modal" onClick={e=>e.stopPropagation()}>
+        <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:'#1a1a2e',marginBottom:20}}>Add Family Member</div>
+        <div className="form-group">
+          <label className="form-label">Name</label>
+          <input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full name"/>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Relationship</label>
+          <select className="form-input" value={form.relationship} onChange={e=>setForm({...form,relationship:e.target.value})}>
+            <option value="">Select…</option>
+            {['Self','Father','Mother','Spouse','Son','Daughter','Brother','Sister','Grandfather','Grandmother','Other'].map(r=><option key={r}>{r}</option>)}
+          </select>
+        </div>
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <button className="btn-cancel" style={{flex:1}} onClick={onClose}>Cancel</button>
+          <button className="btn-save" style={{flex:1}} onClick={save} disabled={loading}>{loading?'Adding…':'Add Profile'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const handle = async (type) => {
-    if (!email || !password) { setError('Email and password required.'); return; }
-    setLoading(true); setError('');
-    try {
-      const res = await API.post(`/auth/${type}`, { email, password });
-      localStorage.setItem('token', res.data.access_token);
+/* ── AUTH ── */
+function Auth({onLogin}){
+  const [mode,setMode]=useState('login');
+  const [forgot,setForgot]=useState(false);
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+  const [name,setName]=useState('');
+  const [err,setErr]=useState('');
+  const [info,setInfo]=useState('');
+  const [loading,setLoading]=useState(false);
+
+  const handle=async()=>{
+    if(!email){setErr('Email is required.');return;}
+    if(!forgot&&!password){setErr('Password is required.');return;}
+    if(mode==='register'&&!name){setErr('Please enter your name.');return;}
+    setLoading(true);setErr('');setInfo('');
+    try{
+      if(forgot){
+        setInfo('If an account exists, a reset link has been sent. (Feature coming soon — contact support.)');
+        setForgot(false);setLoading(false);return;
+      }
+      if(mode==='register'){
+        const check=await API.post('/auth/check-email',{email}).catch(()=>null);
+        if(check?.data?.exists){setErr('An account with this email already exists. Please sign in.');setLoading(false);return;}
+      }
+      const res=await API.post(`/auth/${mode==='register'?'register':'login'}`,{email,password,...(mode==='register'&&name?{name}:{})});
+      localStorage.setItem('token',res.data.access_token);
       onLogin();
-    } catch (e) {
-      setError(e?.response?.data?.detail || (type === 'login' ? 'Invalid credentials.' : 'Registration failed.'));
-    } finally {
-      setLoading(false);
-    }
+    }catch(e){
+      const d=e?.response?.data?.detail||'';
+      if(mode==='login'&&(d.includes('Invalid')||e?.response?.status===401))setErr('Incorrect email or password.');
+      else if(d.includes('already'))setErr('This email is already registered. Please sign in.');
+      else setErr(d||'Something went wrong. Try again.');
+    }finally{setLoading(false);}
   };
 
-  return (
+  return(
     <>
       <style>{css}</style>
-      <div className="login-bg">
-        <div className="login-card">
-          <div className="login-logo">🏥 Medi<span>Vault</span></div>
-          <p className="login-subtitle">Your family's medical records, organized.</p>
-          <div className="input-group">
-            <label className="input-label">Email</label>
-            <input className="input-field" type="email" placeholder="you@example.com"
-              value={email} onChange={e => setEmail(e.target.value)} />
+      <div className="auth-root">
+        <div className="auth-left">
+          <div className="auth-card">
+            <div className="auth-logo">
+              <div className="logo-mark"><Logo size={22} dark/></div>
+              <div className="logo-text">Medi<span>Vault</span></div>
+            </div>
+            {forgot?(
+              <>
+                <div className="auth-heading">Reset password</div>
+                <div className="auth-sub">Enter your email and we'll send a link.</div>
+                {err&&<div className="auth-err">{err}</div>}
+                {info&&<div className="auth-info">{info}</div>}
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
+                </div>
+                <button className="btn-auth" onClick={handle} disabled={loading}>{loading?'Sending…':'Send Reset Link'}</button>
+                <button className="btn-cancel" style={{width:'100%',marginTop:8}} onClick={()=>{setForgot(false);setErr('');setInfo('');}}>Back to Sign In</button>
+              </>
+            ):(
+              <>
+                <div className="auth-heading">{mode==='login'?'Welcome back':'Create account'}</div>
+                <div className="auth-sub">{mode==='login'?'Sign in to your MediVault':'Your family's health, organised.'}</div>
+                <div className="auth-tabs">
+                  <button className={`auth-tab${mode==='login'?' active':''}`} onClick={()=>{setMode('login');setErr('');setInfo('');}}>Sign In</button>
+                  <button className={`auth-tab${mode==='register'?' active':''}`} onClick={()=>{setMode('register');setErr('');setInfo('');}}>Sign Up</button>
+                </div>
+                {err&&<div className="auth-err">{err}</div>}
+                {info&&<div className="auth-info">{info}</div>}
+                {mode==='register'&&(
+                  <div className="form-group">
+                    <label className="form-label">Your Name</label>
+                    <input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Full name"/>
+                  </div>
+                )}
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Password</label>
+                  <input className="form-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&handle()}/>
+                </div>
+                {mode==='login'&&<div className="forgot-link"><a href="#" onClick={e=>{e.preventDefault();setForgot(true);setErr('');setInfo('');}}>Forgot password?</a></div>}
+                <button className="btn-auth" onClick={handle} disabled={loading}>{loading?(mode==='login'?'Signing in…':'Creating account…'):(mode==='login'?'Sign In →':'Create Account →')}</button>
+              </>
+            )}
           </div>
-          <div className="input-group">
-            <label className="input-label">Password</label>
-            <input className="input-field" type="password" placeholder="••••••••"
-              value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handle('login')} />
+        </div>
+        <div className="auth-right">
+          <div className="auth-right-content">
+            <div style={{marginBottom:28}}><Logo size={52} dark/></div>
+            <h2>Your health records,<br/>always with you.</h2>
+            <p>Upload prescriptions, lab reports, and medical documents. AI extracts and organises everything instantly.</p>
+            {[
+              {icon:'🔒',text:'End-to-end secure storage'},
+              {icon:'🤖',text:'AI-powered OCR extraction'},
+              {icon:'👨‍👩‍👧',text:'Manage entire family profiles'},
+            ].map(f=>(
+              <div key={f.text} className="auth-feature">
+                <div className="auth-feature-icon">{f.icon}</div>
+                <div className="auth-feature-text">{f.text}</div>
+              </div>
+            ))}
           </div>
-          {error && <div className="error-msg">{error}</div>}
-          <button className="btn-primary" onClick={() => handle('login')} disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-          <button className="btn-secondary" onClick={() => handle('register')} disabled={loading}>
-            Create Account
-          </button>
         </div>
       </div>
     </>
   );
 }
 
-/* ─────────────────────────────────────────────
-   DASHBOARD
-───────────────────────────────────────────── */
-function Dashboard({ onLogout }) {
-  const [profiles, setProfiles] = useState([]);
-  const [selectedProfile, setSelectedProfile] = useState(null);
-  const [records, setRecords] = useState([]);
-  const [search, setSearch] = useState('');
-  const [searchResults, setSearchResults] = useState(null); // null = not searching
-  const [searching, setSearching] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [newProfile, setNewProfile] = useState({ name: '', relationship: '' });
-  const [selectedRecord, setSelectedRecord] = useState(null);
-  const pollRef = useRef(null);
+/* ── DASHBOARD ── */
+function Dashboard({onLogout}){
+  const [profiles,setProfiles]=useState([]);
+  const [selectedProfile,setSelectedProfile]=useState(null);
+  const [records,setRecords]=useState([]);
+  const [search,setSearch]=useState('');
+  const [searchResults,setSearchResults]=useState(null);
+  const [searching,setSearching]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [selectedRecord,setSelectedRecord]=useState(null);
+  const [deleteRecord,setDeleteRecord]=useState(null);
+  const [showAddProfile,setShowAddProfile]=useState(false);
+  const [activeFilter,setActiveFilter]=useState('All');
+  const [toast,setToast]=useState(null);
+  const [sidebarExpanded,setSidebarExpanded]=useState(false);
+  const pollRef=useRef(null);
 
-  // Load profiles on mount
-  useEffect(() => {
-    API.get('/profiles').then(r => {
+  const showToast=(msg,type='success')=>setToast({msg,type});
+
+  useEffect(()=>{
+    API.get('/profiles').then(r=>{
       setProfiles(r.data);
-      if (r.data.length > 0) setSelectedProfile(r.data[0]);
+      if(r.data.length>0)setSelectedProfile(r.data[0]);
     });
-  }, []);
+  },[]);
 
-  const loadRecords = useCallback((profileId) => {
-    return API.get(`/profiles/${profileId}/records`).then(r => {
-      setRecords(r.data);
+  const loadRecords=useCallback(pid=>{
+    return API.get(`/profiles/${pid}/records`).then(r=>{
+      setRecords(r.data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
       return r.data;
     });
-  }, []);
+  },[]);
 
-  // Load records when profile changes
-  useEffect(() => {
-    if (!selectedProfile) return;
-    setRecords([]);
-    setSearchResults(null);
-    setSearch('');
+  useEffect(()=>{
+    if(!selectedProfile)return;
+    setRecords([]);setSearchResults(null);setSearch('');setActiveFilter('All');
     loadRecords(selectedProfile.id);
-  }, [selectedProfile, loadRecords]);
+  },[selectedProfile,loadRecords]);
 
-  // Polling: auto-refresh while any record is in processing/extracting state
-  useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    const hasPending = records.some(r => r.status === 'processing' || r.status === 'extracting');
-    if (hasPending && selectedProfile) {
-      pollRef.current = setInterval(() => {
-        loadRecords(selectedProfile.id);
-      }, POLL_INTERVAL);
+  useEffect(()=>{
+    if(pollRef.current)clearInterval(pollRef.current);
+    const pending=records.some(r=>r.status==='processing'||r.status==='extracting');
+    if(pending&&selectedProfile){
+      pollRef.current=setInterval(()=>loadRecords(selectedProfile.id),POLL);
     }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [records, selectedProfile, loadRecords]);
+    return()=>{if(pollRef.current)clearInterval(pollRef.current);};
+  },[records,selectedProfile,loadRecords]);
 
-  const createProfile = async () => {
-    if (!newProfile.name || !newProfile.relationship) return;
-    try {
-      const res = await API.post('/profiles', newProfile);
-      setProfiles(prev => [...prev, res.data]);
-      setNewProfile({ name: '', relationship: '' });
-      setSelectedProfile(res.data);
-    } catch (e) {
-      alert('Failed to create profile: ' + (e?.response?.data?.detail || e.message));
-    }
-  };
-
-  const uploadFile = async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file || !selectedProfile) return;
+  const upload=async e=>{
+    const file=e.target.files[0];e.target.value='';
+    if(!file||!selectedProfile)return;
     setUploading(true);
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      await API.post(`/upload/${selectedProfile.id}`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+    const form=new FormData();form.append('file',file);
+    try{
+      await API.post(`/upload/${selectedProfile.id}`,form,{headers:{'Content-Type':'multipart/form-data'}});
       await loadRecords(selectedProfile.id);
-    } catch (e) {
-      alert('Upload failed: ' + (e?.response?.data?.detail || e.message));
-    } finally {
-      setUploading(false);
-    }
+      showToast('Document uploaded — processing in background');
+    }catch(e){showToast(e?.response?.data?.detail||'Upload failed','error');}
+    finally{setUploading(false);}
   };
 
-  const doSearch = async () => {
-    if (!search.trim()) { setSearchResults(null); return; }
+  const doSearch=async()=>{
+    if(!search.trim()){setSearchResults(null);return;}
     setSearching(true);
-    try {
-      const params = new URLSearchParams({ q: search });
-      if (selectedProfile) params.append('profile_id', selectedProfile.id);
-      const res = await API.get(`/search?${params}`);
-      setSearchResults(res.data);
-    } catch (e) {
-      alert('Search failed: ' + (e?.response?.data?.detail || e.message));
-    } finally {
-      setSearching(false);
-    }
+    try{
+      const p=new URLSearchParams({q:search});
+      if(selectedProfile)p.append('profile_id',selectedProfile.id);
+      const r=await API.get(`/search?${p}`);
+      setSearchResults(r.data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
+    }catch(e){showToast('Search failed','error');}
+    finally{setSearching(false);}
   };
 
-  const clearSearch = () => { setSearch(''); setSearchResults(null); };
+  const handleDelRecord=async id=>{
+    try{
+      await API.delete(`/profiles/${selectedProfile.id}/records/${id}`);
+      setRecords(prev=>prev.filter(r=>r.id!==id));
+      if(searchResults)setSearchResults(prev=>prev.filter(r=>r.id!==id));
+      setDeleteRecord(null);showToast('Record deleted');
+    }catch(e){showToast('Delete failed','error');}
+  };
 
-  const handleRecordUpdated = (updated) => {
-    setRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
+  const handleUpdated=updated=>{
+    setRecords(prev=>prev.map(r=>r.id===updated.id?updated:r));
     setSelectedRecord(updated);
+    showToast('Record updated');
   };
 
-  const handleRecordDeleted = (id) => {
-    setRecords(prev => prev.filter(r => r.id !== id));
-    if (searchResults) setSearchResults(prev => prev.filter(r => r.id !== id));
+  const handleDeletedFromModal=id=>{
+    setRecords(prev=>prev.filter(r=>r.id!==id));
+    if(searchResults)setSearchResults(prev=>prev.filter(r=>r.id!==id));
+    showToast('Record deleted');
   };
 
-  const displayRecords = searchResults !== null ? searchResults : records;
-  const doneCount = records.filter(r => r.status === 'done').length;
-  const pendingCount = records.filter(r => r.status !== 'done' && r.status !== 'failed').length;
+  const display=(searchResults!==null?searchResults:records).filter(r=>{
+    if(activeFilter==='All')return true;
+    return r.document_type===activeFilter;
+  });
 
-  return (
+  const types=[...new Set(records.map(r=>r.document_type).filter(Boolean))];
+  const doneCount=records.filter(r=>r.status==='done').length;
+  const pendingCount=records.filter(r=>r.status==='processing'||r.status==='extracting').length;
+
+  return(
     <>
       <style>{css}</style>
-
-      {uploading && (
-        <div className="uploading-overlay">
-          <div className="uploading-box">
-            <div className="spinner" />
-            <div style={{ color:'#38bdf8', fontWeight:600, fontSize:14 }}>Uploading Document</div>
-            <div style={{ color:'#64748b', fontSize:12, marginTop:5 }}>OCR & AI extraction will run in background</div>
+      {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
+      {uploading&&(
+        <div className="overlay">
+          <div className="overlay-box">
+            <div className="spinner"/>
+            <div className="overlay-title">Uploading Document</div>
+            <div className="overlay-sub">OCR & AI extraction will run in background</div>
           </div>
         </div>
       )}
-
-      {selectedRecord && (
-        <RecordModal
-          record={selectedRecord}
-          profileId={selectedProfile?.id}
-          onClose={() => setSelectedRecord(null)}
-          onDeleted={handleRecordDeleted}
-          onUpdated={handleRecordUpdated}
-        />
+      {selectedRecord&&(
+        <RecordModal record={selectedRecord} profileId={selectedProfile?.id} onClose={()=>setSelectedRecord(null)}
+          onDeleted={handleDeletedFromModal} onUpdated={handleUpdated}/>
       )}
+      {deleteRecord&&(
+        <Confirm msg="This will permanently delete the record and its file."
+          onConfirm={()=>handleDelRecord(deleteRecord)} onCancel={()=>setDeleteRecord(null)}/>
+      )}
+      {showAddProfile&&<AddProfileModal onClose={()=>setShowAddProfile(false)} onAdded={p=>{setProfiles(prev=>[...prev,p]);setSelectedProfile(p);showToast('Profile added');}}/>}
 
-      <div className="app-layout">
-        {/* ─ SIDEBAR ─ */}
-        <div className="sidebar">
-          <div className="sidebar-logo">🏥 Medi<span>Vault</span></div>
-          <div className="sidebar-section">Family Profiles</div>
-
-          {profiles.map(p => (
-            <div key={p.id}
-              className={`profile-item ${selectedProfile?.id === p.id ? 'active' : ''}`}
-              onClick={() => setSelectedProfile(p)}>
-              <div className="profile-avatar"
-                style={{ background:`${getAvatarColor(p.name)}1a`, color:getAvatarColor(p.name) }}>
-                {REL_EMOJI[p.relationship] || p.name[0].toUpperCase()}
+      <div className="app-root">
+        <div className={`sidebar${sidebarExpanded?' expanded':''}`}
+          onMouseEnter={()=>setSidebarExpanded(true)}
+          onMouseLeave={()=>setSidebarExpanded(false)}>
+          <div className="sidebar-logo-row">
+            <div className="sidebar-logo"><Logo size={20} dark/></div>
+            <span className="sidebar-logo-text">MediVault</span>
+          </div>
+          {profiles.map(p=>(
+            <div key={p.id} className={`nav-item${selectedProfile?.id===p.id?' active':''}`} onClick={()=>setSelectedProfile(p)}>
+              <div className="nav-icon">
+                <div style={{width:28,height:28,borderRadius:8,background:`${getColor(p.name)}22`,color:getColor(p.name),display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,flexShrink:0}}>
+                  {REL_EMOJI[p.relationship]||p.name[0].toUpperCase()}
+                </div>
               </div>
-              <div className="profile-info">
-                <div className="profile-name">{p.name}</div>
-                <div className="profile-rel">{p.relationship}</div>
-              </div>
+              <span className="nav-label">{p.name}<br/><span style={{fontSize:11,opacity:0.6,fontWeight:400}}>{p.relationship}</span></span>
             </div>
           ))}
-
-          <div className="add-profile-form">
-            <div style={{ fontSize:11, color:'#475569', marginBottom:8, fontWeight:600, letterSpacing:'0.06em', textTransform:'uppercase' }}>
-              Add Profile
-            </div>
-            <input className="input-field sm" placeholder="Name" value={newProfile.name}
-              onChange={e => setNewProfile({...newProfile, name: e.target.value})} />
-            <input className="input-field sm" placeholder="Relationship (e.g. Father)"
-              value={newProfile.relationship}
-              onChange={e => setNewProfile({...newProfile, relationship: e.target.value})}
-              onKeyDown={e => e.key === 'Enter' && createProfile()}
-              style={{ marginTop:7 }} />
-            <button className="btn-add" onClick={createProfile} style={{ marginTop:8 }}>
-              + Add Profile
-            </button>
+          <div className="nav-item" onClick={()=>setShowAddProfile(true)} style={{marginTop:8}}>
+            <div className="nav-icon" style={{fontSize:20,color:'rgba(255,255,255,0.3)'}}>＋</div>
+            <span className="nav-label" style={{color:'rgba(255,255,255,0.4)'}}>Add member</span>
           </div>
-
-          <div className="sidebar-footer">
-            <button className="btn-logout" onClick={onLogout}>↩ Sign Out</button>
+          <div className="sidebar-bottom">
+            <div className="nav-item" onClick={()=>{localStorage.removeItem('token');onLogout();}}>
+              <div className="nav-icon" style={{fontSize:18}}>↩</div>
+              <span className="nav-label" style={{color:'rgba(255,255,255,0.4)'}}>Sign out</span>
+            </div>
           </div>
         </div>
 
-        {/* ─ MAIN ─ */}
-        <div className="main-content">
+        <div className={`main${sidebarExpanded?' sidebar-expanded':''}`}>
           <div className="topbar">
-            <div>
-              <div className="page-title">
-                {selectedProfile ? `${selectedProfile.name}'s Records` : 'MediVault'}
-              </div>
-              <div className="page-subtitle">
-                {selectedProfile
-                  ? `${selectedProfile.relationship} · ${records.length} record${records.length !== 1 ? 's' : ''}`
-                  : 'Select a family member'}
+            <div className="topbar-left">
+              <div>
+                <div className="topbar-title">{selectedProfile?`${selectedProfile.name}'s Records`:'MediVault'}</div>
+                <div className="topbar-sub">{selectedProfile?`${selectedProfile.relationship} · ${records.length} record${records.length!==1?'s':''}`:' '}</div>
               </div>
             </div>
-            {selectedProfile && (
-              <label className="upload-btn">
-                ↑ Upload
-                <input type="file" hidden onChange={uploadFile} accept="image/*,.pdf" />
-              </label>
-            )}
+            <div className="topbar-right">
+              {selectedProfile&&(
+                <label className="upload-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Upload
+                  <input type="file" hidden onChange={upload} accept="image/*,.pdf"/>
+                </label>
+              )}
+            </div>
           </div>
 
-          {selectedProfile && records.length > 0 && (
-            <div className="stats-bar">
-              <div className="stat-card">
-                <div className="stat-number">{records.length}</div>
-                <div className="stat-label">Total Records</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-number" style={{ color:'#4ade80' }}>{doneCount}</div>
-                <div className="stat-label">Processed</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-number" style={{ color:'#fbbf24' }}>{pendingCount}</div>
-                <div className="stat-label">Processing</div>
-              </div>
+          <div className="page">
+            {/* PROFILE TABS */}
+            <div className="profile-tabs">
+              {profiles.map(p=>(
+                <div key={p.id} className={`profile-tab${selectedProfile?.id===p.id?' active':''}`} onClick={()=>setSelectedProfile(p)}>
+                  <div className="profile-tab-avatar" style={{background:`${getColor(p.name)}22`,color:getColor(p.name)}}>
+                    {p.name[0].toUpperCase()}
+                  </div>
+                  {p.name}
+                </div>
+              ))}
+              <button className="add-profile-btn" onClick={()=>setShowAddProfile(true)}>+ Add</button>
             </div>
-          )}
 
-          {selectedProfile && (
-            <div className="search-bar">
-              <input className="search-input"
-                placeholder="Search by doctor, diagnosis, medicine, hospital…"
-                value={search}
-                onChange={e => { setSearch(e.target.value); if (!e.target.value) clearSearch(); }}
-                onKeyDown={e => e.key === 'Enter' && doSearch()} />
-              {searchResults !== null
-                ? <button className="btn-search" onClick={clearSearch}>✕ Clear</button>
-                : <button className="btn-search" onClick={doSearch}>{searching ? '…' : 'Search'}</button>
-              }
-            </div>
-          )}
-
-          {searchResults !== null && (
-            <div style={{ marginBottom:14, fontSize:13, color:'#64748b' }}>
-              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{search}"
-            </div>
-          )}
-
-          {!selectedProfile && (
-            <div className="empty-state">
-              <div className="empty-icon">🏥</div>
-              <div className="empty-title">Welcome to MediVault</div>
-              <div className="empty-sub">Select a family member from the sidebar, or add a new profile.</div>
-            </div>
-          )}
-
-          {selectedProfile && displayRecords.length === 0 && !uploading && (
-            <div className="empty-state">
-              <div className="empty-icon">{searchResults !== null ? '🔍' : '📄'}</div>
-              <div className="empty-title">
-                {searchResults !== null ? 'No results found' : 'No records yet'}
+            {/* STATS */}
+            {selectedProfile&&records.length>0&&(
+              <div className="stats-row">
+                <div className="stat-card"><div className="stat-val">{records.length}</div><div className="stat-lbl">Total Records</div></div>
+                <div className="stat-card"><div className="stat-val" style={{color:'#166534'}}>{doneCount}</div><div className="stat-lbl"><span className="stat-dot" style={{background:'#166534'}}/>Processed</div></div>
+                <div className="stat-card"><div className="stat-val" style={{color:'#b45309'}}>{pendingCount}</div><div className="stat-lbl"><span className="stat-dot" style={{background:'#b45309'}}/>Processing</div></div>
+                <div className="stat-card"><div className="stat-val" style={{color:'#6d28d9'}}>{records.filter(r=>r.medicines?.length>0).length}</div><div className="stat-lbl">With Medicines</div></div>
               </div>
-              <div className="empty-sub">
-                {searchResults !== null
-                  ? 'Try a different search term.'
-                  : 'Upload a prescription, lab report, or medical certificate to get started.'}
-              </div>
-            </div>
-          )}
+            )}
 
-          <div className="records-grid">
-            {displayRecords.map(r => (
-              <RecordCard
-                key={r.id}
-                record={r}
-                onClick={() => setSelectedRecord(r)}
-              />
-            ))}
+            {/* SEARCH */}
+            {selectedProfile&&(
+              <div className="search-row">
+                <div className="search-wrap">
+                  <span className="search-icon">🔍</span>
+                  <input className="search-input" placeholder="Search doctor, diagnosis, medicine, hospital…"
+                    value={search} onChange={e=>{setSearch(e.target.value);if(!e.target.value)setSearchResults(null);}}
+                    onKeyDown={e=>e.key==='Enter'&&doSearch()}/>
+                </div>
+                {searchResults!==null
+                  ?<button className="btn-clear" onClick={()=>{setSearch('');setSearchResults(null);}}>✕ Clear</button>
+                  :<button className="btn-search" onClick={doSearch}>{searching?'…':'Search'}</button>
+                }
+              </div>
+            )}
+
+            {/* FILTER CHIPS */}
+            {selectedProfile&&records.length>0&&(
+              <div className="filter-row">
+                {['All',...types].map(t=>(
+                  <button key={t} className={`filter-chip${activeFilter===t?' active':''}`} onClick={()=>setActiveFilter(t)}>{t}</button>
+                ))}
+              </div>
+            )}
+
+            {searchResults!==null&&(
+              <div style={{marginBottom:14,fontSize:13,color:'#aaa'}}>
+                {searchResults.length} result{searchResults.length!==1?'s':''} for "{search}"
+              </div>
+            )}
+
+            {!selectedProfile&&(
+              <div className="empty">
+                <div className="empty-icon">🏥</div>
+                <div className="empty-title">Welcome to MediVault</div>
+                <div className="empty-sub">Select or add a family member to get started.</div>
+              </div>
+            )}
+
+            {selectedProfile&&display.length===0&&!uploading&&(
+              <div className="empty">
+                <div className="empty-icon">{searchResults!==null?'🔍':'📄'}</div>
+                <div className="empty-title">{searchResults!==null?'No results found':'No records yet'}</div>
+                <div className="empty-sub">{searchResults!==null?'Try a different search term.':'Upload a prescription, lab report, or medical certificate.'}</div>
+              </div>
+            )}
+
+            <div className="records-grid">
+              {display.map(r=>(
+                <RecordCard key={r.id} record={r}
+                  onClick={()=>setSelectedRecord(r)}
+                  onDelete={()=>setDeleteRecord(r.id)}/>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1144,12 +940,9 @@ function Dashboard({ onLogout }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   ROOT
-───────────────────────────────────────────── */
-export default function App() {
-  const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
+export default function App(){
+  const [loggedIn,setLoggedIn]=useState(!!localStorage.getItem('token'));
   return loggedIn
-    ? <Dashboard onLogout={() => { localStorage.removeItem('token'); setLoggedIn(false); }} />
-    : <Login onLogin={() => setLoggedIn(true)} />;
+    ?<Dashboard onLogout={()=>setLoggedIn(false)}/>
+    :<Auth onLogin={()=>setLoggedIn(true)}/>;
 }
