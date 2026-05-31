@@ -1,16 +1,31 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, BackgroundTasks
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.ocr import extract_text_from_url
 import uuid
 
 router = APIRouter()
 
-ALLOWED_TYPES = ["image/jpeg", "image/png", "image/jpg", "application/pdf"]
+ALLOWED_TYPES = ["image/jpeg", "image/png", "image/jpg", "application/pdf", "image/webp", "image/gif", "image/bmp"]
 MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
+def process_ocr(record_id: str, file_url: str):
+    try:
+        text = extract_text_from_url(file_url)
+        supabase.table("records").update({
+            "raw_ocr_text": text,
+            "status": "ocr_done"
+        }).eq("id", record_id).execute()
+    except Exception as e:
+        supabase.table("records").update({
+            "status": "failed",
+            "raw_ocr_text": str(e)
+        }).eq("id", record_id).execute()
 
 @router.post("/upload/{profile_id}")
 async def upload_file(
     profile_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     user_id: str = Depends(get_current_user)
 ):
@@ -51,9 +66,14 @@ async def upload_file(
         "file_path": file_path
     }).execute()
 
+    record_id = result.data[0]["id"]
+
+    # Run OCR in background
+    background_tasks.add_task(process_ocr, record_id, file_url)
+
     return {
-        "message": "File uploaded successfully",
-        "record_id": result.data[0]["id"],
+        "message": "File uploaded. OCR processing in background.",
+        "record_id": record_id,
         "file_path": file_path,
         "file_url": file_url
     }
