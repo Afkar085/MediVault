@@ -652,7 +652,7 @@ function Auth({onLogin}){
                   <label className="form-label">Password</label>
                   <input className="form-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" onKeyDown={e=>e.key==='Enter'&&handle()}/>
                 </div>
-                {mode==='login'&&<div className="forgot-link"><a href="#" onClick={e=>{e.preventDefault();setForgot(true);setErr('');setInfo('');}}>Forgot password?</a></div>}
+                {mode==='login'&&<div className="forgot-link"><a data-href="#" onClick={e=>{e.preventDefault();setForgot(true);setErr('');setInfo('');}}>Forgot password?</a></div>}
                 <button className="btn-auth" onClick={handle} disabled={loading}>{loading?(mode==='login'?'Signing inâ€¦':'Creating accountâ€¦'):(mode==='login'?'Sign In â†’':'Create Account â†’')}</button>
               </>
             )}
