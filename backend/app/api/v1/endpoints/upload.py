@@ -6,54 +6,47 @@ import uuid
 
 router = APIRouter()
 
-ALLOWED_TYPES = ["image/jpeg", "image/png", "image/jpg", "application/pdf", "image/webp", "image/gif", "image/bmp"]
+ALLOWED_TYPES = {
+    "image/jpeg", "image/png", "image/jpg", "image/webp",
+    "image/gif", "image/bmp", "application/pdf"
+}
 MAX_SIZE = 10 * 1024 * 1024  # 10MB
 
-def process_ocr(record_id: str, file_path: str):
-    try:
-        image_bytes = supabase.storage.from_("medical-records").download(file_path)
-        text = extract_text_from_bytes(image_bytes)
 
-        # Update with OCR text first
+def process_ocr(record_id: str, file_path: str, content_type: str):
+    try:
+        file_bytes = supabase.storage.from_("medical-records").download(file_path)
+        text = extract_text_from_bytes(file_bytes, content_type)
+
         supabase.table("records").update({
             "raw_ocr_text": text,
             "status": "extracting"
         }).eq("id", record_id).execute()
 
-        # Run AI extraction
         from app.services.ai_extractor import extract_medical_data
         data = extract_medical_data(text)
 
-        # Build update payload
         update_data = {"status": "done"}
-        if data.get("document_type"):
-            update_data["document_type"] = data["document_type"]
-        if data.get("doctor_name"):
-            update_data["doctor_name"] = data["doctor_name"]
-        if data.get("hospital_name"):
-            update_data["hospital_name"] = data["hospital_name"]
-        if data.get("document_date"):
-            update_data["document_date"] = data["document_date"]
-        if data.get("specialty"):
-            update_data["specialty"] = data["specialty"]
-        if data.get("diagnosis"):
-            update_data["diagnosis"] = data["diagnosis"]
-        if data.get("recommendations"):
-            update_data["recommendations"] = data["recommendations"]
+        for field in ("document_type", "doctor_name", "hospital_name",
+                      "document_date", "specialty", "diagnosis", "recommendations"):
+            if data.get(field):
+                update_data[field] = data[field]
 
         supabase.table("records").update(update_data).eq("id", record_id).execute()
 
-        # Insert medicines
-        medicines = data.get("medicines", [])
+        medicines = data.get("medicines") or []
         if medicines:
-            for med in medicines:
-                supabase.table("medicines").insert({
+            rows = [
+                {
                     "record_id": record_id,
-                    "name": med.get("name", "Unknown"),
-                    "dosage": med.get("dosage"),
-                    "frequency": med.get("frequency"),
-                    "duration": med.get("duration")
-                }).execute()
+                    "name": m.get("name", "Unknown"),
+                    "dosage": m.get("dosage"),
+                    "frequency": m.get("frequency"),
+                    "duration": m.get("duration"),
+                }
+                for m in medicines
+            ]
+            supabase.table("medicines").insert(rows).execute()
 
     except Exception as e:
         supabase.table("records").update({
@@ -61,31 +54,37 @@ def process_ocr(record_id: str, file_path: str):
             "raw_ocr_text": str(e)
         }).eq("id", record_id).execute()
 
+
 @router.post("/upload/{profile_id}")
 async def upload_file(
     profile_id: str,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
 ):
     profile = supabase.table("profiles").select("id").eq("id", profile_id).eq("user_id", user_id).execute()
     if not profile.data:
         raise HTTPException(status_code=404, detail="Profile not found")
 
     if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail="Only JPEG, PNG, and PDF files allowed")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, GIF, BMP, PDF"
+        )
 
     contents = await file.read()
     if len(contents) > MAX_SIZE:
         raise HTTPException(status_code=400, detail="File too large. Max 10MB")
 
-    ext = file.filename.split(".")[-1]
+    # Sanitize filename
+    original_name = file.filename or "upload"
+    ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "bin"
     file_path = f"{user_id}/{profile_id}/{uuid.uuid4()}.{ext}"
 
     supabase.storage.from_("medical-records").upload(
         path=file_path,
         file=contents,
-        file_options={"content-type": file.content_type}
+        file_options={"content-type": file.content_type},
     )
 
     file_url = supabase.storage.from_("medical-records").get_public_url(file_path)
@@ -95,15 +94,15 @@ async def upload_file(
         "document_type": "Unknown",
         "status": "processing",
         "file_url": file_url,
-        "file_path": file_path
+        "file_path": file_path,
     }).execute()
 
     record_id = result.data[0]["id"]
-    background_tasks.add_task(process_ocr, record_id, file_path)
+    background_tasks.add_task(process_ocr, record_id, file_path, file.content_type)
 
     return {
         "message": "File uploaded. OCR processing in background.",
         "record_id": record_id,
         "file_path": file_path,
-        "file_url": file_url
+        "file_url": file_url,
     }
