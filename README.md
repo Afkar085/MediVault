@@ -1,91 +1,69 @@
 # MediVault
 
-A full-stack web app that lets you store, organize, and search your medical records. Upload a prescription, lab report, or medical certificate — MediVault runs OCR + AI extraction to pull out doctor names, diagnoses, medicines, and more, so you can search across all your records instantly.
+A full-stack web app for storing, organizing, and searching medical records. Upload a prescription, lab report, or any medical document — MediVault uses AI-powered OCR to extract doctor names, diagnoses, medicines, dosages, and more, making all your health records instantly searchable.
 
 **Live demo:** [medivault.vercel.app](https://medi-vault-silk-five.vercel.app/)
 
 ## Screenshots
 
-| Login | Dashboard |
-|-------|-----------|
-| ![Login](screenshots/login.png) | ![Dashboard](screenshots/dashboard.png) |
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
 
-| Record Detail | Edit Record |
-|---------------|-------------|
-| ![Record Detail](screenshots/record-detail.png) | ![Edit Record](screenshots/record-edit.png) |
+### Multi-Profile Support
+![Records](screenshots/records.png)
+
+### AI-Powered OCR — Reads Handwritten Prescriptions
+| Scanned Document | Extracted Text |
+|---|---|
+| ![OCR Scan](screenshots/ocr-scan.png) | ![OCR Text](screenshots/ocr-text.png) |
+
+### Record Details & Medicines
+| Record Detail | Medicines |
+|---|---|
+| ![Record Detail](screenshots/record-detail.png) | ![Medicines](screenshots/medicines.png) |
+
+### Sign Up
+![Sign Up](screenshots/signup.png)
 
 ## Features
 
-- **Multi-profile support** — manage records for yourself and family members (spouse, parent, child, etc.)
-- **Upload & auto-extract** — upload images (JPEG, PNG, WEBP, GIF, BMP) or PDFs (up to 10 MB). The app runs OCR in the background and uses AI to extract structured fields
-- **AI-extracted fields** — document type, doctor name, hospital, date, specialty, diagnosis, recommendations, and medicines (with dosage, frequency, duration)
-- **Full-text search** — search across all extracted fields (doctor, diagnosis, hospital, specialty, OCR text) with optional filters by document type and profile
+- **AI-powered OCR** — upload any image or PDF, even handwritten prescriptions. Extracts text using Groq's Llama Vision model, then parses it into structured fields with AI
+- **Multi-profile support** — manage records for yourself and family members
+- **Structured extraction** — automatically identifies document type, doctor name, hospital, date, specialty, diagnosis, recommendations, and medicines (with dosage and frequency)
+- **Full-text search** — search across all extracted fields instantly
 - **Edit & correct** — fix any AI-extracted field; edits are tracked in an audit trail
-- **Secure auth** — JWT-based signup/login with password hashing
+- **Secure auth** — JWT-based signup/login with bcrypt password hashing
+- **Responsive design** — works on desktop and mobile with bottom navigation
 
-## Tech stack
+## Tech Stack
 
-| Layer    | Technology                                               |
-|----------|----------------------------------------------------------|
-| Frontend | React 19, React Router, Axios                           |
-| Backend  | FastAPI, Pydantic, Uvicorn                               |
-| Database | PostgreSQL (via Supabase)                                |
-| Storage  | Supabase Storage (medical-records bucket)                |
-| OCR      | Tesseract (images), pdfminer + pdf2image (PDFs)          |
-| AI       | Groq API (Llama 3.3 70B) for structured data extraction |
-| Hosting  | Railway (backend), Vercel/Netlify-ready (frontend)       |
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Axios |
+| Backend | FastAPI, Pydantic, Uvicorn |
+| Database | PostgreSQL (Supabase) |
+| Storage | Supabase Storage |
+| OCR | Groq Llama Vision (AI-powered) |
+| AI Extraction | Groq Llama 3.3 70B |
+| Hosting | Vercel (frontend), Railway (backend) |
 
-## Project structure
-
-```
-MediVault/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                  # FastAPI app entry point
-│   │   ├── config.py                # Environment settings
-│   │   ├── database.py              # Supabase client
-│   │   ├── core/                    # Auth dependencies
-│   │   ├── schemas/                 # Pydantic models (auth, profile, record)
-│   │   ├── services/
-│   │   │   ├── ocr.py               # Tesseract + PDF text extraction
-│   │   │   └── ai_extractor.py      # Groq/Llama structured extraction
-│   │   └── api/v1/endpoints/
-│   │       ├── auth.py              # Signup, login, password reset
-│   │       ├── profile.py           # CRUD for family profiles
-│   │       ├── upload.py            # File upload + background OCR
-│   │       ├── records.py           # Record listing, detail, edit, delete
-│   │       └── search.py            # Full-text search across records
-│   ├── database/
-│   │   ├── schema.sql               # Table definitions
-│   │   └── seed.sql                 # Sample data
-│   ├── requirements.txt
-│   └── railway.json                 # Railway deployment config
-├── frontend/
-│   ├── src/
-│   │   ├── App.js                   # Single-page app (auth + dashboard)
-│   │   └── api.js                   # Axios client with JWT interceptor
-│   └── package.json
-└── .env.example                     # Required environment variables
-```
-
-## Getting started
+## Getting Started
 
 ### Prerequisites
 
 - Python 3.10+
 - Node.js 18+
-- A [Supabase](https://supabase.com) project (free tier works)
-- A [Groq](https://console.groq.com) API key (free tier works)
-- Tesseract OCR installed on your system
+- [Supabase](https://supabase.com) project (free tier works)
+- [Groq](https://console.groq.com) API key (free tier works)
 
-### 1. Clone the repo
+### 1. Clone and set up
 
 ```bash
 git clone https://github.com/Afkar085/MediVault.git
 cd MediVault
 ```
 
-### 2. Set up the backend
+### 2. Backend
 
 ```bash
 cd backend
@@ -95,24 +73,23 @@ venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment variables
+### 3. Environment variables
 
-Copy `.env.example` to `backend/.env` and fill in your keys:
+Copy `.env.example` to `backend/.env` and fill in:
 
-```
+```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_anon_key
-SUPABASE_BUCKET=medivault-files
-JWT_SECRET=any_long_random_string_here
+JWT_SECRET=any_long_random_string
 JWT_EXPIRE_HOURS=24
-GROQ_API_KEY=your_groq_api_key_here
+GROQ_API_KEY=your_groq_api_key
 ```
 
-### 4. Set up the database
+### 4. Database
 
-Run `backend/database/schema.sql` in your Supabase SQL editor to create the tables.
+Run `backend/database/schema.sql` in your Supabase SQL editor.
 
-### 5. Set up the frontend
+### 5. Frontend
 
 ```bash
 cd frontend
@@ -121,28 +98,55 @@ npm install
 
 ### 6. Run
 
-Start both in separate terminals:
-
 ```bash
-# Terminal 1 — backend
-cd backend
-uvicorn app.main:app --reload
+# Terminal 1
+cd backend && uvicorn app.main:app --reload
 
-# Terminal 2 — frontend
-cd frontend
-npm start
+# Terminal 2
+cd frontend && npm start
 ```
 
-The frontend runs at `http://localhost:3000` and the backend API at `http://localhost:8000`.
+Frontend: `http://localhost:3000` · Backend: `http://localhost:8000`
 
-## API endpoints
+## Project Structure
 
-| Method | Endpoint                          | Description                  |
-|--------|-----------------------------------|------------------------------|
-| POST   | `/api/v1/auth/signup`             | Create account               |
-| POST   | `/api/v1/auth/login`              | Login, returns JWT           |
-| GET    | `/api/v1/profiles`                | List family profiles         |
-| POST   | `/api/v1/profiles`                | Create a profile             |
-| POST   | `/api/v1/upload/{profile_id}`     | Upload a medical document    |
-| GET    | `/api/v1/profiles/{id}/records`   | List records for a profile   |
-| GET    | `/api/v1/search?q=...`            | Search across all records    |
+```
+MediVault/
+├── backend/
+│   ├── app/
+│   │   ├── main.py              # FastAPI entry point
+│   │   ├── config.py            # Environment settings
+│   │   ├── database.py          # Supabase client
+│   │   ├── core/                # Auth dependencies
+│   │   ├── schemas/             # Pydantic models
+│   │   ├── services/
+│   │   │   ├── ocr.py           # Groq Vision OCR
+│   │   │   └── ai_extractor.py  # Structured data extraction
+│   │   └── api/v1/endpoints/
+│   │       ├── auth.py          # Signup, login
+│   │       ├── profile.py       # Family profiles CRUD
+│   │       ├── upload.py        # File upload + background OCR
+│   │       ├── records.py       # Records CRUD
+│   │       └── search.py        # Full-text search
+│   ├── database/
+│   │   └── schema.sql           # Table definitions
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── App.js               # Single-page app
+│   │   └── api.js               # Axios client
+│   └── package.json
+└── .env.example
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v1/auth/signup` | Create account |
+| POST | `/api/v1/auth/login` | Login (returns JWT) |
+| GET | `/api/v1/profiles` | List family profiles |
+| POST | `/api/v1/profiles` | Create a profile |
+| POST | `/api/v1/upload/{profile_id}` | Upload medical document |
+| GET | `/api/v1/profiles/{id}/records` | List records |
+| GET | `/api/v1/search?q=...` | Search all records |
