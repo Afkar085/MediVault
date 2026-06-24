@@ -66,12 +66,12 @@ const css = `
   .sidebar-bottom{margin-top:auto;width:100%;padding-bottom:8px;}
   .main{margin-left:72px;flex:1;min-height:100vh;transition:margin-left 0.3s;}
   .main.expanded{margin-left:240px;}
-  .topbar{background:rgba(255,255,255,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:0.5px solid rgba(0,0,0,0.08);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;}
+  .topbar{background:rgba(255,255,255,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:0.5px solid rgba(0,0,0,0.08);padding:0 40px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;max-width:1200px;margin:0 auto;width:100%;}
   .topbar-title{font-size:16px;font-weight:700;color:#1a1a2e;letter-spacing:-0.2px;}
   .topbar-sub{font-size:12px;color:#aaa;}
   .upload-btn{display:flex;align-items:center;gap:7px;background:#007AFF;color:#fff;border:none;border-radius:12px;padding:9px 18px;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
   .upload-btn:hover{background:#0066d6;}
-  .page{padding:24px;}
+  .page{padding:28px 40px;max-width:1200px;margin:0 auto;}
   .profile-tabs{display:flex;gap:3px;margin-bottom:20px;flex-wrap:wrap;background:#f2f2f7;border-radius:10px;padding:3px;}
   .profile-tab{display:flex;align-items:center;gap:7px;padding:7px 14px;background:transparent;border:none;border-radius:8px;cursor:pointer;transition:all 0.2s;font-size:13px;font-weight:500;color:#555;}
   .profile-tab:hover{color:#1a1a2e;}
@@ -79,12 +79,12 @@ const css = `
   .profile-tab-av{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
   .add-profile-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;background:transparent;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:#aaa;transition:all 0.2s;font-family:'Plus Jakarta Sans',sans-serif;}
   .add-profile-btn:hover{color:#e07b4f;}
-  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;}
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;max-width:700px;}
   .stat-card{background:#fff;border-radius:16px;padding:14px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
   .stat-val{font-size:26px;font-weight:700;color:#1a1a2e;letter-spacing:-1px;}
   .stat-lbl{font-size:11px;color:#aaa;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:5px;}
   .stat-dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
-  .search-row{display:flex;gap:10px;margin-bottom:18px;}
+  .search-row{display:flex;gap:10px;margin-bottom:18px;max-width:600px;}
   .search-wrap{flex:1;position:relative;}
   .search-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#8e8e93;font-size:15px;font-style:normal;}
   .search-input{width:100%;padding:11px 14px 11px 38px;background:#f2f2f7;border:none;border-radius:14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;color:#1a1a2e;outline:none;transition:all 0.2s;}
@@ -97,7 +97,7 @@ const css = `
   .filter-chip{padding:4px 11px;border-radius:16px;border:none;background:#f2f2f7;font-size:11px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;color:#8e8e93;transition:all 0.2s;}
   .filter-chip:hover{color:#1a1a2e;background:#e8e8ed;}
   .filter-chip.active{background:#007AFF;color:#fff;}
-  .records-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;}
+  .records-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;max-width:1120px;}
   .record-card{background:#fff;border:none;border-radius:20px;padding:18px;cursor:pointer;transition:all 0.25s;animation:fadeUp 0.35s ease forwards;position:relative;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
   .record-card:hover{box-shadow:0 10px 32px rgba(0,0,0,0.08);transform:translateY(-2px);}
   .card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}

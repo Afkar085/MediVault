@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_EXPIRE_HOURS: int = 24
     GROQ_API_KEY: str
+    GOOGLE_VISION_KEY: str = ""
 
     class Config:
         env_file = ".env"
