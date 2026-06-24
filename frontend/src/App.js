@@ -372,7 +372,7 @@ function RecordModal({record, profileId, onClose, onDeleted, onUpdated}) {
           </div>
           <div className="modal-sub">
             {fmtRel(record.created_at)}
-            {record.document_date ? ' &middot; Doc date: ' + fmt(record.document_date) : ''}
+            {record.document_date ? ' · Doc date: ' + fmt(record.document_date) : ''}
           </div>
         </div>
         <div className="modal-body">
@@ -531,7 +531,7 @@ function RecordCard({record, onClick, onDelete}) {
       <div className="card-title">{title}</div>
       <div className="card-date">
         {record.document_date ? fmt(record.document_date) : fmtRel(record.created_at)}
-        {record.profiles ? ' &middot; ' + record.profiles.name : ''}
+        {record.profiles ? ' · ' + record.profiles.name : ''}
       </div>
       {record.hospital_name && record.doctor_name && (
         <div className="card-row">
@@ -924,7 +924,7 @@ function Dashboard({onLogout}) {
           <div className="topbar">
             <div style={{flex:1,minWidth:0}}>
               <div className="topbar-title">{sel ? sel.name + " Records" : 'MediVault'}</div>
-              <div className="topbar-sub">{sel ? sel.relationship + ' &middot; ' + records.length + ' record' + (records.length !== 1 ? 's' : '') : ''}</div>
+              <div className="topbar-sub">{sel ? sel.relationship + ' · ' + records.length + ' record' + (records.length !== 1 ? 's' : '') : ''}</div>
             </div>
             {sel && (
               <label className="upload-btn">
