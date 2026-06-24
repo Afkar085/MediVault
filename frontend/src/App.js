@@ -17,7 +17,7 @@ const css = `
   .fade-up{animation:fadeUp 0.4s ease forwards;}
   .auth-root{min-height:100vh;display:flex;background:#f5f3ef;}
   .auth-left{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;}
-  .auth-right{width:420px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 40px;position:relative;overflow:hidden;}
+  .auth-right{width:480px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 40px;position:relative;overflow:hidden;}
   .auth-right::before{content:'';position:absolute;width:300px;height:300px;background:rgba(99,179,237,0.06);border-radius:50%;top:-80px;right:-80px;}
   .auth-right::after{content:'';position:absolute;width:200px;height:200px;background:rgba(154,117,234,0.08);border-radius:50%;bottom:-60px;left:-60px;}
   .auth-card{width:100%;max-width:420px;animation:fadeUp 0.5s ease forwards;}
@@ -49,24 +49,20 @@ const css = `
   .auth-feature-icon{width:32px;height:32px;background:rgba(255,255,255,0.08);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;}
   .auth-feature-text{font-size:13px;color:rgba(255,255,255,0.6);}
   .app-root{display:flex;min-height:100vh;}
-  .sidebar{width:72px;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;padding:20px 0;position:fixed;height:100vh;z-index:50;transition:width 0.3s ease;overflow:hidden;}
-  .sidebar.expanded{width:240px;}
-  .sidebar-logo-row{display:flex;align-items:center;padding:0 16px;margin-bottom:28px;width:100%;gap:10px;}
+  .sidebar{width:220px;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;padding:20px 0;position:fixed;height:100vh;z-index:50;transition:width 0.3s ease;overflow:hidden;}
+.sidebar-logo-row{display:flex;align-items:center;padding:0 16px;margin-bottom:28px;width:100%;gap:10px;}
   .sidebar-logo-icon{width:36px;height:36px;background:#e07b4f;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .sidebar-logo-text{font-family:'Instrument Serif',serif;font-size:17px;color:#fff;white-space:nowrap;opacity:0;transition:opacity 0.2s;}
-  .sidebar.expanded .sidebar-logo-text{opacity:1;}
-  .nav-item{width:100%;display:flex;align-items:center;padding:10px 18px;cursor:pointer;transition:all 0.2s;color:rgba(255,255,255,0.4);font-size:13px;font-weight:500;gap:14px;white-space:nowrap;position:relative;}
+  .sidebar-logo-text{font-family:'Instrument Serif',serif;font-size:17px;color:#fff;white-space:nowrap;opacity:1;transition:opacity 0.2s;}
+.nav-item{width:100%;display:flex;align-items:center;padding:10px 18px;cursor:pointer;transition:all 0.2s;color:rgba(255,255,255,0.4);font-size:13px;font-weight:500;gap:14px;white-space:nowrap;position:relative;}
   .nav-item:hover{color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.05);}
   .nav-item.active{color:#fff;background:rgba(224,123,79,0.15);}
   .nav-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#e07b4f;border-radius:0 2px 2px 0;}
   .nav-avatar{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;}
-  .nav-label{opacity:0;transition:opacity 0.2s;overflow:hidden;line-height:1.3;}
-  .sidebar.expanded .nav-label{opacity:1;}
-  .nav-label-sub{font-size:10px;opacity:0.5;font-weight:400;}
+  .nav-label{opacity:1;transition:opacity 0.2s;overflow:hidden;line-height:1.3;}
+.nav-label-sub{font-size:10px;opacity:0.5;font-weight:400;}
   .sidebar-bottom{margin-top:auto;width:100%;padding-bottom:8px;}
-  .main{margin-left:72px;flex:1;min-height:100vh;transition:margin-left 0.3s;}
-  .main.expanded{margin-left:240px;}
-  .topbar{background:rgba(255,255,255,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:0.5px solid rgba(0,0,0,0.08);padding:0 40px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;max-width:1200px;margin:0 auto;width:100%;}
+  .main{margin-left:220px;flex:1;min-height:100vh;transition:margin-left 0.3s;}
+.topbar{background:#fff;border-bottom:0.5px solid rgba(0,0,0,0.08);padding:0 40px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;width:100%;}
   .topbar-title{font-size:16px;font-weight:700;color:#1a1a2e;letter-spacing:-0.2px;}
   .topbar-sub{font-size:12px;color:#aaa;}
   .upload-btn{display:flex;align-items:center;gap:7px;background:#007AFF;color:#fff;border:none;border-radius:12px;padding:9px 18px;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
@@ -99,7 +95,7 @@ const css = `
   .filter-chip.active{background:#007AFF;color:#fff;}
   .records-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;max-width:1120px;}
   .record-card{background:#fff;border:none;border-radius:20px;padding:18px;cursor:pointer;transition:all 0.25s;animation:fadeUp 0.35s ease forwards;position:relative;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
-  .record-card:hover{box-shadow:0 10px 32px rgba(0,0,0,0.08);transform:translateY(-2px);}
+  .record-card:hover{box-shadow:0 8px 24px rgba(0,0,0,0.06);transform:translateY(-1px);}
   .card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
   .type-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.03em;}
   .tp-prescription{background:#fef3e8;color:#b45309;}
@@ -890,9 +886,7 @@ function Dashboard({onLogout}) {
       )}
 
       <div className="app-root">
-        <div className={"sidebar" + (sideExp ? ' expanded' : '')}
-          onMouseEnter={() => setSideExp(true)}
-          onMouseLeave={() => setSideExp(false)}>
+        <div className="sidebar">
           <div className="sidebar-logo-row">
             <div className="sidebar-logo-icon"><ShieldIcon size={18} color="#fff" /></div>
             <span className="sidebar-logo-text">MediVault</span>
@@ -914,13 +908,13 @@ function Dashboard({onLogout}) {
           </div>
           <div className="sidebar-bottom">
             <div className="nav-item" onClick={() => { localStorage.removeItem('token'); onLogout(); }}>
-              <div className="nav-avatar" style={{background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.3)',fontSize:14}}>out</div>
+              <div className="nav-avatar" style={{background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.3)',fontSize:14}}>→</div>
               <div className="nav-label" style={{color:'rgba(255,255,255,0.3)'}}>Sign out</div>
             </div>
           </div>
         </div>
 
-        <div className={"main" + (sideExp ? ' expanded' : '')}>
+        <div className="main">
           <div className="topbar">
             <div style={{flex:1,minWidth:0}}>
               <div className="topbar-title">{sel ? sel.name + " Records" : 'MediVault'}</div>
@@ -976,7 +970,7 @@ function Dashboard({onLogout}) {
             {sel && (
               <div className="search-row">
                 <div className="search-wrap">
-                  <i className="search-ico">S</i>
+                  <i className="search-ico">⌕</i>
                   <input
                     className="search-input"
                     placeholder="Search by doctor, diagnosis, medicine or hospital"
