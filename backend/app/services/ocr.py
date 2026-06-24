@@ -1,8 +1,10 @@
 import base64
 import io
 import json
-import httpx
+from groq import Groq
 from app.config import settings
+
+client = Groq(api_key=settings.GROQ_API_KEY)
 
 
 def extract_text_from_bytes(file_bytes: bytes, content_type: str = "") -> str:
@@ -14,28 +16,30 @@ def extract_text_from_bytes(file_bytes: bytes, content_type: str = "") -> str:
         return f"OCR failed: {str(e)}"
 
 
-def _call_vision_api(image_bytes: bytes) -> str:
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
-    url = f"https://vision.googleapis.com/v1/images:annotate?key={settings.GOOGLE_VISION_KEY}"
-    payload = {
-        "requests": [{
-            "image": {"content": b64},
-            "features": [{"type": "TEXT_DETECTION", "maxResults": 1}],
-        }]
-    }
-    resp = httpx.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    annotations = data.get("responses", [{}])[0].get("textAnnotations", [])
-    if annotations:
-        return annotations[0].get("description", "").strip()
-    return "No text found in image"
-
-
 def _extract_from_image(image_bytes: bytes) -> str:
-    if getattr(settings, "GOOGLE_VISION_KEY", None):
-        return _call_vision_api(image_bytes)
-    return _fallback_ocr(image_bytes)
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    mime = "image/jpeg"
+    if image_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+        mime = "image/png"
+    elif image_bytes[:4] == b'RIFF':
+        mime = "image/webp"
+
+    response = client.chat.completions.create(
+        model="llama-3.2-90b-vision-preview",
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Extract ALL text from this image exactly as written. Include every word, number, date, name, address, and detail. Return only the extracted text, nothing else."},
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+            ],
+        }],
+        temperature=0,
+        max_tokens=2000,
+    )
+
+    text = response.choices[0].message.content.strip()
+    return text if text else "No text found in image"
 
 
 def _extract_from_pdf(pdf_bytes: bytes) -> str:
@@ -47,33 +51,4 @@ def _extract_from_pdf(pdf_bytes: bytes) -> str:
     except Exception:
         pass
 
-    if getattr(settings, "GOOGLE_VISION_KEY", None):
-        try:
-            from PIL import Image
-            from pdf2image import convert_from_bytes
-            pages = convert_from_bytes(pdf_bytes, dpi=200)
-            all_text = []
-            for page_img in pages:
-                buf = io.BytesIO()
-                page_img.save(buf, format="PNG")
-                text = _call_vision_api(buf.getvalue())
-                if text and text != "No text found in image":
-                    all_text.append(text)
-            return "\n\n".join(all_text) if all_text else "No text found in PDF"
-        except ImportError:
-            pass
-
-    return "PDF OCR requires Google Vision API key or pdf2image+poppler"
-
-
-def _fallback_ocr(image_bytes: bytes) -> str:
-    try:
-        import pytesseract
-        from PIL import Image
-        image = Image.open(io.BytesIO(image_bytes))
-        if image.mode not in ("RGB", "L"):
-            image = image.convert("RGB")
-        text = pytesseract.image_to_string(image)
-        return text.strip() if text.strip() else "No text found in image"
-    except Exception as e:
-        return f"OCR failed: {str(e)}"
+    return "PDF text extraction failed. Try uploading as an image instead."
