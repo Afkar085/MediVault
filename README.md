@@ -2,6 +2,8 @@
 
 A full-stack web app that lets you store, organize, and search your medical records. Upload a prescription, lab report, or medical certificate — MediVault runs OCR + AI extraction to pull out doctor names, diagnoses, medicines, and more, so you can search across all your records instantly.
 
+**Live demo:** [medivault.vercel.app](https://medi-vault-silk-five.vercel.app/)
+
 ## Features
 
 - **Multi-profile support** — manage records for yourself and family members (spouse, parent, child, etc.)
