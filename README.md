@@ -4,6 +4,16 @@ A full-stack web app that lets you store, organize, and search your medical reco
 
 **Live demo:** [medivault.vercel.app](https://medi-vault-silk-five.vercel.app/)
 
+## Screenshots
+
+| Login | Dashboard |
+|-------|-----------|
+| ![Login](screenshots/login.png) | ![Dashboard](screenshots/dashboard.png) |
+
+| Record Detail | Edit Record |
+|---------------|-------------|
+| ![Record Detail](screenshots/record-detail.png) | ![Edit Record](screenshots/record-edit.png) |
+
 ## Features
 
 - **Multi-profile support** — manage records for yourself and family members (spouse, parent, child, etc.)
