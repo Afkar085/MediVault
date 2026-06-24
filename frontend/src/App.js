@@ -180,18 +180,68 @@ const css = `
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:11px 18px;border-radius:11px;font-size:13px;font-weight:600;z-index:500;animation:toastIn 0.3s ease forwards;white-space:nowrap;}
   .toast.success{background:#166534;}
   .toast.error{background:#c0392b;}
+  .menu-toggle{display:none;width:36px;height:36px;background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;}
+  .menu-toggle span{display:block;width:20px;height:2px;background:#1a1a2e;margin:4px auto;border-radius:2px;transition:all 0.3s;}
+  .sidebar-overlay{display:none;}
   @media(max-width:768px){
     .auth-right{display:none;}
-    .auth-left{padding:24px 20px;}
-    .sidebar{width:58px;}
-    .main{margin-left:58px;}
-    .main.expanded{margin-left:58px;}
-    .page{padding:14px;}
-    .topbar{padding:0 14px;}
-    .records-grid{grid-template-columns:1fr;}
-    .stats-row{grid-template-columns:repeat(2,1fr);}
+    .auth-left{padding:24px 16px;}
+    .auth-heading{font-size:22px;}
+    .auth-card{max-width:100%;}
+    .menu-toggle{display:flex;flex-direction:column;justify-content:center;}
+    .sidebar{position:fixed;left:-260px;width:240px;z-index:100;transition:left 0.3s ease;}
+    .sidebar.mobile-open{left:0;}
+    .sidebar .nav-label{opacity:1;}
+    .sidebar .sidebar-logo-text{opacity:1;}
+    .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99;}
+    .sidebar-overlay.visible{display:block;}
+    .main{margin-left:0!important;}
+    .topbar{padding:0 12px;gap:8px;}
+    .topbar-title{font-size:14px;}
+    .upload-btn{padding:8px 12px;font-size:12px;}
+    .upload-btn svg{display:none;}
+    .page{padding:12px;}
+    .profile-tabs{gap:6px;margin-bottom:14px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .profile-tabs::-webkit-scrollbar{display:none;}
+    .profile-tab{white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:12px;}
+    .add-profile-btn{white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:12px;}
+    .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+    .stat-card{padding:10px 12px;}
+    .stat-val{font-size:20px;}
+    .stat-lbl{font-size:10px;}
+    .search-row{gap:6px;margin-bottom:12px;}
+    .search-input{padding:9px 10px 9px 32px;font-size:13px;}
+    .search-ico{left:10px;font-size:13px;}
+    .btn-search,.btn-clear{padding:9px 12px;font-size:12px;}
+    .filter-row{gap:5px;margin-bottom:12px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .filter-row::-webkit-scrollbar{display:none;}
+    .filter-chip{white-space:nowrap;flex-shrink:0;}
+    .records-grid{grid-template-columns:1fr;gap:10px;}
+    .record-card{padding:14px;}
+    .card-del{opacity:1;}
+    .card-title{font-size:14px;}
     .edit-grid{grid-template-columns:1fr;}
     .edit-grid .full{grid-column:1;}
+    .modal{max-height:92vh;max-width:100%;}
+    .modal-hdr{padding:14px 16px 10px;}
+    .modal-body{padding:14px 16px;}
+    .modal-ftr{padding:10px 16px;}
+    .modal-title{font-size:18px;}
+    .mtab{font-size:11px;padding:6px;}
+    .hist-row{flex-wrap:wrap;gap:4px;}
+    .hist-time{margin-left:0;width:100%;}
+    .add-prof-modal{margin:0 12px;max-width:calc(100% - 24px);}
+    .confirm-box{margin:0 12px;max-width:calc(100% - 24px);}
+    .overlay-box{margin:0 12px;padding:24px 20px;}
+    .toast{font-size:12px;padding:9px 14px;max-width:90vw;white-space:normal;text-align:center;}
+    .empty{padding:40px 16px;}
+  }
+  @media(max-width:380px){
+    .stats-row{grid-template-columns:1fr 1fr;gap:6px;}
+    .stat-val{font-size:18px;}
+    .topbar{height:50px;}
+    .topbar-title{font-size:13px;}
+    .upload-btn{padding:7px 10px;font-size:11px;}
   }
 `;
 
@@ -703,6 +753,7 @@ function Dashboard({onLogout}) {
   const [filter, setFilter] = useState('All');
   const [toast, setToast] = useState(null);
   const [sideExp, setSideExp] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
   const pollRef = useRef(null);
 
   const showToast = (msg, type='success') => setToast({msg, type});
@@ -839,7 +890,8 @@ function Dashboard({onLogout}) {
       )}
 
       <div className="app-root">
-        <div className={"sidebar" + (sideExp ? ' expanded' : '')}
+        <div className={"sidebar-overlay" + (mobileMenu ? ' visible' : '')} onClick={() => setMobileMenu(false)} />
+        <div className={"sidebar" + (sideExp ? ' expanded' : '') + (mobileMenu ? ' mobile-open' : '')}
           onMouseEnter={() => setSideExp(true)}
           onMouseLeave={() => setSideExp(false)}>
           <div className="sidebar-logo-row">
@@ -847,7 +899,7 @@ function Dashboard({onLogout}) {
             <span className="sidebar-logo-text">MediVault</span>
           </div>
           {profiles.map(p => (
-            <div key={p.id} className={"nav-item" + (sel?.id === p.id ? ' active' : '')} onClick={() => setSel(p)}>
+            <div key={p.id} className={"nav-item" + (sel?.id === p.id ? ' active' : '')} onClick={() => { setSel(p); setMobileMenu(false); }}>
               <div className="nav-avatar" style={{background: gc(p.name) + '22', color: gc(p.name)}}>
                 {p.name[0].toUpperCase()}
               </div>
@@ -857,7 +909,7 @@ function Dashboard({onLogout}) {
               </div>
             </div>
           ))}
-          <div className="nav-item" onClick={() => setShowAddProf(true)} style={{marginTop:6}}>
+          <div className="nav-item" onClick={() => { setShowAddProf(true); setMobileMenu(false); }} style={{marginTop:6}}>
             <div className="nav-avatar" style={{background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.4)',fontSize:18}}>+</div>
             <div className="nav-label" style={{color:'rgba(255,255,255,0.4)'}}>Add member</div>
           </div>
@@ -871,7 +923,10 @@ function Dashboard({onLogout}) {
 
         <div className={"main" + (sideExp ? ' expanded' : '')}>
           <div className="topbar">
-            <div>
+            <button className="menu-toggle" onClick={() => setMobileMenu(!mobileMenu)}>
+              <span /><span /><span />
+            </button>
+            <div style={{flex:1,minWidth:0}}>
               <div className="topbar-title">{sel ? sel.name + " Records" : 'MediVault'}</div>
               <div className="topbar-sub">{sel ? sel.relationship + ' &middot; ' + records.length + ' record' + (records.length !== 1 ? 's' : '') : ''}</div>
             </div>
