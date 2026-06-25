@@ -385,11 +385,16 @@ const TYPE_MAP = {
 };
 const gt = t => TYPE_MAP[t] || {cls:'tp-unknown', icon:'Doc'};
 
-const fmt = d => { if(!d) return null; try { return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); } catch { return d; } };
-const fmtDt = d => { if(!d) return ''; try { return new Date(d).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); } catch { return d; } };
+const fmt = d => { if(!d) return null; try { return parseDate(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); } catch { return d; } };
+const fmtDt = d => { if(!d) return ''; try { return parseDate(d).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); } catch { return d; } };
+const parseDate = d => {
+  if(!d) return null;
+  const s = String(d);
+  return new Date(s.endsWith('Z') || s.includes('+') ? s : s + 'Z');
+};
 const fmtRel = d => {
   if(!d) return '';
-  const diff = Date.now() - new Date(d).getTime();
+  const diff = Date.now() - parseDate(d).getTime();
   const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), dy = Math.floor(diff/86400000);
   if(m < 1) return 'just now';
   if(m < 60) return m + 'm ago';
