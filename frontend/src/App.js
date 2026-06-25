@@ -1143,7 +1143,7 @@ function DoctorTimeline({records, onOpenRecord}) {
                 {name === 'Unassigned' ? '?' : name[0].toUpperCase()}
               </div>
               <div className="doctor-info">
-                <div className="doctor-name">{name === 'Unassigned' ? 'Unassigned' : 'Dr. ' + name}</div>
+                <div className="doctor-name">{name === 'Unassigned' ? 'Unassigned' : (name.match(/^dr\.?\s/i) ? name : 'Dr. ' + name)}</div>
                 <div className="doctor-meta">
                   {specialty && <span>{specialty}</span>}
                   {specialty && hospital && <span> · </span>}
