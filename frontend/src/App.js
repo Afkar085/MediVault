@@ -689,7 +689,7 @@ function RecordModal({record, profileId, allRecords, onClose, onDeleted, onUpdat
             <span className={"sbadge s-" + record.status}>{record.status}</span>
           </div>
           <div className="modal-title">
-            {record.doctor_name ? 'Dr. ' + record.doctor_name : record.hospital_name || 'Medical Record'}
+            {record.doctor_name ? (record.doctor_name.match(/^dr\.?\s/i) ? record.doctor_name : 'Dr. ' + record.doctor_name) : record.hospital_name || 'Medical Record'}
           </div>
           <div className="modal-sub">
             {fmtRel(record.created_at)}
@@ -804,7 +804,7 @@ function RecordModal({record, profileId, allRecords, onClose, onDeleted, onUpdat
 
           {previousVisits.length > 0 && (
             <div className="prev-visits">
-              <div className="prev-visits-title">Previous visits with Dr. {record.doctor_name}</div>
+              <div className="prev-visits-title">Previous visits with {record.doctor_name.match(/^dr\.?\s/i) ? record.doctor_name : 'Dr. ' + record.doctor_name}</div>
               {previousVisits.slice(0,5).map(v => (
                 <div key={v.id} className="prev-visit-item" onClick={() => onOpenRecord(v)}>
                   <div className="prev-visit-date">{fmt(v.document_date) || fmtRel(v.created_at)}</div>
@@ -846,7 +846,7 @@ function RecordModal({record, profileId, allRecords, onClose, onDeleted, onUpdat
 const RecordCard = memo(function RecordCard({record, onClick, onDelete, style}) {
   const tc = gt(record.document_type);
   const title = record.doctor_name
-    ? 'Dr. ' + record.doctor_name
+    ? (record.doctor_name.match(/^dr\.?\s/i) ? record.doctor_name : 'Dr. ' + record.doctor_name)
     : record.hospital_name
       ? record.hospital_name
       : record.diagnosis
@@ -1579,7 +1579,7 @@ function Dashboard({onLogout}) {
                       <div className="recent-dot" />
                       <div className="recent-info">
                         <div className="recent-info-title">
-                          {r.doctor_name ? 'Dr. ' + r.doctor_name : r.hospital_name || r.document_type || 'Record'}
+                          {r.doctor_name ? (r.doctor_name.match(/^dr\.?\s/i) ? r.doctor_name : 'Dr. ' + r.doctor_name) : r.hospital_name || r.document_type || 'Record'}
                         </div>
                         <div className="recent-info-sub">{r.document_type}{r.specialty ? ' · ' + r.specialty : ''}</div>
                       </div>
