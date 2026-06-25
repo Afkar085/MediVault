@@ -3,6 +3,8 @@ from app.schemas.record import RecordResponse, RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from typing import List
+from groq import Groq
+from app.config import settings
 
 router = APIRouter()
 
@@ -95,6 +97,68 @@ def delete_record(profile_id: str, record_id: str, user_id: str = Depends(get_cu
 
     supabase.table("records").delete().eq("id", record_id).eq("profile_id", profile_id).execute()
     return {"message": "Record deleted"}
+
+
+@router.get("/{profile_id}/health-journey")
+def get_health_journey(profile_id: str, user_id: str = Depends(get_current_user)):
+    _assert_profile_owned(profile_id, user_id)
+
+    profile_result = supabase.table("profiles").select("name, relationship").eq("id", profile_id).execute()
+    profile = profile_result.data[0] if profile_result.data else {"name": "Patient", "relationship": "Self"}
+
+    records_result = supabase.table("records").select("*").eq("profile_id", profile_id).eq("status", "done").order("created_at", desc=False).execute()
+    records = _attach_medicines(records_result.data)
+
+    if not records:
+        return {"summary": "No medical records yet. Upload prescriptions to build your health journey."}
+
+    visits = []
+    for r in records:
+        date = r.get("document_date") or (r.get("created_at") or "")[:10]
+        meds = ", ".join(m.get("name", "") for m in r.get("medicines", []))
+        entry = f"Date: {date}"
+        if r.get("doctor_name"):
+            entry += f" | Doctor: {r['doctor_name']}"
+        if r.get("specialty"):
+            entry += f" | Dept: {r['specialty']}"
+        if r.get("hospital_name"):
+            entry += f" | Hospital: {r['hospital_name']}"
+        if r.get("diagnosis"):
+            entry += f" | Diagnosis: {r['diagnosis']}"
+        if meds:
+            entry += f" | Medicines: {meds}"
+        if r.get("recommendations"):
+            entry += f" | Notes: {r['recommendations']}"
+        visits.append(entry)
+
+    visit_text = "\n".join(visits)
+
+    try:
+        client = Groq(api_key=settings.GROQ_API_KEY)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{
+                "role": "user",
+                "content": f"""Summarize this patient's health journey as a concise timeline narrative.
+Patient: {profile.get('name')} ({profile.get('relationship')})
+
+Medical visits:
+{visit_text}
+
+Write 3-8 bullet points summarizing the health journey chronologically.
+Focus on: key diagnoses, treatment progression, medication changes, follow-up outcomes.
+Use simple language a patient would understand.
+Format each point starting with the month/year, then the event.
+Return ONLY the bullet points, no intro or outro."""
+            }],
+            temperature=0.3,
+            max_tokens=500,
+        )
+        summary = response.choices[0].message.content.strip()
+    except Exception as e:
+        summary = f"Unable to generate health journey: {str(e)}"
+
+    return {"summary": summary, "total_visits": len(records)}
 
 
 @router.get("/{profile_id}/records/{record_id}/history", response_model=List[RecordEditResponse])

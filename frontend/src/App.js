@@ -1,21 +1,25 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import API from './api';
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
   html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-  body{font-family:'Inter',-apple-system,system-ui,sans-serif;background:#f0f5f4;color:#0f172a;min-height:100vh;letter-spacing:-0.01em;}
+  body{font-family:'Inter',-apple-system,system-ui,sans-serif;background:#f0f5f4;color:#0f172a;min-height:100vh;letter-spacing:-0.01em;overflow-x:hidden;}
   ::-webkit-scrollbar{width:4px;}
   ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px;}
   @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
   @keyframes slideUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:none;}}
   @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes fadeOut{from{opacity:1;}to{opacity:0;}}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  @keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
   @keyframes spin{to{transform:rotate(360deg);}}
   @keyframes modalIn{from{opacity:0;transform:translateY(40px);}to{opacity:1;transform:translateY(0);}}
   @keyframes toastIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes profileFadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
   .fade-up{animation:fadeUp 0.4s ease forwards;}
+  .profile-transition-enter{animation:profileFadeIn 0.35s ease forwards;}
 
   .auth-root{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f8f9fc 0%,#eef2ff 100%);padding:24px;}
   .auth-outer{display:flex;flex-direction:column;align-items:center;width:100%;}
@@ -44,7 +48,7 @@ const css = `
   .auth-err{color:#ef4444;font-size:13px;padding:10px 14px;background:#fef2f2;border-radius:10px;border:1px solid #fecaca;margin-bottom:12px;}
   .auth-info{color:#10b981;font-size:13px;padding:10px 14px;background:#ecfdf5;border-radius:10px;border:1px solid #a7f3d0;margin-bottom:12px;}
 
-  .app-root{min-height:100vh;background:#f0f5f4;}
+  .app-root{min-height:100vh;background:#f0f5f4;overflow-x:hidden;}
   .app-header{background:linear-gradient(135deg,#042f2e,#134e4a);box-shadow:0 2px 8px rgba(0,0,0,0.15);position:sticky;top:0;z-index:50;height:64px;}
   .header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;height:100%;padding:0 24px;gap:16px;}
   .header-left{display:flex;align-items:center;flex-shrink:0;}
@@ -67,35 +71,59 @@ const css = `
   .signout-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);border:none;border-radius:10px;cursor:pointer;color:rgba(255,255,255,0.6);transition:all 0.2s;}
   .signout-btn:hover{background:rgba(239,68,68,0.2);color:#fca5a5;}
 
+  .mobile-top{display:none;}
+  .mobile-profile-bar{display:none;}
+
   .page{max-width:1100px;margin:0 auto;padding:32px 24px;}
-  .page-header{margin-bottom:24px;}
+  .page-header{margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
   .page-title{font-size:24px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;}
   .page-sub{font-size:14px;color:#64748b;margin-top:2px;}
+  .page-actions{display:flex;gap:8px;align-items:center;}
+  .btn-journey{display:flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .btn-journey:hover{opacity:0.9;transform:translateY(-1px);}
+  .btn-journey:disabled{opacity:0.5;cursor:not-allowed;}
 
-  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
-  .stat-card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);border-left:4px solid transparent;}
-  .stat-card.sc-indigo{border-left-color:#0d9488;}
-  .stat-card.sc-green{border-left-color:#10b981;}
-  .stat-card.sc-amber{border-left-color:#f59e0b;}
-  .stat-card.sc-purple{border-left-color:#8b5cf6;}
-  .stat-val{font-size:22px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;}
-  .stat-lbl{font-size:12px;color:#64748b;margin-top:2px;font-weight:500;}
+  .dashboard-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+  .dash-card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);border-left:4px solid transparent;}
+  .dash-card.dc-teal{border-left-color:#0d9488;}
+  .dash-card.dc-green{border-left-color:#10b981;}
+  .dash-card.dc-amber{border-left-color:#f59e0b;}
+  .dash-card.dc-purple{border-left-color:#8b5cf6;}
+  .dash-val{font-size:22px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;}
+  .dash-lbl{font-size:12px;color:#64748b;margin-top:2px;font-weight:500;}
+  .recent-activity{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin-bottom:20px;}
+  .recent-title{font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;}
+  .recent-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9;}
+  .recent-item:last-child{border-bottom:none;}
+  .recent-dot{width:8px;height:8px;border-radius:50%;background:#0d9488;flex-shrink:0;}
+  .recent-info{flex:1;min-width:0;}
+  .recent-info-title{font-size:13px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .recent-info-sub{font-size:11px;color:#94a3b8;}
+  .recent-date{font-size:11px;color:#94a3b8;white-space:nowrap;}
 
-  .search-row{display:flex;gap:10px;margin-bottom:18px;position:relative;}
+  .search-row{display:flex;gap:10px;margin-bottom:10px;position:relative;}
   .search-wrap{flex:1;position:relative;}
   .search-ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;}
   .search-input{width:100%;padding:12px 44px 12px 42px;background:#fff;border:1.5px solid #e2e8f0;border-radius:16px;font-size:14px;font-family:'Inter',sans-serif;color:#0f172a;outline:none;transition:all 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
   .search-input:focus{border-color:#0d9488;box-shadow:0 0 0 3px rgba(13,148,136,0.15);}
-  .search-input:focus{background:#e8ecf3;box-shadow:0 0 0 3px rgba(13,148,136,0.15);}
   .search-input::placeholder{color:#94a3b8;}
   .search-action{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:10px;border:none;background:#0d9488;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
   .search-action:hover{background:#0f766e;}
   .btn-clear{padding:11px 18px;background:#fef2f2;border:none;border-radius:12px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;color:#ef4444;}
 
+  .search-cats{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;}
+  .search-cat{padding:5px 12px;border-radius:20px;border:1.5px solid #e2e8f0;background:#fff;font-size:11px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;color:#64748b;transition:all 0.2s;}
+  .search-cat:hover{border-color:#0d9488;color:#0d9488;}
+  .search-cat.active{background:#0d9488;color:#fff;border-color:#0d9488;}
+
   .filter-row{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
   .filter-chip{padding:6px 14px;border-radius:20px;border:none;background:#f0f5f4;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;color:#64748b;transition:all 0.2s;}
   .filter-chip:hover{color:#0f172a;background:#e2e8f0;}
   .filter-chip.active{background:#0d9488;color:#fff;}
+
+  .view-toggle{display:flex;gap:0;margin-bottom:18px;background:#f0f5f4;border-radius:12px;padding:3px;width:fit-content;}
+  .view-btn{padding:7px 18px;border:none;border-radius:10px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;color:#64748b;background:transparent;transition:all 0.2s;}
+  .view-btn.active{background:#fff;color:#0d9488;box-shadow:0 1px 4px rgba(0,0,0,0.08);}
 
   .records-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;}
   .record-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;cursor:pointer;transition:all 0.25s;animation:slideUp 0.4s ease forwards;position:relative;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
@@ -127,6 +155,13 @@ const css = `
   .s-processing{background:#fffbeb;color:#b45309;animation:pulse 2s infinite;}
   .s-extracting{background:#eef2ff;color:#4338ca;animation:pulse 1.5s infinite;}
   .s-failed{background:#fef2f2;color:#ef4444;}
+
+  .skeleton-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+  .skeleton-line{height:12px;border-radius:6px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;}
+  .skeleton-line.sk-title{width:60%;height:16px;margin-bottom:10px;}
+  .skeleton-line.sk-sub{width:40%;margin-bottom:16px;}
+  .skeleton-line.sk-row{width:80%;margin-bottom:8px;}
+  .skeleton-line.sk-chip{width:30%;height:10px;}
 
   .empty{text-align:center;padding:80px 20px;}
   .empty-icon{width:80px;height:80px;background:#f1f5f9;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px;color:#94a3b8;}
@@ -186,6 +221,64 @@ const css = `
   .toast.success{background:#0f172a;}
   .toast.error{background:#ef4444;}
 
+  .prev-visits{margin-top:18px;padding-top:14px;border-top:2px solid #e2e8f0;}
+  .prev-visits-title{font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;}
+  .prev-visit-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8f9fc;border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all 0.2s;border:1px solid #e2e8f0;}
+  .prev-visit-item:hover{border-color:#0d9488;background:#f0fdf9;}
+  .prev-visit-date{font-size:12px;font-weight:600;color:#0f172a;}
+  .prev-visit-diag{font-size:11px;color:#64748b;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .doctor-group{background:#fff;border:1px solid #e2e8f0;border-radius:16px;margin-bottom:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+  .doctor-header{display:flex;align-items:center;gap:14px;padding:18px 20px;cursor:pointer;transition:all 0.2s;}
+  .doctor-header:hover{background:#f8f9fc;}
+  .doctor-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0f766e,#14b8a6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;flex-shrink:0;}
+  .doctor-info{flex:1;min-width:0;}
+  .doctor-name{font-size:15px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;}
+  .doctor-meta{font-size:12px;color:#64748b;margin-top:2px;}
+  .doctor-stats{display:flex;gap:12px;align-items:center;flex-shrink:0;}
+  .doctor-stat{text-align:center;}
+  .doctor-stat-val{font-size:16px;font-weight:700;color:#0d9488;}
+  .doctor-stat-lbl{font-size:9px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;}
+  .doctor-chevron{color:#94a3b8;transition:transform 0.2s;font-size:18px;}
+  .doctor-chevron.open{transform:rotate(180deg);}
+  .doctor-timeline{padding:0 20px 16px;border-top:1px solid #f1f5f9;}
+  .doctor-timeline-actions{padding:8px 0;display:flex;gap:8px;}
+  .btn-compare{padding:6px 14px;background:#eef2ff;color:#4338ca;border:1px solid #ddd6fe;border-radius:10px;font-size:11px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all 0.2s;}
+  .btn-compare:hover{background:#ddd6fe;}
+  .btn-compare.active{background:#4338ca;color:#fff;border-color:#4338ca;}
+  .tl-item{display:flex;gap:14px;padding:12px 0;position:relative;}
+  .tl-item:not(:last-child)::before{content:'';position:absolute;left:15px;top:36px;bottom:0;width:2px;background:#e2e8f0;}
+  .tl-dot{width:30px;height:30px;border-radius:50%;background:#ecfdf5;border:2px solid #0d9488;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:1;}
+  .tl-dot-inner{width:10px;height:10px;border-radius:50%;background:#0d9488;}
+  .tl-content{flex:1;min-width:0;}
+  .tl-date{font-size:12px;font-weight:700;color:#0f172a;}
+  .tl-diag{font-size:12px;color:#64748b;margin-top:2px;}
+  .tl-meds{font-size:11px;color:#94a3b8;margin-top:4px;}
+  .tl-check{margin-right:8px;}
+  .tl-check input{width:16px;height:16px;accent-color:#0d9488;}
+
+  .compare-view{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;margin-bottom:14px;animation:slideUp 0.3s ease;}
+  .compare-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:16px;letter-spacing:-0.02em;}
+  .compare-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .compare-col{min-width:0;}
+  .compare-col-title{font-size:12px;font-weight:700;color:#0d9488;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #e2e8f0;}
+  .compare-med{padding:4px 8px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:4px;}
+  .compare-med.added{background:#ecfdf5;color:#166534;}
+  .compare-med.removed{background:#fef2f2;color:#ef4444;}
+  .compare-med.continued{background:#f1f5f9;color:#64748b;}
+  .compare-diag{padding:8px 12px;border-radius:10px;font-size:13px;margin-bottom:8px;}
+  .compare-diag.changed{background:#fffbeb;color:#b45309;border:1px solid #fde68a;}
+  .compare-diag.same{background:#f1f5f9;color:#64748b;}
+
+  .journey-modal{background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;animation:modalIn 0.35s cubic-bezier(0.32,0.72,0,1) forwards;}
+  .journey-hdr{padding:20px 24px 16px;background:linear-gradient(135deg,#0f766e,#0d9488);color:#fff;border-radius:16px 16px 0 0;position:relative;}
+  .journey-title{font-family:'Instrument Serif',serif;font-size:20px;color:#fff;}
+  .journey-body{padding:20px 24px;}
+  .journey-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9;}
+  .journey-item:last-child{border-bottom:none;}
+  .journey-bullet{width:8px;height:8px;border-radius:50%;background:#0d9488;flex-shrink:0;margin-top:5px;}
+  .journey-text{font-size:13px;color:#0f172a;line-height:1.6;}
+
   .bottom-nav{display:none;}
 
   @media(max-width:768px){
@@ -193,26 +286,38 @@ const css = `
     .auth-card{max-width:100%;padding:28px 20px;}
     .auth-heading{font-size:22px;}
     .app-header{display:none!important;}
-    .page{padding:16px;padding-bottom:80px;}
-    .page-header{margin-bottom:16px;}
-    .page-title{font-size:20px;}
     .mobile-top{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.05);position:sticky;top:0;z-index:50;}
     .mobile-top-logo{display:flex;align-items:center;gap:6px;}
     .mobile-top-logo-text{font-family:'Instrument Serif',serif;font-size:18px;color:#0f172a;}
     .mobile-top-logo-text span{color:#0d9488;}
-    .mobile-profile-scroll{display:flex;gap:4px;padding:0 16px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .mobile-top-actions{display:flex;align-items:center;gap:8px;}
+    .mobile-top-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;border:none;border-radius:10px;cursor:pointer;color:#64748b;transition:all 0.2s;min-width:44px;min-height:44px;}
+    .mobile-top-btn:hover{background:#e2e8f0;}
+    .mobile-profile-bar{display:block;background:#fff;padding:0 16px 12px;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
+    .mobile-profile-scroll{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 0;}
     .mobile-profile-scroll::-webkit-scrollbar{display:none;}
-    .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;}
-    .stat-card{padding:12px 14px;border-radius:10px;}
-    .stat-val{font-size:18px;}
-    .stat-lbl{font-size:10px;}
-    .search-row{gap:6px;margin-bottom:12px;}
-    .search-input{padding:10px 40px 10px 36px;font-size:13px;border-radius:14px;}
+    .mobile-pill{display:flex;align-items:center;gap:6px;padding:7px 14px;background:#f0f5f4;border:none;border-radius:20px;cursor:pointer;transition:all 0.2s;font-size:13px;font-weight:500;color:#64748b;white-space:nowrap;font-family:'Inter',sans-serif;flex-shrink:0;min-height:44px;}
+    .mobile-pill.active{background:#0d9488;color:#fff;}
+    .mobile-pill-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
+    .mobile-pill.active .mobile-pill-av{background:rgba(255,255,255,0.3)!important;color:#fff!important;}
+    .mobile-pill-add{padding:7px 12px;background:#f0f5f4;border:1.5px dashed #cbd5e1;border-radius:20px;cursor:pointer;font-size:16px;color:#94a3b8;display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;flex-shrink:0;}
+    .page{padding:16px;padding-bottom:80px;}
+    .page-header{margin-bottom:16px;}
+    .page-title{font-size:20px;}
+    .dashboard-grid{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}
+    .dash-card{padding:12px 14px;border-radius:10px;}
+    .dash-val{font-size:18px;}
+    .dash-lbl{font-size:10px;}
+    .search-row{gap:6px;margin-bottom:8px;}
+    .search-input{padding:10px 40px 10px 36px;font-size:13px;border-radius:14px;min-height:44px;}
     .search-ico svg{width:14px!important;height:14px!important;}
     .search-action{width:28px;height:28px;border-radius:8px;}
+    .search-cats{gap:5px;margin-bottom:12px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .search-cats::-webkit-scrollbar{display:none;}
+    .search-cat{white-space:nowrap;flex-shrink:0;min-height:36px;display:flex;align-items:center;}
     .filter-row{gap:5px;margin-bottom:14px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
     .filter-row::-webkit-scrollbar{display:none;}
-    .filter-chip{white-space:nowrap;flex-shrink:0;}
+    .filter-chip{white-space:nowrap;flex-shrink:0;min-height:36px;display:flex;align-items:center;}
     .records-grid{grid-template-columns:1fr;gap:10px;}
     .record-card{padding:14px;border-radius:14px;}
     .record-card:hover{transform:none;}
@@ -234,15 +339,21 @@ const css = `
     .toast{font-size:12px;padding:9px 16px;max-width:90vw;white-space:normal;text-align:center;bottom:80px;border-radius:12px;}
     .empty{padding:40px 16px;}
     .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:60px;background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid #e2e8f0;z-index:60;align-items:center;justify-content:space-around;padding-bottom:env(safe-area-inset-bottom,0);}
-    .bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;padding:4px 12px;cursor:pointer;color:#94a3b8;font-size:10px;font-weight:500;font-family:'Inter',sans-serif;transition:color 0.2s;}
+    .bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;padding:4px 12px;cursor:pointer;color:#94a3b8;font-size:10px;font-weight:500;font-family:'Inter',sans-serif;transition:color 0.2s;min-width:44px;min-height:44px;justify-content:center;}
     .bnav-item.active{color:#0d9488;}
     .bnav-item svg{stroke:currentColor;}
-    .bnav-upload{width:48px;height:48px;background:linear-gradient(135deg,#0f766e,#14b8a6);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:-20px;box-shadow:0 4px 16px rgba(13,148,136,0.35);transition:transform 0.2s;}
+    .bnav-upload{width:48px;height:48px;background:linear-gradient(135deg,#0f766e,#14b8a6);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:-20px;box-shadow:0 4px 16px rgba(13,148,136,0.35);transition:transform 0.2s;min-width:48px;min-height:48px;}
     .bnav-upload:active{transform:scale(0.92);}
+    .view-toggle{margin-bottom:14px;}
+    .compare-cols{grid-template-columns:1fr;}
+    .journey-modal{max-width:calc(100% - 24px);margin:0 12px;}
+    .doctor-header{padding:14px 16px;}
+    .doctor-timeline{padding:0 16px 12px;}
+    .btn-journey{padding:7px 12px;font-size:12px;}
   }
   @media(max-width:380px){
-    .stats-row{grid-template-columns:1fr 1fr;gap:6px;}
-    .stat-val{font-size:16px;}
+    .dashboard-grid{grid-template-columns:1fr 1fr;gap:6px;}
+    .dash-val{font-size:16px;}
   }
 `;
 
@@ -250,6 +361,7 @@ const AC = ['#e07b4f','#6d28d9','#0369a1','#166534','#9d174d','#b45309'];
 const gc = n => AC[(n||'A').charCodeAt(0) % AC.length];
 const POLL = 4000;
 const DOC_TYPES = ['Prescription','Lab Report','Medical Certificate','Discharge Summary','Radiology Report','Other'];
+const SEARCH_CATEGORIES = ['All','Doctor','Medicine','Hospital','Diagnosis','Family','Department','Date'];
 
 const TYPE_MAP = {
   'Prescription':   {cls:'tp-prescription', icon:'Rx'},
@@ -274,6 +386,25 @@ const fmtRel = d => {
   if(dy < 7) return dy + 'd ago';
   return fmt(d);
 };
+
+function handleApiError(e, showToast, onLogout) {
+  if(!e) { showToast('An unexpected error occurred', 'error'); return; }
+  if(!e.response) {
+    showToast('Unable to connect. Check your internet.', 'error');
+    return;
+  }
+  if(e.response.status === 401) {
+    localStorage.removeItem('token');
+    if(onLogout) onLogout();
+    return;
+  }
+  const detail = e.response?.data?.detail;
+  if(detail) {
+    showToast(typeof detail === 'string' ? detail : JSON.stringify(detail), 'error');
+  } else {
+    showToast('Request failed (status ' + e.response.status + ')', 'error');
+  }
+}
 
 function ShieldIcon({size=20, color='#fff'}) {
   return (
@@ -314,7 +445,156 @@ function Confirm({msg, onConfirm, onCancel}) {
   );
 }
 
-function RecordModal({record, profileId, onClose, onDeleted, onUpdated}) {
+function SkeletonCards() {
+  return (
+    <div className="records-grid">
+      {[0,1,2].map(i => (
+        <div key={i} className="skeleton-card">
+          <div className="skeleton-line sk-title" />
+          <div className="skeleton-line sk-sub" />
+          <div className="skeleton-line sk-row" />
+          <div className="skeleton-line sk-row" style={{width:'65%'}} />
+          <div style={{height:10}} />
+          <div className="skeleton-line sk-chip" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function JourneyModal({profileId, onClose, showToast}) {
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState('');
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await API.get('/profiles/' + profileId + '/health-journey');
+        if(!cancelled) {
+          setSummary(r.data.summary || r.data.journey || JSON.stringify(r.data));
+          setLoading(false);
+        }
+      } catch(e) {
+        if(!cancelled) {
+          setError(true);
+          setLoading(false);
+          const detail = e?.response?.data?.detail;
+          if(detail) showToast(typeof detail === 'string' ? detail : 'Failed to load health journey', 'error');
+          else if(!e.response) showToast('Unable to connect. Check your internet.', 'error');
+          else showToast('Failed to load health journey', 'error');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profileId, showToast]);
+
+  const lines = summary.split('\n').filter(l => l.trim());
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="journey-modal" onClick={e => e.stopPropagation()}>
+        <div className="journey-hdr">
+          <button className="modal-x" onClick={onClose}>x</button>
+          <div className="journey-title">Health Journey</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.7)',marginTop:2}}>AI-generated summary of medical history</div>
+        </div>
+        <div className="journey-body">
+          {loading && (
+            <div style={{textAlign:'center',padding:'30px 0'}}>
+              <div className="spinner" />
+              <div style={{color:'#64748b',fontSize:13}}>Analyzing health records...</div>
+            </div>
+          )}
+          {error && !loading && (
+            <div style={{textAlign:'center',padding:'30px 0',color:'#94a3b8',fontSize:13}}>
+              Could not generate health journey. Try again later.
+            </div>
+          )}
+          {!loading && !error && lines.map((line, i) => {
+            const cleaned = line.replace(/^[-*•]\s*/, '').trim();
+            return (
+              <div key={i} className="journey-item">
+                <div className="journey-bullet" />
+                <div className="journey-text">{cleaned}</div>
+              </div>
+            );
+          })}
+          {!loading && !error && lines.length === 0 && (
+            <div style={{textAlign:'center',padding:'30px 0',color:'#94a3b8',fontSize:13}}>
+              No health journey data available yet. Upload more records to get insights.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompareView({visit1, visit2, onClose}) {
+  const meds1 = (visit1.medicines || []).map(m => m.name);
+  const meds2 = (visit2.medicines || []).map(m => m.name);
+  const allMeds = [...new Set([...meds1, ...meds2])];
+
+  const added = allMeds.filter(m => !meds1.includes(m) && meds2.includes(m));
+  const removed = allMeds.filter(m => meds1.includes(m) && !meds2.includes(m));
+  const continued = allMeds.filter(m => meds1.includes(m) && meds2.includes(m));
+
+  const diagChanged = (visit1.diagnosis || '') !== (visit2.diagnosis || '');
+
+  return (
+    <div className="compare-view">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div className="compare-title">Visit Comparison</div>
+        <button className="btn-cancel" onClick={onClose} style={{padding:'5px 12px',fontSize:11}}>Close</button>
+      </div>
+
+      {diagChanged && (
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6}}>Diagnosis Change</div>
+          <div className="compare-diag changed">
+            <span style={{textDecoration:'line-through',color:'#ef4444'}}>{visit1.diagnosis || 'None'}</span>
+            {' → '}
+            <span style={{color:'#166534'}}>{visit2.diagnosis || 'None'}</span>
+          </div>
+        </div>
+      )}
+      {!diagChanged && visit1.diagnosis && (
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6}}>Diagnosis</div>
+          <div className="compare-diag same">{visit1.diagnosis} (unchanged)</div>
+        </div>
+      )}
+
+      <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>Medicines</div>
+      <div className="compare-cols">
+        <div className="compare-col">
+          <div className="compare-col-title">{fmt(visit1.document_date) || fmtRel(visit1.created_at)}</div>
+          {meds1.length === 0 && <div style={{fontSize:12,color:'#94a3b8'}}>No medicines</div>}
+          {meds1.map(m => (
+            <div key={m} className={"compare-med " + (removed.includes(m) ? 'removed' : 'continued')}>{m}</div>
+          ))}
+        </div>
+        <div className="compare-col">
+          <div className="compare-col-title">{fmt(visit2.document_date) || fmtRel(visit2.created_at)}</div>
+          {meds2.length === 0 && <div style={{fontSize:12,color:'#94a3b8'}}>No medicines</div>}
+          {meds2.map(m => (
+            <div key={m} className={"compare-med " + (added.includes(m) ? 'added' : 'continued')}>{m}</div>
+          ))}
+        </div>
+      </div>
+      {added.length === 0 && removed.length === 0 && continued.length > 0 && (
+        <div style={{fontSize:12,color:'#64748b',marginTop:10,textAlign:'center'}}>All medicines are the same between visits.</div>
+      )}
+      {allMeds.length === 0 && (
+        <div style={{fontSize:12,color:'#94a3b8',marginTop:10,textAlign:'center'}}>No medicines in either visit to compare.</div>
+      )}
+    </div>
+  );
+}
+
+function RecordModal({record, profileId, allRecords, onClose, onDeleted, onUpdated, onOpenRecord}) {
   const [tab, setTab] = useState('details');
   const [editing, setEditing] = useState(false);
   const [history, setHistory] = useState([]);
@@ -330,6 +610,21 @@ function RecordModal({record, profileId, onClose, onDeleted, onUpdated}) {
     diagnosis: record.diagnosis || '',
     recommendations: record.recommendations || '',
   });
+
+  useEffect(() => {
+    setTab('details');
+    setEditing(false);
+    setHistLoaded(false);
+    setForm({
+      document_type: record.document_type || '',
+      doctor_name: record.doctor_name || '',
+      hospital_name: record.hospital_name || '',
+      document_date: record.document_date || '',
+      specialty: record.specialty || '',
+      diagnosis: record.diagnosis || '',
+      recommendations: record.recommendations || '',
+    });
+  }, [record.id, record.document_type, record.doctor_name, record.hospital_name, record.document_date, record.specialty, record.diagnosis, record.recommendations]);
 
   useEffect(() => {
     if(tab === 'history' && !histLoaded) {
@@ -366,6 +661,11 @@ function RecordModal({record, profileId, onClose, onDeleted, onUpdated}) {
   };
 
   const tc = gt(record.document_type);
+
+  const previousVisits = record.doctor_name
+    ? (allRecords || []).filter(r => r.id !== record.id && r.doctor_name && r.doctor_name.toLowerCase() === record.doctor_name.toLowerCase())
+        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+    : [];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -490,6 +790,19 @@ function RecordModal({record, profileId, onClose, onDeleted, onUpdated}) {
                   </div>
                 ))
           )}
+
+          {previousVisits.length > 0 && (
+            <div className="prev-visits">
+              <div className="prev-visits-title">Previous visits with Dr. {record.doctor_name}</div>
+              {previousVisits.slice(0,5).map(v => (
+                <div key={v.id} className="prev-visit-item" onClick={() => onOpenRecord(v)}>
+                  <div className="prev-visit-date">{fmt(v.document_date) || fmtRel(v.created_at)}</div>
+                  <div className="prev-visit-diag">{v.diagnosis || v.document_type || 'No diagnosis'}</div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="modal-ftr">
@@ -519,7 +832,7 @@ function RecordModal({record, profileId, onClose, onDeleted, onUpdated}) {
   );
 }
 
-function RecordCard({record, onClick, onDelete, style}) {
+const RecordCard = memo(function RecordCard({record, onClick, onDelete, style}) {
   const tc = gt(record.document_type);
   const title = record.doctor_name
     ? 'Dr. ' + record.doctor_name
@@ -577,7 +890,7 @@ function RecordCard({record, onClick, onDelete, style}) {
       )}
     </div>
   );
-}
+});
 
 function AddProfileModal({onClose, onAdded}) {
   const [form, setForm] = useState({name:'', relationship:''});
@@ -642,7 +955,8 @@ function Auth({onLogin}) {
         setForgot(false); setLoading(false); return;
       }
       if(mode === 'register') {
-        const check = await API.post('/auth/check-email', {email}).catch(() => null);
+        let check = null;
+        try { check = await API.post('/auth/check-email', {email}); } catch(e) { /* ignore */ }
         if(check?.data?.exists) {
           setErr('An account with this email already exists. Please sign in.');
           setLoading(false); return;
@@ -654,13 +968,17 @@ function Auth({onLogin}) {
       localStorage.setItem('token', res.data.access_token);
       onLogin();
     } catch(e) {
-      const d = e?.response?.data?.detail || '';
-      if(mode === 'login' && (d.includes('Invalid') || e?.response?.status === 401)) {
-        setErr('Incorrect email or password.');
-      } else if(d.includes('already')) {
-        setErr('This email is already registered. Please sign in.');
+      if(!e.response) {
+        setErr('Unable to connect. Check your internet.');
       } else {
-        setErr(d || 'Something went wrong. Try again.');
+        const d = e?.response?.data?.detail || '';
+        if(mode === 'login' && (d.includes('Invalid') || e?.response?.status === 401)) {
+          setErr('Incorrect email or password.');
+        } else if(d.includes('already')) {
+          setErr('This email is already registered. Please sign in.');
+        } else {
+          setErr(d || 'Something went wrong. Try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -734,12 +1052,177 @@ function Auth({onLogin}) {
   );
 }
 
+function DoctorTimeline({records, onOpenRecord}) {
+  const [expanded, setExpanded] = useState({});
+  const [compareMode, setCompareMode] = useState(null);
+  const [selected, setSelected] = useState([]);
+  const [comparing, setComparing] = useState(null);
+
+  const groups = {};
+  records.forEach(r => {
+    const key = r.doctor_name ? r.doctor_name : 'Unassigned';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(r);
+  });
+
+  Object.keys(groups).forEach(k => {
+    groups[k].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  });
+
+  const sortedDoctors = Object.keys(groups).filter(k => k !== 'Unassigned').sort();
+  if(groups['Unassigned']) sortedDoctors.push('Unassigned');
+
+  const toggleExpand = name => {
+    setExpanded(prev => ({...prev, [name]: !prev[name]}));
+    if(compareMode === name) {
+      setCompareMode(null);
+      setSelected([]);
+      setComparing(null);
+    }
+  };
+
+  const toggleCompare = (doctorName) => {
+    if(compareMode === doctorName) {
+      setCompareMode(null);
+      setSelected([]);
+      setComparing(null);
+    } else {
+      setCompareMode(doctorName);
+      setSelected([]);
+      setComparing(null);
+    }
+  };
+
+  const toggleSelect = (recordId) => {
+    setSelected(prev => {
+      if(prev.includes(recordId)) return prev.filter(id => id !== recordId);
+      if(prev.length >= 2) return [prev[1], recordId];
+      return [...prev, recordId];
+    });
+    setComparing(null);
+  };
+
+  const doCompare = (doctorVisits) => {
+    if(selected.length !== 2) return;
+    const v1 = doctorVisits.find(r => r.id === selected[0]);
+    const v2 = doctorVisits.find(r => r.id === selected[1]);
+    if(v1 && v2) setComparing({visit1: v1, visit2: v2});
+  };
+
+  return (
+    <div>
+      {sortedDoctors.map(name => {
+        const visits = groups[name];
+        const isOpen = expanded[name];
+        const isCompareActive = compareMode === name;
+        const firstVisit = visits[visits.length - 1];
+        const latestVisit = visits[0];
+        const specialty = visits.find(v => v.specialty)?.specialty || '';
+        const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
+
+        return (
+          <div key={name} className="doctor-group">
+            <div className="doctor-header" onClick={() => toggleExpand(name)}>
+              <div className="doctor-avatar">
+                {name === 'Unassigned' ? '?' : name[0].toUpperCase()}
+              </div>
+              <div className="doctor-info">
+                <div className="doctor-name">{name === 'Unassigned' ? 'Unassigned' : 'Dr. ' + name}</div>
+                <div className="doctor-meta">
+                  {specialty && <span>{specialty}</span>}
+                  {specialty && hospital && <span> · </span>}
+                  {hospital && <span>{hospital}</span>}
+                </div>
+              </div>
+              <div className="doctor-stats">
+                <div className="doctor-stat">
+                  <div className="doctor-stat-val">{visits.length}</div>
+                  <div className="doctor-stat-lbl">Visits</div>
+                </div>
+                <div className="doctor-stat">
+                  <div className="doctor-stat-val" style={{fontSize:12,fontWeight:600}}>{fmt(latestVisit.document_date || latestVisit.created_at)}</div>
+                  <div className="doctor-stat-lbl">Latest</div>
+                </div>
+              </div>
+              <span className={"doctor-chevron" + (isOpen ? ' open' : '')}>&#x25BC;</span>
+            </div>
+
+            {isOpen && (
+              <div className="doctor-timeline">
+                {visits.length >= 2 && (
+                  <div className="doctor-timeline-actions">
+                    <button className={"btn-compare" + (isCompareActive ? ' active' : '')} onClick={e => { e.stopPropagation(); toggleCompare(name); }}>
+                      {isCompareActive ? 'Cancel Compare' : 'Compare Visits'}
+                    </button>
+                    {isCompareActive && selected.length === 2 && (
+                      <button className="btn-save" style={{padding:'6px 14px',fontSize:11}} onClick={() => doCompare(visits)}>
+                        Show Comparison
+                      </button>
+                    )}
+                    {isCompareActive && selected.length < 2 && (
+                      <span style={{fontSize:11,color:'#94a3b8',alignSelf:'center'}}>Select {2 - selected.length} visit{selected.length === 1 ? '' : 's'}</span>
+                    )}
+                  </div>
+                )}
+
+                {comparing && (
+                  <CompareView
+                    visit1={comparing.visit1}
+                    visit2={comparing.visit2}
+                    onClose={() => { setComparing(null); setSelected([]); setCompareMode(null); }}
+                  />
+                )}
+
+                {visits.map(v => (
+                  <div key={v.id} className="tl-item">
+                    {isCompareActive && (
+                      <div className="tl-check">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(v.id)}
+                          onChange={() => toggleSelect(v.id)}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
+                    <div className="tl-dot"><div className="tl-dot-inner" /></div>
+                    <div className="tl-content" style={{cursor:'pointer'}} onClick={() => onOpenRecord(v)}>
+                      <div className="tl-date">{fmt(v.document_date) || fmtRel(v.created_at)}</div>
+                      <div className="tl-diag">{v.diagnosis || v.document_type || 'No diagnosis'}</div>
+                      <div className="tl-meds">
+                        {v.medicines?.length > 0 ? v.medicines.length + ' medicine' + (v.medicines.length > 1 ? 's' : '') : 'No medicines'}
+                        {' · '}
+                        <span className={"sbadge s-" + v.status} style={{display:'inline'}}>{v.status}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {sortedDoctors.length === 0 && (
+        <div className="empty">
+          <div className="empty-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/></svg>
+          </div>
+          <div className="empty-title">No doctor records</div>
+          <div className="empty-sub">Upload prescriptions or records that mention doctors.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({onLogout}) {
   const [profiles, setProfiles] = useState([]);
   const [sel, setSel] = useState(null);
   const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchResults, setSearchResults] = useState(null);
   const [search, setSearch] = useState('');
+  const [searchCategory, setSearchCategory] = useState('All');
   const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selRecord, setSelRecord] = useState(null);
@@ -747,39 +1230,92 @@ function Dashboard({onLogout}) {
   const [showAddProf, setShowAddProf] = useState(false);
   const [filter, setFilter] = useState('All');
   const [toast, setToast] = useState(null);
+  const [viewMode, setViewMode] = useState('cards');
+  const [showJourney, setShowJourney] = useState(false);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+  const [profileTransition, setProfileTransition] = useState(false);
+  const [ocrSlowWarning, setOcrSlowWarning] = useState({});
   const pollRef = useRef(null);
+  const searchRef = useRef(null);
+  const debounceRef = useRef(null);
+  const ocrTimersRef = useRef({});
 
-  const showToast = (msg, type='success') => setToast({msg, type});
+  const showToast = useCallback((msg, type='success') => setToast({msg, type}), []);
 
   useEffect(() => {
     API.get('/profiles').then(r => {
       setProfiles(r.data);
       if(r.data.length > 0) setSel(r.data[0]);
+    }).catch(e => {
+      handleApiError(e, showToast, onLogout);
     });
-  }, []);
+  }, [showToast, onLogout]);
 
   const loadRecords = useCallback(pid => {
     return API.get('/profiles/' + pid + '/records').then(r => {
       const sorted = r.data.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
       setRecords(sorted);
+      setLoading(false);
       return sorted;
+    }).catch(e => {
+      setLoading(false);
+      handleApiError(e, showToast, onLogout);
+      return [];
     });
-  }, []);
+  }, [showToast, onLogout]);
 
   useEffect(() => {
-    if(!sel) return;
-    setRecords([]); setSearchResults(null); setSearch(''); setFilter('All');
-    loadRecords(sel.id);
+    if(!sel) { setLoading(false); return; }
+    setLoading(true);
+    setSearchResults(null);
+    setSearch('');
+    setFilter('All');
+    setProfileTransition(true);
+    loadRecords(sel.id).then(() => {
+      setTimeout(() => setProfileTransition(false), 350);
+    });
   }, [sel, loadRecords]);
 
   useEffect(() => {
     if(pollRef.current) clearInterval(pollRef.current);
-    const pending = records.some(r => r.status === 'processing' || r.status === 'extracting');
-    if(pending && sel) {
+    const pending = records.filter(r => r.status === 'processing' || r.status === 'extracting');
+    if(pending.length > 0 && sel) {
       pollRef.current = setInterval(() => loadRecords(sel.id), POLL);
+
+      pending.forEach(r => {
+        if(!ocrTimersRef.current[r.id]) {
+          ocrTimersRef.current[r.id] = setTimeout(() => {
+            setOcrSlowWarning(prev => ({...prev, [r.id]: true}));
+          }, 60000);
+        }
+      });
     }
+
+    records.forEach(r => {
+      if(r.status === 'done' || r.status === 'failed') {
+        if(ocrTimersRef.current[r.id]) {
+          clearTimeout(ocrTimersRef.current[r.id]);
+          delete ocrTimersRef.current[r.id];
+        }
+        setOcrSlowWarning(prev => {
+          if(prev[r.id]) {
+            const n = {...prev};
+            delete n[r.id];
+            return n;
+          }
+          return prev;
+        });
+      }
+    });
+
     return () => { if(pollRef.current) clearInterval(pollRef.current); };
   }, [records, sel, loadRecords]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(ocrTimersRef.current).forEach(t => clearTimeout(t));
+    };
+  }, []);
 
   const upload = async e => {
     const file = e.target.files[0]; e.target.value = '';
@@ -791,24 +1327,44 @@ function Dashboard({onLogout}) {
       await loadRecords(sel.id);
       showToast('Document uploaded - processing in background');
     } catch(e) {
-      showToast(e?.response?.data?.detail || 'Upload failed', 'error');
+      if(!e.response) showToast('Unable to connect. Check your internet.', 'error');
+      else showToast(e?.response?.data?.detail || 'Upload failed. Please try again.', 'error');
     } finally {
       setUploading(false);
     }
   };
 
-  const doSearch = async () => {
-    if(!search.trim()) { setSearchResults(null); return; }
+  const doSearch = useCallback(async (q, cat) => {
+    const query = q !== undefined ? q : search;
+    const category = cat !== undefined ? cat : searchCategory;
+    if(!query.trim()) { setSearchResults(null); return; }
     setSearching(true);
     try {
-      const p = new URLSearchParams({q: search});
+      const p = new URLSearchParams({q: query});
       if(sel) p.append('profile_id', sel.id);
+      if(category && category !== 'All') p.append('category', category.toLowerCase());
       const r = await API.get('/search?' + p.toString());
       setSearchResults(r.data.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
     } catch(e) {
-      showToast('Search failed', 'error');
+      handleApiError(e, showToast, onLogout);
     } finally {
       setSearching(false);
+    }
+  }, [search, searchCategory, sel, showToast, onLogout]);
+
+  const handleSearchInput = (val) => {
+    setSearch(val);
+    if(!val) { setSearchResults(null); return; }
+    if(debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      doSearch(val, searchCategory);
+    }, 300);
+  };
+
+  const handleCategoryChange = (cat) => {
+    setSearchCategory(cat);
+    if(search.trim()) {
+      doSearch(search, cat);
     }
   };
 
@@ -820,7 +1376,7 @@ function Dashboard({onLogout}) {
       setDelId(null);
       showToast('Record deleted');
     } catch(e) {
-      showToast('Delete failed', 'error');
+      handleApiError(e, showToast, onLogout);
     }
   };
 
@@ -836,15 +1392,22 @@ function Dashboard({onLogout}) {
     showToast('Record deleted');
   };
 
+  const handleJourney = async () => {
+    if(!sel) return;
+    setShowJourney(true);
+  };
+
   const display = (searchResults !== null ? searchResults : records).filter(r => {
     if(filter === 'All') return true;
     return r.document_type === filter;
   });
 
   const types = [...new Set(records.map(r => r.document_type).filter(Boolean))];
-  const doneCount = records.filter(r => r.status === 'done').length;
-  const pendingCount = records.filter(r => r.status === 'processing' || r.status === 'extracting').length;
-  const medCount = records.filter(r => r.medicines?.length > 0).length;
+
+  const uniqueDoctors = [...new Set(records.map(r => r.doctor_name).filter(Boolean))];
+  const uniqueSpecialties = [...new Set(records.map(r => r.specialty).filter(Boolean))];
+  const uniqueMedicines = [...new Set(records.flatMap(r => (r.medicines || []).map(m => m.name)).filter(Boolean))];
+  const recentRecords = records.slice(0, 3);
 
   return (
     <>
@@ -863,9 +1426,11 @@ function Dashboard({onLogout}) {
         <RecordModal
           record={selRecord}
           profileId={sel?.id}
+          allRecords={records}
           onClose={() => setSelRecord(null)}
           onDeleted={handleDeletedModal}
           onUpdated={handleUpdated}
+          onOpenRecord={r => setSelRecord(r)}
         />
       )}
       {delId && (
@@ -881,8 +1446,16 @@ function Dashboard({onLogout}) {
           onAdded={p => { setProfiles(prev => [...prev, p]); setSel(p); showToast('Profile added'); }}
         />
       )}
+      {showJourney && sel && (
+        <JourneyModal
+          profileId={sel.id}
+          onClose={() => setShowJourney(false)}
+          showToast={showToast}
+        />
+      )}
 
       <div className="app-root">
+        {/* Desktop Header */}
         <header className="app-header">
           <div className="header-inner">
             <div className="header-left">
@@ -919,6 +1492,34 @@ function Dashboard({onLogout}) {
           </div>
         </header>
 
+        {/* Mobile Top Bar */}
+        <div className="mobile-top">
+          <div className="mobile-top-logo">
+            <MediLogo size={22} color="#0d9488" />
+            <span className="mobile-top-logo-text">Medi<span>Vault</span></span>
+          </div>
+          <div className="mobile-top-actions">
+            <button className="mobile-top-btn" onClick={() => { localStorage.removeItem('token'); onLogout(); }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Profile Pill Bar */}
+        <div className="mobile-profile-bar">
+          <div className="mobile-profile-scroll">
+            {profiles.map(p => (
+              <button key={p.id} className={"mobile-pill" + (sel?.id === p.id ? ' active' : '')} onClick={() => setSel(p)}>
+                <div className="mobile-pill-av" style={{background: gc(p.name) + '22', color: gc(p.name)}}>
+                  {p.name[0].toUpperCase()}
+                </div>
+                {p.name}
+              </button>
+            ))}
+            <button className="mobile-pill-add" onClick={() => setShowAddProf(true)}>+</button>
+          </div>
+        </div>
+
         <div className="page">
           {sel && (
             <div className="page-header">
@@ -926,64 +1527,126 @@ function Dashboard({onLogout}) {
                 <h1 className="page-title">{sel.name}'s Records</h1>
                 <p className="page-sub">{sel.relationship} · {records.length} record{records.length !== 1 ? 's' : ''}</p>
               </div>
-            </div>
-          )}
-
-          {sel && records.length > 0 && (
-            <div className="stats-row">
-              <div className="stat-card sc-indigo">
-                <div className="stat-val">{records.length}</div>
-                <div className="stat-lbl">Total Records</div>
-              </div>
-              <div className="stat-card sc-green">
-                <div className="stat-val">{doneCount}</div>
-                <div className="stat-lbl">Processed</div>
-              </div>
-              <div className="stat-card sc-amber">
-                <div className="stat-val">{pendingCount}</div>
-                <div className="stat-lbl">Processing</div>
-              </div>
-              <div className="stat-card sc-purple">
-                <div className="stat-val">{medCount}</div>
-                <div className="stat-lbl">With Medicines</div>
-              </div>
-            </div>
-          )}
-
-          {sel && (
-            <div className="search-row">
-              <div className="search-wrap">
-                <svg className="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input
-                  className="search-input"
-                  placeholder="Search by doctor, diagnosis, medicine or hospital"
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); if(!e.target.value) setSearchResults(null); }}
-                  onKeyDown={e => e.key === 'Enter' && doSearch()}
-                />
-                {searchResults === null && (
-                  <button className="search-action" onClick={doSearch}>
-                    {searching ? <div style={{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.8s linear infinite'}} /> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
+              <div className="page-actions">
+                {records.length > 0 && (
+                  <button className="btn-journey" onClick={handleJourney} disabled={journeyLoading}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Health Journey
                   </button>
                 )}
               </div>
-              {searchResults !== null && (
-                <button className="btn-clear" onClick={() => { setSearch(''); setSearchResults(null); }}>Clear</button>
-              )}
             </div>
           )}
 
+          {/* Enhanced Dashboard */}
           {sel && records.length > 0 && (
-            <div className="filter-row">
-              {['All', ...types].map(t => (
-                <button key={t} className={"filter-chip" + (filter===t?' active':'')} onClick={() => setFilter(t)}>{t}</button>
-              ))}
+            <>
+              <div className="dashboard-grid">
+                <div className="dash-card dc-teal">
+                  <div className="dash-val">{profiles.length}</div>
+                  <div className="dash-lbl">Family Members</div>
+                </div>
+                <div className="dash-card dc-green">
+                  <div className="dash-val">{uniqueDoctors.length}</div>
+                  <div className="dash-lbl">Doctors Visited</div>
+                </div>
+                <div className="dash-card dc-amber">
+                  <div className="dash-val">{uniqueSpecialties.length}</div>
+                  <div className="dash-lbl">Departments</div>
+                </div>
+                <div className="dash-card dc-purple">
+                  <div className="dash-val">{uniqueMedicines.length}</div>
+                  <div className="dash-lbl">Total Medicines</div>
+                </div>
+              </div>
+
+              {recentRecords.length > 0 && (
+                <div className="recent-activity">
+                  <div className="recent-title">Recent Activity</div>
+                  {recentRecords.map(r => (
+                    <div key={r.id} className="recent-item" style={{cursor:'pointer'}} onClick={() => setSelRecord(r)}>
+                      <div className="recent-dot" />
+                      <div className="recent-info">
+                        <div className="recent-info-title">
+                          {r.doctor_name ? 'Dr. ' + r.doctor_name : r.hospital_name || r.document_type || 'Record'}
+                        </div>
+                        <div className="recent-info-sub">{r.document_type}{r.specialty ? ' · ' + r.specialty : ''}</div>
+                      </div>
+                      <div className="recent-date">{fmtRel(r.created_at)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* OCR slow warnings */}
+          {Object.keys(ocrSlowWarning).length > 0 && (
+            <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:13,color:'#b45309',fontWeight:500}}>
+              Taking longer than expected to process {Object.keys(ocrSlowWarning).length} record{Object.keys(ocrSlowWarning).length > 1 ? 's' : ''}. This may take a few more minutes.
             </div>
+          )}
+
+          {/* Search */}
+          {sel && (
+            <>
+              <div className="search-row">
+                <div className="search-wrap">
+                  <svg className="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input
+                    ref={searchRef}
+                    className="search-input"
+                    placeholder="Search by doctor, diagnosis, medicine or hospital"
+                    value={search}
+                    onChange={e => handleSearchInput(e.target.value)}
+                    onKeyDown={e => { if(e.key === 'Enter') { if(debounceRef.current) clearTimeout(debounceRef.current); doSearch(); } }}
+                  />
+                  {searchResults === null && (
+                    <button className="search-action" onClick={() => { if(debounceRef.current) clearTimeout(debounceRef.current); doSearch(); }}>
+                      {searching ? <div style={{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.8s linear infinite'}} /> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
+                    </button>
+                  )}
+                </div>
+                {searchResults !== null && (
+                  <button className="btn-clear" onClick={() => { setSearch(''); setSearchResults(null); setSearchCategory('All'); }}>Clear</button>
+                )}
+              </div>
+
+              {/* Search category chips */}
+              <div className="search-cats">
+                {SEARCH_CATEGORIES.map(c => (
+                  <button key={c} className={"search-cat" + (searchCategory === c ? ' active' : '')} onClick={() => handleCategoryChange(c)}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* View mode toggle + Filter row */}
+          {sel && records.length > 0 && (
+            <>
+              <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:4}}>
+                <div className="view-toggle">
+                  <button className={"view-btn" + (viewMode === 'cards' ? ' active' : '')} onClick={() => setViewMode('cards')}>Cards</button>
+                  <button className={"view-btn" + (viewMode === 'doctors' ? ' active' : '')} onClick={() => setViewMode('doctors')}>Doctors</button>
+                </div>
+                {viewMode === 'cards' && (
+                  <div className="filter-row" style={{marginBottom:0}}>
+                    {['All', ...types].map(t => (
+                      <button key={t} className={"filter-chip" + (filter===t?' active':'')} onClick={() => setFilter(t)}>{t}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{height:14}} />
+            </>
           )}
 
           {searchResults !== null && (
             <div style={{marginBottom:12,fontSize:13,color:'#64748b'}}>
               {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{search}"
+              {searchCategory !== 'All' ? ' in ' + searchCategory : ''}
             </div>
           )}
 
@@ -997,7 +1660,9 @@ function Dashboard({onLogout}) {
             </div>
           )}
 
-          {sel && display.length === 0 && !uploading && (
+          {sel && loading && <SkeletonCards />}
+
+          {sel && !loading && display.length === 0 && !uploading && viewMode === 'cards' && (
             <div className="empty">
               <div className="empty-icon">
                 {searchResults !== null
@@ -1007,30 +1672,41 @@ function Dashboard({onLogout}) {
               </div>
               <div className="empty-title">{searchResults !== null ? 'No results found' : 'No records yet'}</div>
               <div className="empty-sub">
-                {searchResults !== null ? 'Try a different search term.' : 'Upload a prescription, lab report, or any medical document.'}
+                {searchResults !== null ? 'Try a different search term or category.' : 'Upload a prescription, lab report, or any medical document.'}
               </div>
             </div>
           )}
 
-          <div className="records-grid">
-            {display.map((r, i) => (
-              <RecordCard
-                key={r.id}
-                record={r}
-                onClick={() => setSelRecord(r)}
-                onDelete={() => setDelId(r.id)}
-                style={{animationDelay: (i * 0.05) + 's'}}
+          {sel && !loading && viewMode === 'cards' && (
+            <div className={"records-grid" + (profileTransition ? ' profile-transition-enter' : '')}>
+              {display.map((r, i) => (
+                <RecordCard
+                  key={r.id}
+                  record={r}
+                  onClick={() => setSelRecord(r)}
+                  onDelete={() => setDelId(r.id)}
+                  style={{animationDelay: (i * 0.05) + 's'}}
+                />
+              ))}
+            </div>
+          )}
+
+          {sel && !loading && viewMode === 'doctors' && (
+            <div className={profileTransition ? 'profile-transition-enter' : ''}>
+              <DoctorTimeline
+                records={searchResults !== null ? display : records}
+                onOpenRecord={r => setSelRecord(r)}
               />
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
         <nav className="bottom-nav">
-          <button className={"bnav-item active"} onClick={() => {}}>
+          <button className={"bnav-item active"} onClick={() => window.scrollTo({top:0,behavior:'smooth'})}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             <span>Records</span>
           </button>
-          <button className="bnav-item" onClick={doSearch}>
+          <button className="bnav-item" onClick={() => { if(searchRef.current) searchRef.current.focus(); }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <span>Search</span>
           </button>
