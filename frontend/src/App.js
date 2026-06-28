@@ -62,10 +62,22 @@ const css = `
   /* ── Page ── */
   .page{max-width:800px;margin:0 auto;padding:20px 16px 100px;}
 
-  /* ── Snap Button ── */
-  .snap{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:20px;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;border-radius:20px;font-size:17px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;box-shadow:0 8px 32px rgba(13,148,136,0.3);margin-bottom:28px;transition:all 0.2s;min-height:64px;}
-  .snap:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(13,148,136,0.4);}
-  .snap:active{transform:scale(0.98);}
+  /* ── Type Picker ── */
+  .type-picker{display:flex;gap:8px;margin:14px 0;}
+  .type-opt{flex:1;padding:10px 8px;border:1.5px solid #e2e8f0;border-radius:12px;background:#fff;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;text-align:center;color:#64748b;transition:all 0.2s;}
+  .type-opt:hover{border-color:#0d9488;color:#0d9488;}
+  .type-opt.active{background:#0d9488;color:#fff;border-color:#0d9488;}
+  .uprev-date{margin-top:12px;}
+  .uprev-date label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;}
+  .uprev-date input{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:'Inter',sans-serif;color:#0f172a;outline:none;}
+  .uprev-date input:focus{border-color:#0d9488;}
+
+  /* ── Visit Tabs ── */
+  .vtabs{display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid #e2e8f0;}
+  .vtab{padding:8px 12px;border:none;background:transparent;font-size:11px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.2s;text-transform:uppercase;letter-spacing:0.04em;}
+  .vtab.active{color:#0d9488;border-bottom-color:#0d9488;}
+  .vtab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;border-radius:8px;background:#e2e8f0;color:#64748b;font-size:9px;font-weight:700;margin-left:4px;padding:0 4px;}
+  .vtab.active .vtab-badge{background:#0d9488;color:#fff;}
 
   /* ── Section ── */
   .sec-title{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;}
@@ -284,8 +296,19 @@ function Gallery({files,startIdx,onClose}) {
   return <div className="gal" onClick={onClose}><button className="gal-close" onClick={onClose}>&#x2715;</button>{files.length>1&&<><button className="gal-nav gal-prev" onClick={e=>{e.stopPropagation();setI(x=>(x-1+files.length)%files.length);}}>&#x2039;</button><button className="gal-nav gal-next" onClick={e=>{e.stopPropagation();setI(x=>(x+1)%files.length);}}>&#x203A;</button></>}<img src={files[i].file_url} alt={'Page '+(i+1)} onClick={e=>e.stopPropagation()}/>{files.length>1&&<div className="gal-cnt">Page {i+1} of {files.length}</div>}</div>;
 }
 
-function UploadPreview({files,onAdd,onRemove,onUpload,uploading}) {
-  return <div className="uprev"><div className="uprev-box" onClick={e=>e.stopPropagation()}><div className="uprev-title">Review Pages</div><div className="uprev-thumbs">{files.map((f,i)=><div key={i} className="uprev-thumb"><img src={URL.createObjectURL(f)} alt={'P'+(i+1)}/><div className="uprev-lbl">Page {i+1}</div><button className="uprev-x" onClick={()=>onRemove(i)}>&#x2715;</button></div>)}</div><div className="uprev-btns"><label className="ubtn ubtn-add" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,cursor:'pointer'}}>+ Add Pages<input type="file" hidden multiple accept="image/*,.pdf" onChange={onAdd}/></label><button className="ubtn ubtn-go" onClick={onUpload} disabled={uploading}>{uploading?'Uploading...':'Upload '+files.length+' page'+(files.length>1?'s':'')}</button></div></div></div>;
+function UploadPreview({files,onAdd,onRemove,onUpload,uploading,docType,setDocType,docDate,setDocDate}) {
+  return <div className="uprev"><div className="uprev-box" onClick={e=>e.stopPropagation()}>
+    <div className="uprev-title">Upload Document</div>
+    <div className="uprev-thumbs">{files.map((f,i)=><div key={i} className="uprev-thumb"><img src={URL.createObjectURL(f)} alt={'P'+(i+1)}/><div className="uprev-lbl">Page {i+1}</div><button className="uprev-x" onClick={()=>onRemove(i)}>&#x2715;</button></div>)}</div>
+    <div className="type-picker">
+      {['prescription','lab_report','bill'].map(t=><button key={t} className={"type-opt"+(docType===t?' active':'')} onClick={()=>setDocType(t)}>{t==='prescription'?'Prescription':t==='lab_report'?'Lab Report':'Bill'}</button>)}
+    </div>
+    <div className="uprev-date"><label>Document Date (optional)</label><input type="date" value={docDate} onChange={e=>setDocDate(e.target.value)}/></div>
+    <div className="uprev-btns">
+      <label className="ubtn ubtn-add" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,cursor:'pointer'}}>+ Add Pages<input type="file" hidden multiple accept="image/*,.pdf" onChange={onAdd}/></label>
+      <button className="ubtn ubtn-go" onClick={onUpload} disabled={uploading}>{uploading?'Uploading...':'Upload'}</button>
+    </div>
+  </div></div>;
 }
 
 function AddProfile({onClose,onAdded}) {
@@ -322,8 +345,8 @@ function RecordModal({record,profileId,allRecords,onClose,onDeleted,onUpdated,on
   </div>{del&&<div className="overlay" onClick={()=>sDel(false)}><div className="confirm-box" onClick={e=>e.stopPropagation()}><div className="confirm-title">Delete record?</div><div className="confirm-text">This will permanently delete the record.</div><div className="confirm-btns"><button className="btn-c" onClick={()=>sDel(false)}>Cancel</button><button className="btn-d" onClick={doDel}>Delete</button></div></div></div>}{gal!==null&&<Gallery files={files} startIdx={gal} onClose={()=>sGal(null)}/>}</div>;
 }
 
-function DoctorCard({doctor,visits,onOpenRecord,profileId}) {
-  const [expanded,setExpanded]=useState(null);const [gal,sGal]=useState(null);
+function DoctorCard({doctor,visits,onOpenRecord,profileId,onUploadFor}) {
+  const [expanded,setExpanded]=useState(null);const [gal,sGal]=useState(null);const [vtab,sVtab]=useState('details');
   const latest=visits[0];const specialty=visits.find(v=>v.specialty)?.specialty||'';const hospital=visits.find(v=>v.hospital_name)?.hospital_name||'';
   const summary=latest?.diagnosis?(latest.diagnosis.length>55?latest.diagnosis.slice(0,52)+'...':latest.diagnosis):null;
   const ev=expanded?visits.find(v=>v.id===expanded):null;
@@ -331,19 +354,41 @@ function DoctorCard({doctor,visits,onOpenRecord,profileId}) {
   let cmp=null;
   if(ev&&older){const m1=(older.medicines||[]).map(m=>m.name);const m2=(ev.medicines||[]).map(m=>m.name);const all=[...new Set([...m1,...m2])];cmp={added:all.filter(m=>!m1.includes(m)&&m2.includes(m)),removed:all.filter(m=>m1.includes(m)&&!m2.includes(m)),continued:all.filter(m=>m1.includes(m)&&m2.includes(m)),prevDate:fmt(older.document_date)||fmtRel(older.created_at)};}
   const evFiles=ev?.files&&ev.files.length>0?ev.files:(ev?.file_url?[{file_url:ev.file_url,page_number:1}]:[]);
+  const labVisits=visits.filter(v=>(v.document_category||'').includes('lab'));
+  const billVisits=visits.filter(v=>(v.document_category||'').includes('bill'));
 
   return <div className="dcard">
-    <div className="dcard-top"><div className="dcard-av">{doctor==='Unassigned'?'?':doctor[0].toUpperCase()}</div><div className="dcard-info"><div className="dcard-name">{doctor==='Unassigned'?'Unassigned':drN(doctor)}</div><div className="dcard-meta">{specialty}{specialty&&hospital?' · ':''}{hospital}</div></div><div className="dcard-stats"><div className="dcard-count">{visits.length}</div><div className="dcard-lbl">{visits.length===1?'visit':'visits'}</div></div></div>
-    <div className="dcard-last">Last visit: {fmtRel(latest.document_date||latest.created_at)}</div>
+    <div className="dcard-top" style={{cursor:'pointer'}} onClick={()=>{if(expanded)setExpanded(null);else if(visits.length===1){setExpanded(visits[0].id);sVtab('details');}}}><div className="dcard-av">{doctor==='Unassigned'?'?':doctor[0].toUpperCase()}</div><div className="dcard-info"><div className="dcard-name">{doctor==='Unassigned'?'Unassigned':drN(doctor)}</div><div className="dcard-meta">{specialty}{specialty&&hospital?' · ':''}{hospital}</div></div><div className="dcard-stats"><div className="dcard-count">{visits.length}</div><div className="dcard-lbl">{visits.length===1?'visit':'visits'}</div></div></div>
+    <div className="dcard-last">Last: {fmt(latest.document_date||latest.created_at)||fmtRel(latest.created_at)}</div>
     {summary&&<div className="dcard-summary">{summary}</div>}
-    <div className="dcard-chips">{visits.map(v=><div key={v.id} className={"dchip"+(expanded===v.id?' active':'')} onClick={()=>setExpanded(expanded===v.id?null:v.id)}>{fmt(v.document_date)||fmtRel(v.created_at)}</div>)}</div>
+    <div className="dcard-chips">{visits.map(v=><div key={v.id} className={"dchip"+(expanded===v.id?' active':'')} onClick={()=>{setExpanded(expanded===v.id?null:v.id);sVtab('details');}}>{fmt(v.document_date)||fmt(v.created_at)}</div>)}</div>
     {ev&&<div className="vdetail">
-      {ev.diagnosis&&<div className="vd-sec"><div className="vd-lbl">Diagnosis</div><div className="vd-diag">{ev.diagnosis}</div></div>}
-      {(ev.medicines||[]).length>0&&<div className="vd-sec"><div className="vd-lbl">Medicines</div>{(ev.medicines||[]).map(m=><div key={m.id} className="vd-med"><div className="vd-med-name">{m.name}</div><div className="vd-med-info">{m.dosage&&<span>{m.dosage}</span>}{m.frequency&&<span>{m.frequency}</span>}{m.duration&&<span>{m.duration}</span>}</div></div>)}</div>}
-      {ev.recommendations&&<div className="vd-sec"><div className="vd-lbl">Recommendations</div><div className="vd-recs">{ev.recommendations}</div></div>}
-      <div className="vd-sec"><div className="vd-lbl">Documents</div><div className="vd-docs">{evFiles.map((f,i)=><div key={i} className="vd-doc" onClick={()=>sGal(i)}><img src={f.file_url} alt={'P'+(f.page_number||i+1)} onError={e=>e.target.style.display='none'}/><div className="vd-doc-lbl">{(ev.document_category||'doc').replace('_',' ')}</div></div>)}<label className="vd-add">+<span style={{fontSize:8,fontWeight:600}}>ADD</span><input type="file" hidden multiple accept="image/*,.pdf" onChange={e=>{e.target.value='';}}/></label></div></div>
-      {cmp&&(cmp.added.length>0||cmp.removed.length>0)&&<div className="vd-compare"><div className="vd-compare-title">vs {cmp.prevDate}</div>{cmp.added.map(m=><span key={m} className="vd-cmed added">+ {m}</span>)}{cmp.removed.map(m=><span key={m} className="vd-cmed removed">- {m}</span>)}{cmp.continued.map(m=><span key={m} className="vd-cmed continued">{m}</span>)}</div>}
-      <button className="vd-btn" onClick={()=>onOpenRecord(ev)}>View Full Record</button>
+      <div className="vtabs">
+        <button className={"vtab"+(vtab==='details'?' active':'')} onClick={()=>sVtab('details')}>Details</button>
+        <button className={"vtab"+(vtab==='labs'?' active':'')} onClick={()=>sVtab('labs')}>Lab Reports{labVisits.length>0&&<span className="vtab-badge">{labVisits.length}</span>}</button>
+        <button className={"vtab"+(vtab==='bills'?' active':'')} onClick={()=>sVtab('bills')}>Bills{billVisits.length>0&&<span className="vtab-badge">{billVisits.length}</span>}</button>
+      </div>
+
+      {vtab==='details'&&<>
+        {ev.diagnosis&&<div className="vd-sec"><div className="vd-lbl">Diagnosis</div><div className="vd-diag">{ev.diagnosis}</div></div>}
+        {(ev.medicines||[]).length>0&&<div className="vd-sec"><div className="vd-lbl">Medicines</div>{(ev.medicines||[]).map(m=><div key={m.id} className="vd-med"><div className="vd-med-name">{m.name}</div><div className="vd-med-info">{m.dosage&&<span>{m.dosage}</span>}{m.frequency&&<span>{m.frequency}</span>}{m.duration&&<span>{m.duration}</span>}</div></div>)}</div>}
+        {ev.recommendations&&<div className="vd-sec"><div className="vd-lbl">Recommendations</div><div className="vd-recs">{ev.recommendations}</div></div>}
+        <div className="vd-sec"><div className="vd-lbl">Documents</div><div className="vd-docs">{evFiles.map((f,i)=><div key={i} className="vd-doc" onClick={()=>sGal(i)}><img src={f.file_url} alt={'P'+(f.page_number||i+1)} onError={e=>e.target.style.display='none'}/><div className="vd-doc-lbl">{(ev.document_category||'doc').replace('_',' ')}</div></div>)}<label className="vd-add">+<span style={{fontSize:8,fontWeight:600}}>ADD</span><input type="file" hidden multiple accept="image/*,.pdf" onChange={e=>onUploadFor&&onUploadFor(e,'prescription')}/></label></div></div>
+        {cmp&&(cmp.added.length>0||cmp.removed.length>0)&&<div className="vd-compare"><div className="vd-compare-title">vs {cmp.prevDate}</div>{cmp.added.map(m=><span key={m} className="vd-cmed added">+ {m}</span>)}{cmp.removed.map(m=><span key={m} className="vd-cmed removed">- {m}</span>)}{cmp.continued.map(m=><span key={m} className="vd-cmed continued">{m}</span>)}</div>}
+        <button className="vd-btn" onClick={()=>onOpenRecord(ev)}>View Full Record</button>
+      </>}
+
+      {vtab==='labs'&&<>
+        {labVisits.length===0?<div style={{color:'#94a3b8',fontSize:13,padding:'12px 0'}}>No lab reports for this doctor yet.</div>
+        :labVisits.map(lv=>{const lf=lv.files&&lv.files.length>0?lv.files:(lv.file_url?[{file_url:lv.file_url,page_number:1}]:[]);return<div key={lv.id} style={{padding:'10px 0',borderBottom:'1px solid #f1f5f9',cursor:'pointer'}} onClick={()=>onOpenRecord(lv)}><div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{fmt(lv.document_date)||fmt(lv.created_at)}</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>{lv.diagnosis||'Lab Report'}</div>{lf.length>0&&<div className="vd-docs" style={{marginTop:6}}>{lf.map((f,i)=><div key={i} className="vd-doc" style={{width:70,height:54}} onClick={e=>{e.stopPropagation();sGal(i);}}><img src={f.file_url} alt="" onError={e=>e.target.style.display='none'}/><div className="vd-doc-lbl">Lab</div></div>)}</div>}</div>;})}
+        <label className="vd-btn" style={{display:'inline-flex',alignItems:'center',gap:6,cursor:'pointer',marginTop:8}}>+ Add Lab Report<input type="file" hidden multiple accept="image/*,.pdf" onChange={e=>onUploadFor&&onUploadFor(e,'lab_report')}/></label>
+      </>}
+
+      {vtab==='bills'&&<>
+        {billVisits.length===0?<div style={{color:'#94a3b8',fontSize:13,padding:'12px 0'}}>No bills for this doctor yet.</div>
+        :billVisits.map(bv=><div key={bv.id} style={{padding:'10px 0',borderBottom:'1px solid #f1f5f9',cursor:'pointer'}} onClick={()=>onOpenRecord(bv)}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{fmt(bv.document_date)||fmt(bv.created_at)}</div><div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{cur(bv.bill_amount)}</div></div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>{bv.hospital_name||'Medical Bill'}</div></div>)}
+        <label className="vd-btn" style={{display:'inline-flex',alignItems:'center',gap:6,cursor:'pointer',marginTop:8}}>+ Add Bill<input type="file" hidden multiple accept="image/*,.pdf" onChange={e=>onUploadFor&&onUploadFor(e,'bill')}/></label>
+      </>}
     </div>}
     {gal!==null&&<Gallery files={evFiles} startIdx={gal} onClose={()=>sGal(null)}/>}
   </div>;
@@ -373,14 +418,14 @@ function SearchPage({sel,onOpenRecord,showToast}) {
 }
 
 function Dashboard({onLogout}) {
-  const [profiles,setProfiles]=useState([]);const [sel,setSel]=useState(null);const [records,setRecords]=useState([]);const [loading,setLoading]=useState(true);const [selRec,setSelRec]=useState(null);const [showAdd,setShowAdd]=useState(false);const [toast,setToast]=useState(null);const [page,setPage]=useState('home');const [upFiles,setUpFiles]=useState(null);const [uploading,setUploading]=useState(false);const [showJourney,setShowJourney]=useState(false);const pollRef=useRef(null);
+  const [profiles,setProfiles]=useState([]);const [sel,setSel]=useState(null);const [records,setRecords]=useState([]);const [loading,setLoading]=useState(true);const [selRec,setSelRec]=useState(null);const [showAdd,setShowAdd]=useState(false);const [toast,setToast]=useState(null);const [page,setPage]=useState('home');const [upFiles,setUpFiles]=useState(null);const [uploading,setUploading]=useState(false);const [showJourney,setShowJourney]=useState(false);const [upDocType,setUpDocType]=useState('prescription');const [upDocDate,setUpDocDate]=useState('');const pollRef=useRef(null);
   const showToast=useCallback((m,t='success')=>setToast({msg:m,type:t}),[]);
   useEffect(()=>{API.get('/profiles').then(r=>{setProfiles(r.data);if(r.data.length>0)setSel(r.data[0]);}).catch(()=>showToast('Failed to load','error'));},[showToast]);
   const loadRecs=useCallback(pid=>API.get('/profiles/'+pid+'/records').then(r=>{const s=r.data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));setRecords(s);setLoading(false);return s;}).catch(()=>{setLoading(false);return[];}),[]);
   useEffect(()=>{if(!sel){setLoading(false);return;}setLoading(true);loadRecs(sel.id);},[sel,loadRecs]);
   useEffect(()=>{if(pollRef.current)clearInterval(pollRef.current);const pend=records.filter(r=>r.status==='processing'||r.status==='extracting');if(pend.length>0&&sel){pollRef.current=setInterval(()=>loadRecs(sel.id),POLL);}return()=>{if(pollRef.current)clearInterval(pollRef.current);};},[records,sel,loadRecs]);
 
-  const onFileSelect=e=>{const nf=Array.from(e.target.files||[]);e.target.value='';if(!nf.length)return;setUpFiles(prev=>prev?[...prev,...nf]:nf);};
+  const onFileSelect=(e,presetType)=>{const nf=Array.from(e.target.files||[]);e.target.value='';if(!nf.length)return;setUpFiles(prev=>prev?[...prev,...nf]:nf);if(presetType)setUpDocType(presetType);else setUpDocType('prescription');setUpDocDate('');};
   const onAddMore=e=>{const nf=Array.from(e.target.files||[]);e.target.value='';if(!nf.length)return;setUpFiles(prev=>[...(prev||[]),...nf]);};
   const onRemoveFile=i=>setUpFiles(prev=>{const n=prev.filter((_,j)=>j!==i);return n.length?n:null;});
   const doUpload=async()=>{if(!upFiles||!sel)return;setUploading(true);const fd=new FormData();upFiles.forEach(f=>fd.append('files',f));try{await API.post('/upload/'+sel.id,fd,{headers:{'Content-Type':'multipart/form-data'},timeout:60000});setUpFiles(null);await loadRecs(sel.id);showToast('Uploaded — AI is processing');setPage('home');}catch(e){showToast(e?.response?.data?.detail||'Upload failed','error');}finally{setUploading(false);}};
@@ -394,7 +439,7 @@ function Dashboard({onLogout}) {
     <style>{css}</style>
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     {uploading&&!upFiles&&<div className="overlay"><div className="overlay-box"><div className="spinner"/><div style={{fontWeight:700,fontSize:14}}>Uploading</div><div style={{color:'#64748b',fontSize:12,marginTop:4}}>AI will extract everything</div></div></div>}
-    {upFiles&&<UploadPreview files={upFiles} onAdd={onAddMore} onRemove={onRemoveFile} onUpload={doUpload} uploading={uploading}/>}
+    {upFiles&&<UploadPreview files={upFiles} onAdd={onAddMore} onRemove={onRemoveFile} onUpload={doUpload} uploading={uploading} docType={upDocType} setDocType={setUpDocType} docDate={upDocDate} setDocDate={setUpDocDate}/>}
     {selRec&&<RecordModal record={selRec} profileId={sel?.id} allRecords={records} onClose={()=>setSelRec(null)} onDeleted={id=>{setRecords(p=>p.filter(r=>r.id!==id));showToast('Deleted');}} onUpdated={u=>{setRecords(p=>p.map(r=>r.id===u.id?u:r));setSelRec(u);showToast('Updated');}} onOpenRecord={r=>setSelRec(r)}/>}
     {showAdd&&<AddProfile onClose={()=>setShowAdd(false)} onAdded={p=>{setProfiles(prev=>[...prev,p]);setSel(p);showToast('Profile added');}}/>}
     {showJourney&&sel&&<JourneyModal profileId={sel.id} onClose={()=>setShowJourney(false)} showToast={showToast}/>}
@@ -414,9 +459,8 @@ function Dashboard({onLogout}) {
         {!loading&&!sel&&<div className="empty"><div className="empty-icon"><Logo size={32} color="#94a3b8"/></div><div className="empty-title">Welcome to MediVault</div><div className="empty-sub">Add a family member to get started.</div></div>}
 
         {!loading&&sel&&page==='home'&&<>
-          <label className="snap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M9 3v2M15 3v2"/></svg>Snap Prescription<input type="file" hidden multiple accept="image/*,.pdf" onChange={onFileSelect}/></label>
           {processing>0&&<div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:14,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#b45309',fontWeight:500,display:'flex',alignItems:'center',gap:8}}><div style={{width:14,height:14,border:'2px solid #f59e0b',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite',flexShrink:0}}/>Processing {processing} doc{processing>1?'s':''}...</div>}
-          {sortedDocs.length>0&&<><div className="sec-title">My Doctors</div><div className="doc-grid">{sortedDocs.map(doc=><DoctorCard key={doc} doctor={doc} visits={docGroups[doc]} onOpenRecord={r=>setSelRec(r)} profileId={sel?.id}/>)}</div></>}
+          {sortedDocs.length>0&&<><div className="sec-title">My Doctors</div><div className="doc-grid">{sortedDocs.map(doc=><DoctorCard key={doc} doctor={doc} visits={docGroups[doc]} onOpenRecord={r=>setSelRec(r)} profileId={sel?.id} onUploadFor={(e,type)=>onFileSelect(e,type)}/>)}</div></>}
           {recent.length>0&&<><div className="sec-title">Recent</div>{recent.map(r=><div key={r.id} className="rcard" onClick={()=>setSelRec(r)}><div className={"rdot "+(r.document_category||'other')}/><div className="rbody"><div className="rtitle">{r.doctor_name?drN(r.doctor_name):r.hospital_name||r.document_type||'Record'}</div><div className="rsub">{r.diagnosis||r.document_type}{r.specialty?' · '+r.specialty:''}</div></div><div className="rtime">{fmtRel(r.created_at)}</div></div>)}</>}
           {!records.length&&<div className="empty"><div className="empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div className="empty-title">No records yet</div><div className="empty-sub">Tap "Snap Prescription" to upload your first document.</div></div>}
           {records.length>0&&<div style={{marginTop:20,textAlign:'center'}}><button style={{padding:'10px 20px',background:'#fff',border:'1.5px solid #e2e8f0',borderRadius:12,fontSize:13,fontWeight:600,color:'#0d9488',cursor:'pointer',fontFamily:'Inter,sans-serif'}} onClick={()=>setShowJourney(true)}>View AI Health Journey</button></div>}
@@ -430,7 +474,7 @@ function Dashboard({onLogout}) {
       <nav className="bnav">
         <button className={"bnav-i"+(page==='home'?' active':'')} onClick={()=>setPage('home')}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Home</span></button>
         <button className={"bnav-i"+(page==='search'?' active':'')} onClick={()=>setPage('search')}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>Search</span></button>
-        <label className="bnav-fab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><input type="file" hidden multiple accept="image/*,.pdf" onChange={onFileSelect}/></label>
+        <label className="bnav-fab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><input type="file" hidden multiple accept="image/*,.pdf" onChange={e=>onFileSelect(e)}/></label>
         <button className={"bnav-i"+(page==='bills'?' active':'')} onClick={()=>setPage('bills')}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><span>Bills</span></button>
         <button className={"bnav-i"+(page==='family'?' active':'')} onClick={()=>setPage('family')}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>Family</span></button>
       </nav>
