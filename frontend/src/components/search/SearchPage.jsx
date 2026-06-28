@@ -1,43 +1,72 @@
-import { useState, useCallback, useRef, useContext } from 'react';
+import { useState, useMemo, useContext, useEffect } from 'react';
 import { AppContext } from '../../App';
-import API from '../../api';
 import { drN, fmtRel } from '../../utils/format';
 
-const SEARCH_CATS = ['All', 'Doctor', 'Medicine', 'Hospital', 'Diagnosis', 'Family', 'Department'];
+const FILTERS = ['All', 'Prescriptions', 'Lab Reports', 'Bills', 'Medicines'];
+
+const CAT_MAP = {
+  'Prescriptions': 'prescription',
+  'Lab Reports': 'lab_report',
+  'Bills': 'bill',
+};
+
+const EMPTY_MSGS = {
+  'Prescriptions': { icon: '📄', title: 'No Prescriptions Found', sub: 'Upload a prescription to see it here.' },
+  'Lab Reports': { icon: '🧪', title: 'No Lab Reports Found', sub: 'Upload lab reports to see them here.' },
+  'Bills': { icon: '🧾', title: 'No Bills Found', sub: 'Upload bills to see them here.' },
+  'Medicines': { icon: '💊', title: 'No Medicines Found', sub: 'Medicines are extracted from prescriptions automatically.' },
+};
 
 export default function SearchPage() {
-  const { sel, openRecord, showToast } = useContext(AppContext);
+  const { records, nav, openRecord } = useContext(AppContext);
   const [q, setQ] = useState('');
-  const [cat, setCat] = useState('All');
-  const [res, setRes] = useState(null);
-  const [ld, setLd] = useState(false);
-  const dRef = useRef(null);
+  const [filter, setFilter] = useState('All');
 
-  const doSearch = useCallback(async (qv, cv) => {
-    qv = qv !== undefined ? qv : q;
-    cv = cv !== undefined ? cv : cat;
-    if (!qv.trim()) { setRes(null); return; }
-    setLd(true);
-    try {
-      const p = new URLSearchParams({ q: qv });
-      if (sel) p.append('profile_id', sel.id);
-      if (cv && cv !== 'All') p.append('category', cv.toLowerCase());
-      const r = await API.get('/search?' + p.toString());
-      setRes(r.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
-    } catch (e) { showToast('Search failed', 'error'); }
-    finally { setLd(false); }
-  }, [q, cat, sel, showToast]);
+  // Read initialFilter from nav on mount / when nav changes
+  const initialFilter = nav?.initialFilter;
+  useEffect(() => {
+    if (initialFilter && FILTERS.includes(initialFilter)) {
+      setFilter(initialFilter);
+      setQ('');
+    }
+  }, [initialFilter]);
 
-  const onInput = v => {
-    setQ(v);
-    if (!v) { setRes(null); return; }
-    if (dRef.current) clearTimeout(dRef.current);
-    dRef.current = setTimeout(() => doSearch(v, cat), 300);
+  const filteredRecords = useMemo(() => {
+    let data = (records || []).filter(r => r.status === 'done');
+
+    if (filter === 'Prescriptions') data = data.filter(r => r.document_category === 'prescription');
+    else if (filter === 'Lab Reports') data = data.filter(r => r.document_category === 'lab_report');
+    else if (filter === 'Bills') data = data.filter(r => r.document_category === 'bill');
+    else if (filter === 'Medicines') data = data.filter(r => (r.medicines || []).length > 0);
+
+    const ql = q.trim().toLowerCase();
+    if (ql) {
+      data = data.filter(r =>
+        (r.doctor_name || '').toLowerCase().includes(ql) ||
+        (r.hospital_name || '').toLowerCase().includes(ql) ||
+        (r.diagnosis || '').toLowerCase().includes(ql) ||
+        (r.specialty || '').toLowerCase().includes(ql) ||
+        (r.recommendations || '').toLowerCase().includes(ql) ||
+        (r.medicines || []).some(m => (m.name || '').toLowerCase().includes(ql))
+      );
+    }
+
+    return data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [records, filter, q]);
+
+  const showResults = filter !== 'All' || q.trim() !== '';
+
+  const handleClear = () => setQ('');
+
+  const emptyMsg = EMPTY_MSGS[filter] || {
+    icon: '😶',
+    title: q ? `No results for "${q}"` : 'No records found',
+    sub: 'Try a different search term.',
   };
 
   return (
     <div>
-      <div className="swrap">
+      <div className="swrap" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <svg className="sico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
@@ -45,53 +74,65 @@ export default function SearchPage() {
           className="sinput"
           placeholder="Search doctors, medicines, diagnosis..."
           value={q}
-          onChange={e => onInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && doSearch()}
+          onChange={e => setQ(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && e.target.blur()}
           autoFocus
+          style={{ flex: 1 }}
         />
+        {q && (
+          <button onClick={handleClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}>×</button>
+        )}
       </div>
 
       <div className="scats">
-        {SEARCH_CATS.map(c => (
-          <button key={c} className={'scat' + (cat === c ? ' active' : '')} onClick={() => { setCat(c); if (q.trim()) doSearch(q, c); }}>{c}</button>
+        {FILTERS.map(f => (
+          <button
+            key={f}
+            className={'scat' + (filter === f ? ' active' : '')}
+            onClick={() => setFilter(f)}
+          >{f}</button>
         ))}
       </div>
 
-      {ld && (
-        <div style={{ textAlign: 'center', padding: 24 }}>
-          <div className="spinner" style={{ margin: '0 auto' }} />
-        </div>
-      )}
-
-      {!ld && res !== null && (
+      {showResults && (
         <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
-          {res.length} result{res.length !== 1 ? 's' : ''}
+          {filteredRecords.length} result{filteredRecords.length !== 1 ? 's' : ''}
+          {filter !== 'All' ? ` in ${filter}` : ''}
         </div>
       )}
 
-      {!ld && (res || []).map(r => (
+      {showResults && filteredRecords.map(r => (
         <div key={r.id} className="rcard" onClick={() => openRecord(r)}>
           <div className={'rdot ' + (r.document_category || 'other')} />
           <div className="rbody">
-            <div className="rtitle">{r.doctor_name ? drN(r.doctor_name) : r.hospital_name || r.document_type}</div>
-            <div className="rsub">{r.diagnosis || r.document_type}{r.specialty ? ' · ' + r.specialty : ''}</div>
+            <div className="rtitle">{r.doctor_name ? drN(r.doctor_name) : r.hospital_name || r.document_type || 'Record'}</div>
+            <div className="rsub">
+              {r.diagnosis || r.document_category || r.document_type}
+              {r.specialty ? ' · ' + r.specialty : ''}
+            </div>
+            {filter === 'Medicines' && (r.medicines || []).length > 0 && (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                {(r.medicines || []).map(m => m.name).filter(Boolean).join(', ')}
+              </div>
+            )}
           </div>
           <div className="rtime">{fmtRel(r.created_at)}</div>
         </div>
       ))}
 
-      {res === null && !ld && (
+      {showResults && !filteredRecords.length && (
+        <div className="empty">
+          <div className="empty-icon">{emptyMsg.icon}</div>
+          <div className="empty-title">{emptyMsg.title}</div>
+          <div className="empty-sub">{emptyMsg.sub}</div>
+        </div>
+      )}
+
+      {!showResults && (
         <div className="empty">
           <div className="empty-icon">🔍</div>
           <div className="empty-title">Search your records</div>
-          <div className="empty-sub">Find by doctor, medicine, diagnosis, or hospital.</div>
-        </div>
-      )}
-      {res && !res.length && !ld && (
-        <div className="empty">
-          <div className="empty-icon">😶</div>
-          <div className="empty-title">No results for "{q}"</div>
-          <div className="empty-sub">Try a different search term.</div>
+          <div className="empty-sub">Find by doctor, medicine, diagnosis, or hospital. Or tap a filter above.</div>
         </div>
       )}
     </div>

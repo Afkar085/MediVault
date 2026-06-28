@@ -5,6 +5,12 @@ import Gallery from '../common/Gallery';
 import { fmt, fmtRel, fmtDt, dateVal, cur, drN, getRecordFiles } from '../../utils/format';
 
 
+const BILL_CATS = [
+  'Consultation Fee', 'Pharmacy', 'Lab Test', 'Hospital Admission',
+  'Surgery', 'Scan/Imaging', 'Emergency', 'Physiotherapy',
+  'Dental', 'Eye Care', 'Vaccination', 'Insurance', 'Other',
+];
+
 const MED_TYPES = [
   { value: 'tablet', label: 'Tablet' },
   { value: 'capsule', label: 'Capsule' },
@@ -246,9 +252,18 @@ function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
   const persistMeds = async (newMeds) => {
     setSaving(true);
     try {
-      const res = await API.put('/profiles/' + profileId + '/records/' + record.id, { medicines: newMeds });
-      setRecords(prev => prev.map(x => x.id === res.data.id ? res.data : x));
-      openRecord(res.data);
+      // Map rich frontend fields → 4 DB columns (name, dosage, frequency, duration)
+      const backendMeds = newMeds.map(m => ({
+        name: m.name,
+        dosage: m.strength || m.dosage || '',
+        frequency: getMedSchedule(m) || m.frequency || '',
+        duration: m.duration || '',
+      }));
+      const res = await API.put('/profiles/' + profileId + '/records/' + record.id, { medicines: backendMeds });
+      // Merge local rich medicine data back — backend only stores 4 fields
+      const merged = { ...res.data, medicines: newMeds };
+      setRecords(prev => prev.map(x => x.id === res.data.id ? merged : x));
+      openRecord(merged);
       setEditIdx(null);
       showToast('Medicines updated');
     } catch (e) {
@@ -316,13 +331,19 @@ function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
               {med.duration && <div className="med-item-dur">⏱ {med.duration}</div>}
               {med.instructions && <div className="med-item-notes">{med.instructions}</div>}
             </div>
-            <button className="med-edit-btn" onClick={() => setEditIdx(i)}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-              Edit
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <button className="med-edit-btn" onClick={() => setEditIdx(i)}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit
+              </button>
+              <button className="med-edit-btn" style={{ background: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
+                onClick={() => persistMeds([...meds.slice(0, i + 1), { ...med, id: String(Date.now()) }, ...meds.slice(i + 1)])}>
+                Dup
+              </button>
+            </div>
           </div>
         );
       })}
@@ -353,14 +374,21 @@ export default function RecordModal({ record, onClose }) {
   const [gal, setGal] = useState(null);
   const [form, setForm] = useState({});
 
+  // Form-based variants for edit form conditionals (reflect live category changes)
+  const formCat = form.document_category || cat;
+  const formIsBill = formCat === 'bill';
+  const formIsLab = formCat === 'lab_report';
+
   useEffect(() => {
     setEditing(false);
     setHld(false);
     setGal(null);
     setTab(t => tabList.includes(t) ? t : 'details');
     setForm({
-      document_type: record.document_type || '',
       document_category: record.document_category || 'prescription',
+      bill_category: record.bill_category || '',
+      bill_title: record.bill_title || '',
+      bill_number: record.bill_number || '',
       doctor_name: record.doctor_name || '',
       hospital_name: record.hospital_name || '',
       document_date: dateVal(record.document_date),
@@ -433,7 +461,7 @@ export default function RecordModal({ record, onClose }) {
               {record.status}
             </span>
           </div>
-          <div className="m-title">{record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical Record'}</div>
+          <div className="m-title">{(isBill && record.bill_title) ? record.bill_title : record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical Record'}</div>
           <div className="m-sub">{fmt(record.document_date) || fmtRel(record.created_at)}</div>
         </div>
 
@@ -465,15 +493,35 @@ export default function RecordModal({ record, onClose }) {
                 </div>
               </div>
               {isBill && (
-                <div className="drow">
-                  <div className="drow-icon" style={{ background: '#fef2f2' }}>💰</div>
-                  <div style={{ flex: 1 }}>
-                    <div className="drow-key">Amount</div>
-                    {record.bill_amount != null
-                      ? <div className="drow-val">{cur(record.bill_amount)}</div>
-                      : <div style={{ color: '#94a3b8', fontSize: 13 }}>Not recorded — tap Edit Details to add</div>}
+                <>
+                  {record.bill_title && (
+                    <div className="drow">
+                      <div className="drow-icon" style={{ background: '#fef9e7' }}>🏷️</div>
+                      <div><div className="drow-key">Bill Title</div><div className="drow-val">{record.bill_title}</div></div>
+                    </div>
+                  )}
+                  {record.bill_category && (
+                    <div className="drow">
+                      <div className="drow-icon" style={{ background: '#fef9e7' }}>📂</div>
+                      <div><div className="drow-key">Category</div><div className="drow-val">{record.bill_category}</div></div>
+                    </div>
+                  )}
+                  {record.bill_number && (
+                    <div className="drow">
+                      <div className="drow-icon" style={{ background: '#f8fafc' }}>🔢</div>
+                      <div><div className="drow-key">Bill No.</div><div className="drow-val">{record.bill_number}</div></div>
+                    </div>
+                  )}
+                  <div className="drow">
+                    <div className="drow-icon" style={{ background: '#fef2f2' }}>💰</div>
+                    <div style={{ flex: 1 }}>
+                      <div className="drow-key">Amount</div>
+                      {record.bill_amount != null
+                        ? <div className="drow-val">{cur(record.bill_amount)}</div>
+                        : <div style={{ color: '#94a3b8', fontSize: 13 }}>Not recorded — tap Edit Details to add</div>}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
               {!record.doctor_name && !isBill && (
                 <div className="drow">
@@ -527,27 +575,52 @@ export default function RecordModal({ record, onClose }) {
                 <label className="edit-lbl">Date</label>
                 <input className="edit-inp" type="date" value={dateVal(form.document_date)} onChange={e => setForm({ ...form, document_date: e.target.value })} />
               </div>
+              {formIsBill && (
+                <div className="full">
+                  <label className="edit-lbl">Bill Title</label>
+                  <input className="edit-inp" value={form.bill_title || ''} onChange={e => setForm({ ...form, bill_title: e.target.value })} placeholder="e.g. Apollo Pharmacy, CBC Blood Test, MRI Scan" />
+                </div>
+              )}
+              {formIsBill && (
+                <div>
+                  <label className="edit-lbl">Bill Category</label>
+                  <select className="edit-inp" value={form.bill_category || ''} onChange={e => setForm({ ...form, bill_category: e.target.value })}>
+                    <option value="">Select category</option>
+                    {BILL_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+              {formIsBill && (
+                <div>
+                  <label className="edit-lbl">Bill No.</label>
+                  <input className="edit-inp" value={form.bill_number || ''} onChange={e => setForm({ ...form, bill_number: e.target.value })} placeholder="e.g. INV-2024-001" />
+                </div>
+              )}
               <div>
                 <label className="edit-lbl">Doctor</label>
                 <input className="edit-inp" value={form.doctor_name} onChange={e => setForm({ ...form, doctor_name: e.target.value })} placeholder="Dr. Name" />
               </div>
               <div>
-                <label className="edit-lbl">Hospital</label>
+                <label className="edit-lbl">{formIsBill ? 'Hospital / Pharmacy' : 'Hospital'}</label>
                 <input className="edit-inp" value={form.hospital_name} onChange={e => setForm({ ...form, hospital_name: e.target.value })} />
               </div>
-              <div>
-                <label className="edit-lbl">Specialty</label>
-                <input className="edit-inp" value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })} />
-              </div>
+              {!formIsBill && (
+                <div>
+                  <label className="edit-lbl">Specialty</label>
+                  <input className="edit-inp" value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })} />
+                </div>
+              )}
+              {!formIsBill && (
+                <div className="full">
+                  <label className="edit-lbl">{formIsLab ? 'Findings / Results' : 'Diagnosis'}</label>
+                  <textarea className="edit-inp" rows={2} value={form.diagnosis} onChange={e => setForm({ ...form, diagnosis: e.target.value })} style={{ resize: 'vertical', lineHeight: 1.5 }} />
+                </div>
+              )}
               <div className="full">
-                <label className="edit-lbl">{isLab ? 'Findings / Results' : 'Diagnosis'}</label>
-                <textarea className="edit-inp" rows={2} value={form.diagnosis} onChange={e => setForm({ ...form, diagnosis: e.target.value })} style={{ resize: 'vertical', lineHeight: 1.5 }} />
+                <label className="edit-lbl">{formIsLab ? 'Interpretation / Follow-up' : formIsBill ? 'Notes' : 'Recommendations'}</label>
+                <textarea className="edit-inp" rows={2} value={form.recommendations} onChange={e => setForm({ ...form, recommendations: e.target.value })} style={{ resize: 'vertical', lineHeight: 1.5 }} />
               </div>
-              <div className="full">
-                <label className="edit-lbl">{isLab ? 'Interpretation / Follow-up' : isBill ? 'Notes' : 'Recommendations'}</label>
-                <textarea className="edit-inp" rows={3} value={form.recommendations} onChange={e => setForm({ ...form, recommendations: e.target.value })} style={{ resize: 'vertical', lineHeight: 1.5 }} />
-              </div>
-              {(isBill || record.bill_amount != null) && (
+              {(formIsBill || record.bill_amount != null) && (
                 <div>
                   <label className="edit-lbl">Amount (₹)</label>
                   <input className="edit-inp" type="number" value={form.bill_amount} onChange={e => setForm({ ...form, bill_amount: e.target.value })} placeholder="e.g. 2400" />
@@ -604,8 +677,6 @@ export default function RecordModal({ record, onClose }) {
               <button className="btn-c" onClick={() => setEditing(false)}>Cancel</button>
               <button className="btn-s" onClick={doSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </>
-          ) : tab === 'medicines' ? (
-            <button className="btn-d" onClick={() => setDel(true)}>Delete Record</button>
           ) : (
             <>
               <button className="btn-d" onClick={() => setDel(true)}>Delete</button>

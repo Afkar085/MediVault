@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import date, datetime
 
 
@@ -37,6 +37,9 @@ class RecordResponse(BaseModel):
     recommendations: Optional[str] = None
     document_category: Optional[str] = "prescription"
     bill_amount: Optional[float] = None
+    bill_category: Optional[str] = None
+    bill_title: Optional[str] = None
+    bill_number: Optional[str] = None
     insurance_claimed: Optional[bool] = False
     visit_group: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -54,6 +57,10 @@ class RecordUpdate(BaseModel):
     recommendations: Optional[str] = None
     document_category: Optional[str] = None
     bill_amount: Optional[float] = None
+    bill_category: Optional[str] = None
+    bill_title: Optional[str] = None
+    bill_number: Optional[str] = None
+    medicines: Optional[List[Any]] = None
 
 
 class RecordEditResponse(BaseModel):
