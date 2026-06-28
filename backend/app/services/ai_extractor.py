@@ -13,13 +13,15 @@ OCR Text:
 
 Return ONLY a JSON object with these fields (use null if not found):
 {{
-    "document_type": "Prescription or Lab Report or Medical Certificate or Other",
+    "document_type": "Prescription or Lab Report or Medical Certificate or Discharge Summary or Other",
+    "document_category": "prescription or lab_report or bill or discharge_summary or other",
     "doctor_name": "name of doctor",
     "hospital_name": "name of hospital or clinic",
     "document_date": "date in YYYY-MM-DD format or null",
     "specialty": "medical specialty",
     "diagnosis": "diagnosis or condition",
     "recommendations": "doctor recommendations or instructions",
+    "bill_amount": null,
     "medicines": [
         {{
             "name": "medicine name",
@@ -29,6 +31,17 @@ Return ONLY a JSON object with these fields (use null if not found):
         }}
     ]
 }}
+
+Rules for document_category:
+- If it's a prescription or has medicines listed: "prescription"
+- If it's a lab report, blood test, urine test, pathology report: "lab_report"
+- If it's a bill, invoice, receipt with amounts: "bill"
+- If it's a discharge summary from hospital: "discharge_summary"
+- Otherwise: "other"
+
+Rules for bill_amount:
+- If this is a bill/invoice/receipt, extract the total amount as a number (no currency symbol)
+- If not a bill, set to null
 
 Return only the JSON, no explanation.
 """
@@ -43,7 +56,6 @@ Return only the JSON, no explanation.
     raw = response.choices[0].message.content.strip()
 
     try:
-        # Clean markdown if present
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):

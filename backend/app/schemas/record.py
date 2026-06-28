@@ -12,6 +12,15 @@ class MedicineResponse(BaseModel):
     duration: Optional[str] = None
 
 
+class RecordFileResponse(BaseModel):
+    id: str
+    record_id: str
+    file_url: str
+    file_path: str
+    page_number: int = 1
+    created_at: Optional[datetime] = None
+
+
 class RecordResponse(BaseModel):
     id: str
     profile_id: str
@@ -26,8 +35,13 @@ class RecordResponse(BaseModel):
     specialty: Optional[str] = None
     diagnosis: Optional[str] = None
     recommendations: Optional[str] = None
+    document_category: Optional[str] = "prescription"
+    bill_amount: Optional[float] = None
+    insurance_claimed: Optional[bool] = False
+    visit_group: Optional[str] = None
     created_at: Optional[datetime] = None
     medicines: List[MedicineResponse] = []
+    files: List[RecordFileResponse] = []
 
 
 class RecordUpdate(BaseModel):
@@ -38,6 +52,8 @@ class RecordUpdate(BaseModel):
     specialty: Optional[str] = None
     diagnosis: Optional[str] = None
     recommendations: Optional[str] = None
+    document_category: Optional[str] = None
+    bill_amount: Optional[float] = None
 
 
 class RecordEditResponse(BaseModel):
