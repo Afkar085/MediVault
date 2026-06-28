@@ -25,10 +25,10 @@ function MedicalOverviewCard({ records, docGroups, profiles, navigate }) {
 
   const rows = [
     { label: 'Doctors', val: doctorCount, action: () => navigate('doctors') },
-    { label: 'Prescriptions', val: prescCount, action: () => navigate('search') },
-    { label: 'Lab Reports', val: labCount, action: () => navigate('search') },
-    { label: 'Bills', val: billCount, action: () => navigate('search') },
-    { label: 'Medicines', val: medCount, action: () => navigate('search') },
+    { label: 'Prescriptions', val: prescCount, action: () => navigate('search', { initialFilter: 'Prescriptions' }) },
+    { label: 'Lab Reports', val: labCount, action: () => navigate('search', { initialFilter: 'Lab Reports' }) },
+    { label: 'Bills', val: billCount, action: () => navigate('search', { initialFilter: 'Bills' }) },
+    { label: 'Medicines', val: medCount, action: () => navigate('search', { initialFilter: 'Medicines' }) },
     { label: 'Family Members', val: famCount, action: () => navigate('family') },
   ];
 

@@ -78,6 +78,12 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
     existing = existing_result.data[0]
 
     data = body.model_dump(exclude_none=True)
+
+    # Extract fields that need separate handling before Supabase update
+    medicines_data = data.pop("medicines", None)
+    # Bill-specific fields saved separately so missing columns don't break main update
+    bill_extra = {k: data.pop(k, None) for k in ("bill_category", "bill_title", "bill_number")}
+
     if "document_date" in data and data["document_date"]:
         data["document_date"] = str(data["document_date"])
 
@@ -94,9 +100,42 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
     if edits:
         supabase.table("record_edits").insert(edits).execute()
 
-    result = supabase.table("records").update(data).eq("id", record_id).eq("profile_id", profile_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Record not found")
+    if data:
+        result = supabase.table("records").update(data).eq("id", record_id).eq("profile_id", profile_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Record not found")
+    else:
+        result = supabase.table("records").select("*").eq("id", record_id).eq("profile_id", profile_id).execute()
+
+    # Save bill_title/bill_category/bill_number — requires those columns in records table
+    bill_extra_clean = {k: v for k, v in bill_extra.items() if v is not None}
+    if bill_extra_clean:
+        try:
+            supabase.table("records").update(bill_extra_clean).eq("id", record_id).eq("profile_id", profile_id).execute()
+            if result.data:
+                result.data[0].update(bill_extra_clean)
+        except Exception:
+            pass
+
+    # Save medicines: delete old, insert new
+    if medicines_data is not None:
+        supabase.table("medicines").delete().eq("record_id", record_id).execute()
+        if medicines_data:
+            insert_rows = []
+            for m in medicines_data:
+                name = (m.get("name") or "").strip()
+                if not name:
+                    continue
+                insert_rows.append({
+                    "record_id": record_id,
+                    "name": name,
+                    "dosage": m.get("dosage") or None,
+                    "frequency": m.get("frequency") or None,
+                    "duration": m.get("duration") or None,
+                })
+            if insert_rows:
+                supabase.table("medicines").insert(insert_rows).execute()
+
     records = _attach_medicines(result.data)
     records = _attach_files(records)
     return records[0]

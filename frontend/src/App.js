@@ -37,8 +37,10 @@ function MainApp({ onLogout }) {
   const [upDocDate, setUpDocDate] = useState('');
   const [upDrName, setUpDrName] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [visitUploading, setVisitUploading] = useState(false);
   const [showUploadSheet, setShowUploadSheet] = useState(false);
   const pollRef = useRef(null);
+  const visitDateEnforcements = useRef({}); // recordId → visitDate, applied after OCR finishes
 
   const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
 
@@ -86,6 +88,21 @@ function MainApp({ onLogout }) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [records, sel, loadRecs]);
 
+  // After OCR finishes, re-enforce visit dates that OCR may have overridden
+  useEffect(() => {
+    if (!sel) return;
+    const toEnforce = records.filter(r => r.status === 'done' && visitDateEnforcements.current[r.id]);
+    if (!toEnforce.length) return;
+    toEnforce.forEach(async r => {
+      const forceDate = visitDateEnforcements.current[r.id];
+      delete visitDateEnforcements.current[r.id];
+      try {
+        await API.put('/profiles/' + sel.id + '/records/' + r.id, { document_date: forceDate });
+        loadRecs(sel.id);
+      } catch (e) {}
+    });
+  }, [records, sel, loadRecs]);
+
   const { docGroups, docNameMap, sortedDocs } = useMemo(() => buildDocGroups(records), [records]);
 
   const handleSelChange = useCallback((profile) => {
@@ -114,6 +131,34 @@ function MainApp({ onLogout }) {
     setUpDocDate('');
     setUpDrName(doctorName || '');
   }, []);
+
+  // Direct upload from inside a visit — bypasses UploadPreview, forces visit date
+  const uploadToVisit = useCallback(async (files, type, doctorName, visitDate) => {
+    if (!files.length || !sel) return;
+    setVisitUploading(true);
+    const fd = new FormData();
+    files.forEach(f => fd.append('files', f));
+    try {
+      const res = await API.post('/upload/' + sel.id, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      });
+      const rid = res.data.record_id;
+      if (rid) {
+        const update = { document_category: type };
+        if (visitDate) {
+          update.document_date = visitDate;
+          visitDateEnforcements.current[rid] = visitDate; // re-enforce after OCR
+        }
+        if (doctorName) update.doctor_name = doctorName;
+        try { await API.put('/profiles/' + sel.id + '/records/' + rid, update); } catch (e) {}
+      }
+      await loadRecs(sel.id);
+      showToast('Uploaded — AI is extracting info');
+    } catch (e) {
+      showToast(e?.response?.data?.detail || 'Upload failed', 'error');
+    } finally { setVisitUploading(false); }
+  }, [sel, loadRecs, showToast]);
 
   const onAddMore = (e) => {
     const nf = Array.from(e.target.files || []);
@@ -170,6 +215,8 @@ function MainApp({ onLogout }) {
     showToast,
     showUpload,
     startUpload,
+    uploadToVisit,
+    visitUploading,
     onLogout,
   };
 

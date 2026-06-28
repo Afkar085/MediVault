@@ -15,48 +15,67 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
     } catch (e) { showToast('Failed', 'error'); }
   };
 
-  if (!bills.length) return (
-    <div className="empty">
-      <div className="empty-icon">🧾</div>
-      <div className="empty-title">No bills yet</div>
-      <div className="empty-sub">Bills for this doctor will appear here.</div>
-    </div>
-  );
-
   return (
     <div>
-      <div className="bsum" style={{ marginBottom: 16 }}>
-        <div className="bsum-card"><div className="bsum-val">{cur(total)}</div><div className="bsum-lbl">Total</div></div>
-        <div className="bsum-card"><div className="bsum-val" style={{ color: '#10b981' }}>{cur(claimed)}</div><div className="bsum-lbl">Claimed</div></div>
-        <div className="bsum-card"><div className="bsum-val" style={{ color: '#ef4444' }}>{cur(total - claimed)}</div><div className="bsum-lbl">Unclaimed</div></div>
-      </div>
-      {bills.map(b => {
-        const bf = getRecordFiles(b);
-        return (
-          <div key={b.id} className="bitem" style={{ cursor: 'pointer' }}>
-            <div className="binfo" onClick={() => openRecord(b)}>
-              <div className="bdoc">{b.doctor_name ? drN(b.doctor_name) : 'Medical Bill'}</div>
-              <div className="bhosp">{b.hospital_name || ''}{b.document_date && fmt(b.document_date) ? ' · ' + fmt(b.document_date) : ''}</div>
-              {bf.length > 0 && (
-                <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                  {bf.slice(0, 2).map((f, i) => (
-                    <img key={i} src={f.file_url} alt="" style={{ width: 40, height: 30, borderRadius: 6, objectFit: 'cover', border: '1px solid #e2e8f0' }} onError={e => e.target.style.display = 'none'} />
-                  ))}
-                  {bf.length > 2 && <span style={{ fontSize: 10, color: '#94a3b8', alignSelf: 'center' }}>+{bf.length - 2}</span>}
-                </div>
-              )}
-            </div>
-            <div className="bright">
-              <div className="bamt">{cur(b.bill_amount)}</div>
-              <div className="bdate">{fmt(b.document_date) || ''}</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }} onClick={e => { e.stopPropagation(); togIns(b.id); }}>
-              <button className={'toggle' + (b.insurance_claimed ? ' on' : '')} style={{ pointerEvents: 'none' }} />
-              <span style={{ fontSize: 9, fontWeight: 600, color: b.insurance_claimed ? '#0d9488' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Insurance</span>
-            </div>
+      {!bills.length && (
+        <div className="empty" style={{ paddingBottom: 8 }}>
+          <div className="empty-icon">🧾</div>
+          <div className="empty-title">No bills yet</div>
+          <div className="empty-sub">Add bills for this visit below.</div>
+        </div>
+      )}
+      {bills.length > 0 && (
+        <>
+          <div className="bsum" style={{ marginBottom: 16 }}>
+            <div className="bsum-card"><div className="bsum-val">{cur(total)}</div><div className="bsum-lbl">Total</div></div>
+            <div className="bsum-card"><div className="bsum-val" style={{ color: '#10b981' }}>{cur(claimed)}</div><div className="bsum-lbl">Claimed</div></div>
+            <div className="bsum-card"><div className="bsum-val" style={{ color: '#ef4444' }}>{cur(total - claimed)}</div><div className="bsum-lbl">Unclaimed</div></div>
           </div>
-        );
-      })}
+          {bills.map(b => {
+            const bf = getRecordFiles(b);
+            const billTitle = b.bill_title || (b.doctor_name ? drN(b.doctor_name) : b.hospital_name || 'Medical Bill');
+            return (
+              <div key={b.id} className="bitem">
+                <div className="binfo" onClick={() => openRecord(b)} style={{ cursor: 'pointer', flex: 1 }}>
+                  <div className="bdoc">{billTitle}</div>
+                  {b.bill_category && (
+                    <div style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, color: '#0d9488', background: '#f0fdfa', borderRadius: 6, padding: '1px 7px', marginBottom: 3 }}>
+                      {b.bill_category}
+                    </div>
+                  )}
+                  <div className="bhosp">
+                    {b.hospital_name || ''}
+                    {b.document_date && fmt(b.document_date) ? (b.hospital_name ? ' · ' : '') + fmt(b.document_date) : ''}
+                  </div>
+                  {bf.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                      {bf.slice(0, 2).map((f, i) => (
+                        <img key={i} src={f.file_url} alt="" style={{ width: 40, height: 30, borderRadius: 6, objectFit: 'cover', border: '1px solid #e2e8f0' }} onError={e => e.target.style.display = 'none'} />
+                      ))}
+                      {bf.length > 2 && <span style={{ fontSize: 10, color: '#94a3b8', alignSelf: 'center' }}>+{bf.length - 2}</span>}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                  <div className="bright" style={{ textAlign: 'right' }}>
+                    <div className="bamt">{cur(b.bill_amount)}</div>
+                    <div className="bdate">{fmt(b.document_date) || ''}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <button
+                      className={'toggle' + (b.insurance_claimed ? ' on' : '')}
+                      onClick={e => { e.stopPropagation(); togIns(b.id); }}
+                    />
+                    <span style={{ fontSize: 9, fontWeight: 600, color: b.insurance_claimed ? '#0d9488' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {b.insurance_claimed ? 'Claimed' : 'Insurance'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
       <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
         + Add Bill
         <input type="file" hidden multiple accept="image/*,.pdf" onChange={onAddFiles} />
@@ -84,7 +103,7 @@ function medSummary(m) {
 }
 
 export default function VisitDetailPage() {
-  const { nav, navigate, records, setRecords, openRecord, showToast, sel, startUpload } = useContext(AppContext);
+  const { nav, navigate, records, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
   const { visitDate, visitRecords, doctorKey, doctorName, specialty, hospital } = nav;
 
   const [vtab, setVtab] = useState('prescription');
@@ -105,7 +124,8 @@ export default function VisitDetailPage() {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
-    startUpload(files, type, doctorName);
+    // Upload directly into this visit — forces document_date = visitDate so it stays grouped here
+    uploadToVisit(files, type, doctorName, visitDate);
   };
 
   return (
@@ -151,6 +171,13 @@ export default function VisitDetailPage() {
             </div>
           )}
         </>
+      )}
+
+      {visitUploading && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: '#f0fdfa', borderRadius: 10, marginTop: 12, fontSize: 13, color: '#0d9488', fontWeight: 500 }}>
+          <div className="spinner" style={{ width: 16, height: 16, margin: 0, borderWidth: 2, borderColor: '#0d9488', borderTopColor: 'transparent' }} />
+          Uploading to this visit…
+        </div>
       )}
 
       <div className="vtabs" style={{ marginTop: 16 }}>
