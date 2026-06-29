@@ -8,7 +8,12 @@ credentials or network access.
 import os
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
-os.environ.setdefault("SUPABASE_KEY", "test-key")
+# supabase-py validates that the key is JWT-shaped at client creation, so use a
+# dummy (non-functional) JWT rather than an arbitrary string.
+os.environ.setdefault(
+    "SUPABASE_KEY",
+    "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.dummy-signature-for-tests-only",
+)
 os.environ.setdefault("JWT_SECRET", "test-secret-for-ci-only")
 os.environ.setdefault("JWT_EXPIRE_HOURS", "24")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
