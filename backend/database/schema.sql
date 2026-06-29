@@ -1,4 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- pgvector powers semantic search + RAG (see database/migrations/001_semantic_search.sql)
+CREATE EXTENSION IF NOT EXISTS "vector";
 
 CREATE TABLE users (
     id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -75,3 +77,25 @@ CREATE INDEX idx_records_document_category ON records(document_category);
 CREATE INDEX idx_records_visit_group   ON records(visit_group);
 CREATE INDEX idx_medicines_record_id   ON medicines(record_id);
 CREATE INDEX idx_record_files_record   ON record_files(record_id);
+
+-- Semantic search: 384-dim embedding (BAAI/bge-small-en-v1.5) + ANN index + RPC.
+ALTER TABLE records ADD COLUMN IF NOT EXISTS embedding vector(384);
+CREATE INDEX IF NOT EXISTS idx_records_embedding
+    ON records USING hnsw (embedding vector_cosine_ops);
+
+CREATE OR REPLACE FUNCTION match_records(
+    query_embedding vector(384),
+    p_profile_ids uuid[],
+    match_count int default 20,
+    match_threshold float default 0.25
+)
+RETURNS TABLE (id uuid, similarity float)
+LANGUAGE sql STABLE AS $$
+    SELECT r.id, 1 - (r.embedding <=> query_embedding) AS similarity
+    FROM records r
+    WHERE r.profile_id = ANY (p_profile_ids)
+      AND r.embedding IS NOT NULL
+      AND 1 - (r.embedding <=> query_embedding) > match_threshold
+    ORDER BY r.embedding <=> query_embedding
+    LIMIT match_count;
+$$;

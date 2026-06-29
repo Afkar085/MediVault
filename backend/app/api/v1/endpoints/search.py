@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.retrieval import vector_search, reciprocal_rank_fusion
 from typing import Optional
 import re
 from datetime import datetime
@@ -71,6 +72,26 @@ def _match_record(r, q_lower, medicines_map, profiles_map):
     return score
 
 
+def _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, profile_ids):
+    """Rank records by fusing keyword scoring with vector similarity.
+
+    Keyword scoring catches exact/field matches; vector search catches semantic
+    matches (e.g. "sugar" -> "diabetes"). Reciprocal Rank Fusion merges them.
+    Falls back to keyword-only when the semantic layer is unavailable.
+    """
+    scored = [(r, _match_record(r, q_lower, medicines_map, profiles_map)) for r in records]
+    keyword_ranking = [r["id"] for r, s in sorted(scored, key=lambda x: -x[1]) if s > 0]
+
+    vector_ranking = vector_search(profile_ids, q)
+    if not vector_ranking:
+        by_id = {r["id"]: r for r in records}
+        return [by_id[i] for i in keyword_ranking]
+
+    fused = reciprocal_rank_fusion([keyword_ranking, vector_ranking])
+    by_id = {r["id"]: r for r in records}
+    return [by_id[i] for i in fused if i in by_id]
+
+
 @router.get("/search")
 def search_records(
     q: Optional[str] = Query(None, description="Smart search query"),
@@ -137,11 +158,9 @@ def search_records(
             elif cat == "date":
                 records = [r for r in records if q_lower in (r.get("document_date") or "") or q_lower in (r.get("created_at") or "")]
             else:
-                scored = [(r, _match_record(r, q_lower, medicines_map, profiles_map)) for r in records]
-                records = [r for r, s in sorted(scored, key=lambda x: -x[1]) if s > 0]
+                records = _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, search_profile_ids)
         else:
-            scored = [(r, _match_record(r, q_lower, medicines_map, profiles_map)) for r in records]
-            records = [r for r, s in sorted(scored, key=lambda x: -x[1]) if s > 0]
+            records = _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, search_profile_ids)
 
     for r in records:
         r["medicines"] = medicines_map.get(r["id"], [])

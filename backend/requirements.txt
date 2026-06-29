@@ -6,6 +6,7 @@ python-jose==3.5.0
 bcrypt==4.0.1
 supabase==2.10.0
 groq==1.4.0
+fastembed==0.5.1
 Pillow==10.4.0
 pdfminer.six==20231228
 python-multipart==0.0.20
