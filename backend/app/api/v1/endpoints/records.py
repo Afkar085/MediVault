@@ -1,12 +1,19 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
 from app.schemas.record import RecordResponse, RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.retrieval import vector_search
+from app.services import rag
 from typing import List, Optional
 from groq import Groq
 from app.config import settings
 
 router = APIRouter()
+
+
+class AskRequest(BaseModel):
+    question: str
 
 
 def _attach_medicines(records: list) -> list:
@@ -279,6 +286,52 @@ Return ONLY the bullet points, no intro or outro."""
         summary = f"Unable to generate health journey: {str(e)}"
 
     return {"summary": summary, "total_visits": len(records)}
+
+
+@router.post("/{profile_id}/ask")
+def ask_records(profile_id: str, body: AskRequest, user_id: str = Depends(get_current_user)):
+    """Answer a natural-language question grounded in this profile's records (RAG).
+
+    Retrieves the most semantically relevant records via vector search, then asks
+    the LLM to answer using only those records, with citations. If semantic search
+    is unavailable, falls back to the most recent records as context.
+    """
+    _assert_profile_owned(profile_id, user_id)
+
+    question = (body.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question must not be empty")
+
+    profile_result = supabase.table("profiles").select("name, relationship").eq("id", profile_id).execute()
+    profile = profile_result.data[0] if profile_result.data else {"name": "Patient", "relationship": "Self"}
+
+    matched_ids = vector_search([profile_id], question, limit=6)
+
+    if matched_ids:
+        rows = (
+            supabase.table("records")
+            .select("*")
+            .eq("profile_id", profile_id)
+            .in_("id", matched_ids)
+            .execute()
+        )
+        by_id = {r["id"]: r for r in rows.data}
+        records = [by_id[i] for i in matched_ids if i in by_id]  # preserve relevance order
+    else:
+        # Fallback: no semantic layer -> use most recent records as context.
+        rows = (
+            supabase.table("records")
+            .select("*")
+            .eq("profile_id", profile_id)
+            .eq("status", "done")
+            .order("created_at", desc=True)
+            .limit(6)
+            .execute()
+        )
+        records = rows.data
+
+    records = _attach_medicines(records)
+    return rag.answer_question(question, records, profile)
 
 
 @router.get("/{profile_id}/records/{record_id}/history", response_model=List[RecordEditResponse])

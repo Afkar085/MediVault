@@ -154,11 +154,35 @@ React 19 (Vercel)
     │ HTTPS + JWT
 FastAPI (Railway)
     │ background OCR tasks
-    ├── Groq Vision  →  raw text
-    └── Groq Llama 3.3  →  structured data
+    ├── Groq Vision      →  raw text
+    ├── Groq Llama 3.3   →  structured data
+    └── fastembed (local) →  384-d embedding
     │
-Supabase (PostgreSQL + Storage)
+Supabase (PostgreSQL + pgvector + Storage)
 ```
+
+---
+
+## Semantic Search & "Ask Your Records" (RAG)
+
+Beyond keyword search, MediVault understands **meaning**:
+
+- **Hybrid search** — every record is embedded (BAAI `bge-small-en-v1.5`, 384-d, run
+  locally via fastembed — no extra API key or cost) and stored in **pgvector**.
+  Queries combine keyword scoring with vector similarity, merged using
+  **Reciprocal Rank Fusion**, so "sugar" can surface a "diabetes" record.
+- **Ask Your Records** — `POST /api/v1/profiles/{id}/ask` retrieves the most
+  relevant records by similarity and asks Llama 3.3 to answer **using only those
+  records, with citations** (`[Record 1]`), keeping answers grounded and reducing
+  hallucination.
+- **Graceful degradation** — if the migration hasn't been applied or the embedding
+  model is unavailable, search transparently falls back to keyword-only and the
+  app keeps working.
+
+**Enable it (one-time):** run [`backend/database/migrations/001_semantic_search.sql`](backend/database/migrations/001_semantic_search.sql)
+in the Supabase SQL editor (enables pgvector, adds the `embedding` column + ANN
+index + `match_records` RPC). New uploads are embedded automatically; existing
+records embed on their next reprocess.
 
 ---
 
