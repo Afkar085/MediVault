@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.config import settings
 from app.api.v1.endpoints import auth, profile, upload, records, search
 
 app = FastAPI(
@@ -8,13 +9,15 @@ app = FastAPI(
     description="AI-powered personal medical records assistant",
 )
 
-# CORS: allow_credentials must be True when sending Authorization headers
-# from a browser. allow_origins cannot be ["*"] when credentials=True,
-# so we use a permissive list for MVP and tighten this in production.
+# CORS: origins are configurable via the FRONTEND_ORIGINS env var (comma-separated)
+# so production can be locked down to the deployed frontend instead of "*".
+# allow_credentials stays False because the JWT travels in the Authorization
+# header, not a cookie.
+allowed_origins = [o.strip() for o in settings.FRONTEND_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,  # JWT is in Authorization header, not a cookie
+    allow_origins=allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
