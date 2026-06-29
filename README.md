@@ -2,6 +2,10 @@
   <img src="https://img.shields.io/badge/MediVault-Family%20Health%20Records-0d9488?style=for-the-badge" alt="MediVault" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/Afkar085/MediVault/actions/workflows/ci.yml"><img src="https://github.com/Afkar085/MediVault/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+</p>
+
 <h1 align="center">MediVault</h1>
 
 <p align="center">
