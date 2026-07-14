@@ -55,9 +55,9 @@
 
 <table>
   <tr>
-    <td><img src="screenshots/desktop-login.png" alt="Login" /></td>
-    <td><img src="screenshots/desktop-dashboard.png" alt="Dashboard" /></td>
     <td><img src="screenshots/desktop-health-journey.png" alt="Health Journey" /></td>
+    <td><img src="screenshots/desktop-dashboard.png" alt="Dashboard" /></td>
+    <td><img src="screenshots/desktop-login.png" alt="Login" /></td>
   </tr>
   <tr>
     <td align="center"><strong>Sign In</strong></td>
