@@ -25,31 +25,31 @@
 
 <table>
   <tr>
-    <td width="25%"><img src="screenshots/mobile-login.jpeg" alt="Mobile Login" /></td>
-    <td width="25%"><img src="screenshots/mobile-dashboard.jpeg" alt="Mobile Dashboard" /></td>
-    <td width="25%"><img src="screenshots/mobile-records.jpeg" alt="Mobile Records" /></td>
-    <td width="25%"><img src="screenshots/mobile-health-journey.jpeg" alt="Health Journey" /></td>
+    <td width="25%"><img src="screenshots/mobile-login.png" alt="Mobile Login" /></td>
+    <td width="25%"><img src="screenshots/mobile-dashboard.png" alt="Mobile Dashboard" /></td>
+    <td width="25%"><img src="screenshots/mobile-doctors.png" alt="Doctors List" /></td>
+    <td width="25%"><img src="screenshots/mobile-health-journey.png" alt="Health Journey" /></td>
   </tr>
   <tr>
-    <td align="center">Login</td>
+    <td align="center">Sign In</td>
     <td align="center">Dashboard</td>
-    <td align="center">Records & Search</td>
+    <td align="center">Doctors</td>
     <td align="center">AI Health Journey</td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td width="25%"><img src="screenshots/mobile-record-detail.jpeg" alt="Record Detail" /></td>
-    <td width="25%"><img src="screenshots/mobile-ocr-scan.jpeg" alt="OCR Scan" /></td>
-    <td width="25%"><img src="screenshots/mobile-ocr-text.jpeg" alt="OCR Text" /></td>
-    <td width="25%"><img src="screenshots/mobile-add-family.jpeg" alt="Add Family" /></td>
+    <td width="25%"><img src="screenshots/mobile-record-detail.png" alt="Record Detail" /></td>
+    <td width="25%"><img src="screenshots/mobile-upload.png" alt="Upload Flow" /></td>
+    <td width="25%"><img src="screenshots/mobile-bills.png" alt="Bills & Insurance" /></td>
+    <td width="25%"><img src="screenshots/mobile-add-family.png" alt="Family Members" /></td>
   </tr>
   <tr>
     <td align="center">Record Details</td>
-    <td align="center">Handwritten Rx Scan</td>
-    <td align="center">Extracted OCR Text</td>
-    <td align="center">Add Family Member</td>
+    <td align="center">Upload Flow</td>
+    <td align="center">Bills & Insurance</td>
+    <td align="center">Family Members</td>
   </tr>
 </table>
 
@@ -59,10 +59,12 @@
   <tr>
     <td><img src="screenshots/desktop-login.png" alt="Login" /></td>
     <td><img src="screenshots/desktop-dashboard.png" alt="Dashboard" /></td>
+    <td><img src="screenshots/desktop-health-journey.png" alt="Health Journey" /></td>
   </tr>
   <tr>
     <td align="center"><strong>Sign In</strong></td>
     <td align="center"><strong>Dashboard</strong></td>
+    <td align="center"><strong>Health Journey</strong></td>
   </tr>
 </table>
 
