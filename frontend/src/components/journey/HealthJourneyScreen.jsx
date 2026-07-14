@@ -19,27 +19,22 @@ export default function HealthJourneyScreen() {
   const [summary, setSummary] = useState('');
   const [sumLines, setSumLines] = useState([]);
   const [ld, setLd] = useState(true);
-  const [err, setErr] = useState(false);
-  const [fetched, setFetched] = useState(false);
-
-  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     if (!sel) return;
     let cancelled = false;
-    setLd(true); setErr(false); setFetched(false);
+    setLd(true);
     API.get('/profiles/' + sel.id + '/health-journey')
       .then(r => {
         if (!cancelled) {
           const text = r.data.summary || '';
           setSumLines(text.split('\n').filter(l => l.trim()).map(l => l.replace(/^[-*•]\s*/, '').trim()));
           setLd(false);
-          setFetched(true);
         }
       })
-      .catch(() => { if (!cancelled) { setErr(true); setLd(false); setFetched(true); } });
+      .catch(() => { if (!cancelled) { setLd(false); } });
     return () => { cancelled = true; };
-  }, [sel, retryTick]);
+  }, [sel]);
 
   const doneRecords = records.filter(r => r.status === 'done');
 
@@ -103,7 +98,7 @@ export default function HealthJourneyScreen() {
         </div>
       </div>
 
-      {doneRecords.length > 0 && (ld || err || fetched) && (
+      {(ld || sumLines.length > 0) && (
         <div className="journey-ai-card">
           <div className="journey-ai-hdr">
             <span className="journey-ai-badge"><Icon name="auto_awesome" size={14} /> AI Summary</span>
@@ -114,34 +109,12 @@ export default function HealthJourneyScreen() {
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Analyzing records...</span>
             </div>
           )}
-          {!ld && err && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Could not generate an AI summary right now.</span>
-              <button
-                onClick={() => setRetryTick(t => t + 1)}
-                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-          {!ld && !err && sumLines.length > 0 && sumLines.map((line, i) => (
+          {!ld && sumLines.length > 0 && sumLines.map((line, i) => (
             <div key={i} className="journey-ai-line">
               <div className="journey-ai-dot" />
               <div className="journey-ai-text">{line}</div>
             </div>
           ))}
-          {!ld && !err && sumLines.length === 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>No summary came back — try again, or add more detail (doctor, diagnosis) to your records.</span>
-              <button
-                onClick={() => setRetryTick(t => t + 1)}
-                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
         </div>
       )}
 
