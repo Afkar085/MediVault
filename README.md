@@ -61,8 +61,8 @@
   </tr>
   <tr>
     <td align="center"><strong>Sign In</strong></td>
-    <td align="center"><strong>Dashboard</strong></td>
     <td align="center"><strong>Health Journey</strong></td>
+    <td align="center"><strong>Dashboard</strong></td>
   </tr>
 </table>
 
