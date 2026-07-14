@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'https://profound-smile-production-f645.up.railway.app/api/v1',
+  baseURL: process.env.REACT_APP_API_URL || 'https://medivault-lp0g.onrender.com/api/v1',
   timeout: 30000,
 });
 
