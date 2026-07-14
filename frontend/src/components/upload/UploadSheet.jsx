@@ -1,9 +1,10 @@
 import { useRef } from 'react';
+import Icon from '../common/Icon';
 
 const TYPES = [
-  { key: 'prescription', icon: '📄', label: 'Prescription', sub: 'Doctor\'s prescription or treatment notes' },
-  { key: 'lab_report', icon: '🧪', label: 'Lab Report', sub: 'Blood tests, scans, pathology reports' },
-  { key: 'bill', icon: '🧾', label: 'Medical Bill', sub: 'Hospital or pharmacy invoice' },
+  { key: 'prescription', icon: 'description', bg: 'var(--cat-prescription-bg)', fg: 'var(--cat-prescription-fg)', label: 'Prescription', sub: 'Doctor\'s prescription or treatment notes' },
+  { key: 'lab_report', icon: 'science', bg: 'var(--cat-lab-bg)', fg: 'var(--cat-lab-fg)', label: 'Lab Report', sub: 'Blood tests, scans, pathology reports' },
+  { key: 'bill', icon: 'receipt_long', bg: 'var(--cat-bill-bg)', fg: 'var(--cat-bill-fg)', label: 'Medical Bill', sub: 'Hospital or pharmacy invoice' },
 ];
 
 export default function UploadSheet({ onSelect, onClose }) {
@@ -34,8 +35,8 @@ export default function UploadSheet({ onSelect, onClose }) {
           {TYPES.map(t => (
             <div key={t.key}>
               <button className="us-opt" onClick={() => handleTypeClick(t.key)}>
-                <div className="us-opt-icon" style={{ background: t.key === 'prescription' ? '#fffbeb' : t.key === 'lab_report' ? '#ecfdf5' : '#fef2f2' }}>
-                  {t.icon}
+                <div className="us-opt-icon" style={{ background: t.bg, color: t.fg }}>
+                  <Icon name={t.icon} size={22} />
                 </div>
                 <div>
                   <div className="us-opt-label">{t.label}</div>

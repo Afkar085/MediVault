@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
-import { drN, drInitial, fmt, fmtRel, getRecordDate, getActivityLabel } from '../../utils/format';
+import { drN, drInitial, fmt, fmtRel, getRecordDate, getActivityLabel, catIcon } from '../../utils/format';
+import Icon from '../common/Icon';
 
 function Greeting({ name }) {
   const hour = new Date().getHours();
@@ -23,54 +24,24 @@ function MedicalOverviewCard({ records, docGroups, profiles, navigate }) {
   const medCount = doneRecs.reduce((s, r) => s + (r.medicines || []).length, 0);
   const famCount = profiles.length;
 
-  const rows = [
-    { label: 'Doctors', val: doctorCount, action: () => navigate('doctors') },
-    { label: 'Prescriptions', val: prescCount, action: () => navigate('search', { initialFilter: 'Prescriptions' }) },
-    { label: 'Lab Reports', val: labCount, action: () => navigate('search', { initialFilter: 'Lab Reports' }) },
-    { label: 'Bills', val: billCount, action: () => navigate('search', { initialFilter: 'Bills' }) },
-    { label: 'Medicines', val: medCount, action: () => navigate('search', { initialFilter: 'Medicines' }) },
-    { label: 'Family Members', val: famCount, action: () => navigate('family') },
+  const tiles = [
+    { icon: 'stethoscope', label: 'Doctors', val: doctorCount, action: () => navigate('doctors') },
+    { icon: 'description', label: 'Prescriptions', val: prescCount, action: () => navigate('search', { initialFilter: 'Prescriptions' }) },
+    { icon: 'science', label: 'Lab Reports', val: labCount, action: () => navigate('search', { initialFilter: 'Lab Reports' }) },
+    { icon: 'receipt_long', label: 'Bills', val: billCount, action: () => navigate('search', { initialFilter: 'Bills' }) },
+    { icon: 'medication', label: 'Medicines', val: medCount, action: () => navigate('search', { initialFilter: 'Medicines' }) },
+    { icon: 'group', label: 'Family', val: famCount, action: () => navigate('family') },
   ];
 
   return (
-    <div className="overview-card">
-      <div className="overview-card-title">Medical Overview</div>
-      {rows.map((r, i) => (
-        <div key={r.label} className="overview-row" onClick={r.action} style={{ borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
-          <span className="overview-label">{r.label}</span>
-          <div className="overview-dots" />
-          <span className="overview-val">{r.val}</span>
-        </div>
+    <div className="ov-grid">
+      {tiles.map(t => (
+        <button key={t.label} className="ov-tile" onClick={t.action}>
+          <Icon name={t.icon} size={20} style={{ marginBottom: 3, color: 'var(--primary)' }} />
+          <span className="ov-tile-val">{t.val}</span>
+          <span className="ov-tile-label">{t.label}</span>
+        </button>
       ))}
-      <div className="overview-row overview-footer" style={{ borderTop: '1px solid #f1f5f9' }}>
-        <span className="overview-label" style={{ color: '#94a3b8' }}>Last Updated</span>
-        <div className="overview-dots" />
-        <span className="overview-val" style={{ fontSize: 12, color: '#94a3b8' }}>Today</span>
-      </div>
-    </div>
-  );
-}
-
-function QuickActions({ navigate, onUpload }) {
-  const actions = [
-    { icon: '📤', label: 'Upload Record', action: onUpload },
-    { icon: '👨‍⚕️', label: 'My Doctors', action: () => navigate('doctors') },
-    { icon: '🔍', label: 'Search Records', action: () => navigate('search') },
-    { icon: '👨‍👩‍👧', label: 'Family Members', action: () => navigate('family') },
-  ];
-  return (
-    <div>
-      <div className="sec-hdr">
-        <div className="sec-title">Quick Actions</div>
-      </div>
-      <div className="qa-grid">
-        {actions.map(a => (
-          <button key={a.label} className="qa-btn" onClick={a.action}>
-            <div className="qa-icon">{a.icon}</div>
-            <span className="qa-label">{a.label}</span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -84,7 +55,7 @@ function RecentActivity({ records, openRecord }) {
     localStorage.setItem('mv_activity_open', String(next));
   };
 
-  const recent = records.slice(0, 8);
+  const recent = records.slice(0, 5);
   if (!recent.length) return null;
 
   return (
@@ -103,7 +74,9 @@ function RecentActivity({ records, openRecord }) {
         const sub = r.doctor_name ? drN(r.doctor_name) : r.hospital_name || '';
         return (
           <div key={r.id} className="activity-item" onClick={() => openRecord(r)}>
-            <div className={'activity-dot ' + (r.document_category || 'other')} />
+            <div className={'activity-icon ' + (r.document_category || 'other')}>
+              <Icon name={catIcon(r.document_category)} size={17} />
+            </div>
             <div className="activity-body">
               <div className="activity-title">{label}</div>
               {sub && <div className="activity-sub">{sub}</div>}
@@ -170,7 +143,7 @@ export default function Dashboard() {
   const {
     sel, profiles, records, loading,
     docGroups, docNameMap, sortedDocs,
-    navigate, openRecord, showUpload,
+    navigate, openRecord,
   } = useContext(AppContext);
 
   const processing = records.filter(r => r.status === 'processing' || r.status === 'extracting').length;
@@ -186,7 +159,7 @@ export default function Dashboard() {
   if (!sel) {
     return (
       <div className="empty">
-        <div className="empty-icon">🏥</div>
+        <div className="empty-icon"><Icon name="health_and_safety" size={30} /></div>
         <div className="empty-title">Welcome to MediVault</div>
         <div className="empty-sub">Add a family member to start managing medical records.</div>
       </div>
@@ -205,10 +178,12 @@ export default function Dashboard() {
       )}
 
       <div className="journey-banner" onClick={() => navigate('journey')}>
-        <div>
-          <div className="jb-icon">🗺️</div>
-          <div className="jb-title">Health Journey</div>
-          <div className="jb-sub">View your complete medical timeline</div>
+        <div className="jb-left">
+          <div className="jb-icon"><Icon name="route" size={20} /></div>
+          <div>
+            <div className="jb-title">Health Journey</div>
+            <div className="jb-sub">Your complete medical timeline</div>
+          </div>
         </div>
         <div className="jb-arrow">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -224,15 +199,13 @@ export default function Dashboard() {
         navigate={navigate}
       />
 
-      <QuickActions navigate={navigate} onUpload={showUpload} />
-
       <RecentActivity records={records} openRecord={openRecord} />
 
       <DoctorsPreview docGroups={docGroups} docNameMap={docNameMap} sortedDocs={sortedDocs} navigate={navigate} />
 
       {records.length === 0 && (
         <div className="empty">
-          <div className="empty-icon">📋</div>
+          <div className="empty-icon"><Icon name="description" size={30} /></div>
           <div className="empty-title">No records yet</div>
           <div className="empty-sub">Tap the + button to upload your first medical document.</div>
         </div>

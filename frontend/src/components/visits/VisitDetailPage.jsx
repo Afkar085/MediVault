@@ -1,7 +1,8 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import Gallery from '../common/Gallery';
-import { fmt, drN, cur, fmtMo, getRecordFiles } from '../../utils/format';
+import { fmt, drN, cur, fmtMo, getRecordFiles, getRecordDate } from '../../utils/format';
+import Icon from '../common/Icon';
 import API from '../../api';
 
 function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFiles }) {
@@ -19,7 +20,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
     <div>
       {!bills.length && (
         <div className="empty" style={{ paddingBottom: 8 }}>
-          <div className="empty-icon">🧾</div>
+          <div className="empty-icon"><Icon name="receipt_long" size={30} /></div>
           <div className="empty-title">No bills yet</div>
           <div className="empty-sub">Add bills for this visit below.</div>
         </div>
@@ -28,8 +29,8 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
         <>
           <div className="bsum" style={{ marginBottom: 16 }}>
             <div className="bsum-card"><div className="bsum-val">{cur(total)}</div><div className="bsum-lbl">Total</div></div>
-            <div className="bsum-card"><div className="bsum-val" style={{ color: '#10b981' }}>{cur(claimed)}</div><div className="bsum-lbl">Claimed</div></div>
-            <div className="bsum-card"><div className="bsum-val" style={{ color: '#ef4444' }}>{cur(total - claimed)}</div><div className="bsum-lbl">Unclaimed</div></div>
+            <div className="bsum-card"><div className="bsum-val" style={{ color: 'var(--success)' }}>{cur(claimed)}</div><div className="bsum-lbl">Claimed</div></div>
+            <div className="bsum-card"><div className="bsum-val" style={{ color: 'var(--error)' }}>{cur(total - claimed)}</div><div className="bsum-lbl">Unclaimed</div></div>
           </div>
           {bills.map(b => {
             const bf = getRecordFiles(b);
@@ -39,7 +40,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
                 <div className="binfo" onClick={() => openRecord(b)} style={{ cursor: 'pointer', flex: 1 }}>
                   <div className="bdoc">{billTitle}</div>
                   {b.bill_category && (
-                    <div style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, color: '#0d9488', background: '#f0fdfa', borderRadius: 6, padding: '1px 7px', marginBottom: 3 }}>
+                    <div style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, color: 'var(--cat-bill-fg)', background: 'var(--cat-bill-bg)', borderRadius: 6, padding: '1px 7px', marginBottom: 3 }}>
                       {b.bill_category}
                     </div>
                   )}
@@ -66,7 +67,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
                       className={'toggle' + (b.insurance_claimed ? ' on' : '')}
                       onClick={e => { e.stopPropagation(); togIns(b.id); }}
                     />
-                    <span style={{ fontSize: 9, fontWeight: 600, color: b.insurance_claimed ? '#0d9488' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 9, fontWeight: 600, color: b.insurance_claimed ? 'var(--success)' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {b.insurance_claimed ? 'Claimed' : 'Insurance'}
                     </span>
                   </div>
@@ -103,14 +104,21 @@ function medSummary(m) {
 }
 
 export default function VisitDetailPage() {
-  const { nav, navigate, records, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
-  const { visitDate, visitRecords, doctorKey, doctorName, specialty, hospital } = nav;
+  const { nav, navigate, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
+  const { visitDate, doctorKey, doctorName, specialty, hospital } = nav;
 
   const [vtab, setVtab] = useState('prescription');
   const [gal, setGal] = useState(null);
 
-  const primary = visitRecords?.find(r => r.diagnosis || (r.medicines || []).length > 0)
-    || visitRecords?.[0];
+  // Derive from the live docGroups (not a frozen nav snapshot) so edits made on this
+  // screen — insurance toggle, adding a document — show up immediately.
+  const visitRecords = (docGroups[doctorKey] || nav.visitRecords || []).filter(r => getRecordDate(r) === visitDate);
+
+  // Merge across every document in the visit — a lab report's diagnosis and a
+  // prescription's medicines are separate records but belong to one summary.
+  const visitDiagnosis = visitRecords?.find(r => r.diagnosis)?.diagnosis;
+  const visitMedicines = (visitRecords || []).flatMap(r => r.medicines || []);
+  const visitRecommendations = [...new Set((visitRecords || []).map(r => r.recommendations).filter(Boolean))];
 
   const prescriptions = (visitRecords || []).filter(r => r.document_category === 'prescription' || (!r.document_category && r.document_type !== 'Lab Report'));
   const labs = (visitRecords || []).filter(r => r.document_category === 'lab_report');
@@ -139,43 +147,41 @@ export default function VisitDetailPage() {
         <div className="ph-title">{fmt(visitDate) || visitDate}</div>
       </div>
 
-      {primary && (
-        <>
-          {primary.diagnosis && (
-            <div className="visit-info-card">
-              <div className="vi-label">Diagnosis</div>
-              <div className="vi-value" style={{ fontWeight: 600, fontSize: 16 }}>{primary.diagnosis}</div>
-            </div>
-          )}
+      {visitDiagnosis && (
+        <div className="visit-info-card">
+          <div className="vi-label">Diagnosis</div>
+          <div className="vi-value" style={{ fontWeight: 600, fontSize: 16 }}>{visitDiagnosis}</div>
+        </div>
+      )}
 
-          {(primary.medicines || []).length > 0 && (
-            <div className="visit-info-card">
-              <div className="vi-label">Medicines</div>
-              {(primary.medicines || []).map(m => {
-                const info = medSummary(m);
-                return (
-                  <div key={m.id} className="vi-med">
-                    <div className="vi-med-dot" />
-                    <div className="vi-med-name">{m.name}</div>
-                    {info && <div className="vi-med-info">{info}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      {visitMedicines.length > 0 && (
+        <div className="visit-info-card">
+          <div className="vi-label">Medicines</div>
+          {visitMedicines.map((m, i) => {
+            const info = medSummary(m);
+            return (
+              <div key={m.id || i} className="vi-med">
+                <div className="vi-med-dot" />
+                <div className="vi-med-name">{m.name}</div>
+                {info && <div className="vi-med-info">{info}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-          {primary.recommendations && (
-            <div className="visit-info-card">
-              <div className="vi-label">Recommendations</div>
-              <div className="vi-value">{primary.recommendations}</div>
-            </div>
-          )}
-        </>
+      {visitRecommendations.length > 0 && (
+        <div className="visit-info-card">
+          <div className="vi-label">Recommendations</div>
+          {visitRecommendations.map((rec, i) => (
+            <div key={i} className="vi-value" style={{ marginTop: i > 0 ? 8 : 0 }}>{rec}</div>
+          ))}
+        </div>
       )}
 
       {visitUploading && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: '#f0fdfa', borderRadius: 10, marginTop: 12, fontSize: 13, color: '#0d9488', fontWeight: 500 }}>
-          <div className="spinner" style={{ width: 16, height: 16, margin: 0, borderWidth: 2, borderColor: '#0d9488', borderTopColor: 'transparent' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'var(--primary-container)', borderRadius: 10, marginTop: 12, fontSize: 13, color: 'var(--primary)', fontWeight: 500 }}>
+          <div className="spinner" style={{ width: 16, height: 16, margin: 0, borderWidth: 2, borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
           Uploading to this visit…
         </div>
       )}
@@ -196,7 +202,7 @@ export default function VisitDetailPage() {
         <div>
           {prescriptions.length === 0 ? (
             <div className="empty">
-              <div className="empty-icon">📄</div>
+              <div className="empty-icon"><Icon name="description" size={30} /></div>
               <div className="empty-title">No prescriptions</div>
               <div className="empty-sub">Upload a prescription for this visit.</div>
             </div>
@@ -230,7 +236,7 @@ export default function VisitDetailPage() {
         <div>
           {labs.length === 0 ? (
             <div className="empty">
-              <div className="empty-icon">🧪</div>
+              <div className="empty-icon"><Icon name="science" size={30} /></div>
               <div className="empty-title">No lab reports</div>
               <div className="empty-sub">Upload lab reports for this doctor.</div>
             </div>

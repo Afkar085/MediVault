@@ -2,9 +2,20 @@ import { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
 import { fmt, fmtRel, drN, getRecordDate } from '../../utils/format';
+import Icon from '../common/Icon';
+
+const CAT_META = {
+  prescription:      { icon: 'description', label: 'Prescription',  cls: 'prescription' },
+  lab_report:         { icon: 'science', label: 'Lab Report',     cls: 'lab_report' },
+  bill:               { icon: 'receipt_long', label: 'Bill',           cls: 'bill' },
+  discharge_summary:  { icon: 'assignment', label: 'Discharge Summary', cls: 'discharge_summary' },
+};
+const DEFAULT_META = { icon: 'folder', label: 'Record', cls: 'other' };
+
+const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 export default function HealthJourneyScreen() {
-  const { sel, records, navigate, docGroups, docNameMap } = useContext(AppContext);
+  const { sel, records, navigate, docGroups, openRecord } = useContext(AppContext);
   const [summary, setSummary] = useState('');
   const [sumLines, setSumLines] = useState([]);
   const [ld, setLd] = useState(true);
@@ -28,17 +39,25 @@ export default function HealthJourneyScreen() {
 
   const doneRecords = records.filter(r => r.status === 'done');
 
-  const yearGroups = {};
+  // Group into visits: same exact date -> one timeline node with all its documents stacked.
+  const visitsByDate = {};
   doneRecords.forEach(r => {
-    const date = getRecordDate(r);
-    const year = date ? date.slice(0, 4) : 'Unknown';
-    if (!yearGroups[year]) yearGroups[year] = [];
-    yearGroups[year].push(r);
+    const date = getRecordDate(r) || 'unknown';
+    if (!visitsByDate[date]) visitsByDate[date] = [];
+    visitsByDate[date].push(r);
   });
+
+  const yearGroups = {};
+  Object.entries(visitsByDate).forEach(([date, recs]) => {
+    const year = date !== 'unknown' ? date.slice(0, 4) : 'Unknown';
+    if (!yearGroups[year]) yearGroups[year] = [];
+    yearGroups[year].push({ date, recs });
+  });
+  Object.values(yearGroups).forEach(visits => visits.sort((a, b) => (b.date > a.date ? 1 : -1)));
   const sortedYears = Object.keys(yearGroups).filter(y => y !== 'Unknown').sort((a, b) => b.localeCompare(a));
   if (yearGroups['Unknown']) sortedYears.push('Unknown');
 
-  const openRecord = (r) => {
+  const openRec = (r) => {
     const key = (r.doctor_name || '').toLowerCase().replace(/^dr\.?\s*/i, '').replace(/\s+/g, ' ').trim() || 'unassigned';
     const specialty = r.specialty || '';
     const hospital = r.hospital_name || '';
@@ -52,14 +71,16 @@ export default function HealthJourneyScreen() {
         specialty,
         hospital,
       });
+    } else {
+      openRecord(r);
     }
   };
 
-  const getCatColor = (cat) => {
-    if (cat === 'prescription') return '#fffbeb';
-    if (cat === 'lab_report') return '#ecfdf5';
-    if (cat === 'bill') return '#fef2f2';
-    return '#f0f5f4';
+  const monthBadge = (date) => {
+    if (date === 'unknown') return { mon: '—', day: '—' };
+    const d = new Date(date + 'T00:00:00');
+    if (isNaN(d.getTime())) return { mon: '—', day: '—' };
+    return { mon: MONTHS_SHORT[d.getMonth()], day: d.getDate() };
   };
 
   return (
@@ -70,12 +91,19 @@ export default function HealthJourneyScreen() {
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="ph-title">Health Journey</div>
+        <div>
+          <div className="ph-title">Health Journey</div>
+          {doneRecords.length > 0 && (
+            <div className="ph-sub">{doneRecords.length} record{doneRecords.length !== 1 ? 's' : ''} · {sel?.name}</div>
+          )}
+        </div>
       </div>
 
       {(ld || sumLines.length > 0) && (
         <div className="journey-ai-card">
-          <div className="journey-ai-title">AI Health Summary</div>
+          <div className="journey-ai-hdr">
+            <span className="journey-ai-badge"><Icon name="auto_awesome" size={14} /> AI Summary</span>
+          </div>
           {ld && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
               <div className="spinner" style={{ width: 20, height: 20, margin: 0, borderWidth: 2 }} />
@@ -94,40 +122,59 @@ export default function HealthJourneyScreen() {
 
       {doneRecords.length === 0 && !ld && (
         <div className="empty">
-          <div className="empty-icon">🗺️</div>
+          <div className="empty-icon"><Icon name="route" size={30} /></div>
           <div className="empty-title">No journey yet</div>
           <div className="empty-sub">Upload medical records to build your health timeline.</div>
         </div>
       )}
 
-      {sortedYears.map(year => (
-        <div key={year} className="journey-year-section">
-          <div className="journey-year-label">
-            <span className="journey-year-text">{year}</span>
-            <div className="journey-year-line" />
-          </div>
+      <div className="journey-timeline">
+        {sortedYears.map(year => (
+          <div key={year} className="journey-year-section">
+            <div className="journey-year-label">
+              <span className="journey-year-text">{year}</span>
+              <div className="journey-year-line" />
+            </div>
 
-          {yearGroups[year]
-            .sort((a, b) => new Date(b.document_date || b.created_at) - new Date(a.document_date || a.created_at))
-            .map(r => {
-              const date = getRecordDate(r);
-              const title = r.doctor_name ? drN(r.doctor_name) : r.hospital_name || r.document_type || 'Record';
-              const sub = r.diagnosis || r.specialty || (r.document_category === 'lab_report' ? 'Lab Report' : r.document_category === 'bill' ? 'Bill' : '');
+            {yearGroups[year].map(({ date, recs }) => {
+              const { mon, day } = monthBadge(date);
+              const primary = recs.find(r => r.doctor_name) || recs[0];
               return (
-                <div key={r.id} className={'journey-event ' + (r.document_category || 'other')} onClick={() => openRecord(r)}>
-                  <div className="je-info">
-                    <div className="je-date">{fmt(date) || fmtRel(r.created_at)}</div>
-                    <div className="je-title">{title}</div>
-                    {sub && <div className="je-sub">{sub}</div>}
+                <div key={date} className="jt-node">
+                  <div className="jt-badge">
+                    <span className="jt-badge-mon">{mon}</span>
+                    <span className="jt-badge-day">{day}</span>
                   </div>
-                  <svg className="je-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
+                  <div className="jt-card">
+                    {primary?.doctor_name && (
+                      <div className="jt-card-hdr">
+                        {drN(primary.doctor_name)}
+                        {primary.specialty ? ' · ' + primary.specialty : ''}
+                      </div>
+                    )}
+                    {recs.map(r => {
+                      const meta = CAT_META[r.document_category] || DEFAULT_META;
+                      const title = r.diagnosis || r.hospital_name || meta.label;
+                      return (
+                        <div key={r.id} className={'jt-item ' + meta.cls} onClick={() => openRec(r)}>
+                          <div className={'jt-item-icon ' + meta.cls}><Icon name={meta.icon} size={16} /></div>
+                          <div className="jt-item-body">
+                            <div className="jt-item-title">{title}</div>
+                            <div className="jt-item-sub">{meta.label}</div>
+                          </div>
+                          <svg className="jt-item-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
-        </div>
-      ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -115,6 +115,22 @@ function MainApp({ onLogout }) {
     handleSelChange(profile);
   }, [handleSelChange]);
 
+  const updateProfile = useCallback((id, updated) => {
+    setProfiles(prev => prev.map(p => p.id === id ? updated : p));
+    setSel(prev => (prev && prev.id === id) ? updated : prev);
+  }, []);
+
+  const removeProfile = useCallback((id) => {
+    setProfiles(prev => {
+      const next = prev.filter(p => p.id !== id);
+      setSel(curSel => {
+        if (!curSel || curSel.id !== id) return curSel;
+        return next[0] || null;
+      });
+      return next;
+    });
+  }, []);
+
   const showUpload = useCallback(() => setShowUploadSheet(true), []);
 
   const onUploadSelect = useCallback((files, type) => {
@@ -197,11 +213,20 @@ function MainApp({ onLogout }) {
     } finally { setUploading(false); }
   };
 
+  const deleteAccount = useCallback(async () => {
+    await API.delete('/auth/account');
+    localStorage.removeItem('token');
+    onLogout();
+  }, [onLogout]);
+
   const ctx = {
     profiles,
     sel,
     setSel: handleSelChange,
     addProfile,
+    updateProfile,
+    removeProfile,
+    deleteAccount,
     records,
     setRecords,
     loading,

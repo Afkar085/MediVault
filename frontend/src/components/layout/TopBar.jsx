@@ -8,7 +8,7 @@ export default function TopBar() {
   return (
     <div className="topbar">
       <div className="tb-left">
-        <Logo size={24} color="#5eead4" />
+        <Logo size={24} color="#9fb2ff" />
         <span className="tb-logo">Medi<span>Vault</span></span>
       </div>
 

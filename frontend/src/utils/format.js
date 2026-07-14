@@ -101,6 +101,14 @@ export const getRecordFiles = r => {
   return [];
 };
 
+const CAT_ICON = {
+  prescription: 'description',
+  lab_report: 'science',
+  bill: 'receipt_long',
+  discharge_summary: 'assignment',
+};
+export const catIcon = c => CAT_ICON[c] || 'folder';
+
 export const drInitial = name => {
   if (!name || name === 'Unassigned') return '?';
   const stripped = name.replace(/^dr\.?\s*/i, '').trim();
