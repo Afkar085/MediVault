@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Backgro
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services.ocr import extract_text_from_bytes
+from app.services.storage import signed_url
+from app.logger import logger
 from typing import List
 from datetime import datetime, timedelta
 import uuid
@@ -14,6 +16,23 @@ ALLOWED_TYPES = {
     "image/gif", "image/bmp", "application/pdf"
 }
 MAX_SIZE = 10 * 1024 * 1024
+
+# Magic-byte signatures — the client-supplied content_type header can be spoofed,
+# so we verify the actual file bytes match what's claimed before accepting the upload.
+_MAGIC_CHECKS = {
+    "image/jpeg": lambda b: b[:3] == b"\xff\xd8\xff",
+    "image/jpg": lambda b: b[:3] == b"\xff\xd8\xff",
+    "image/png": lambda b: b[:8] == b"\x89PNG\r\n\x1a\n",
+    "image/gif": lambda b: b[:6] in (b"GIF87a", b"GIF89a"),
+    "image/bmp": lambda b: b[:2] == b"BM",
+    "image/webp": lambda b: b[:4] == b"RIFF" and b[8:12] == b"WEBP",
+    "application/pdf": lambda b: b[:4] == b"%PDF",
+}
+
+
+def _content_matches_type(contents: bytes, content_type: str) -> bool:
+    check = _MAGIC_CHECKS.get(content_type)
+    return check(contents) if check else False
 
 
 def _slugify(name: str) -> str:
@@ -115,9 +134,10 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
                 supabase.table("medicines").insert(rows).execute()
 
     except Exception as e:
+        logger.error("OCR/extraction pipeline failed for record %s: %s", record_id, e)
         supabase.table("records").update({
             "status": "failed",
-            "raw_ocr_text": str(e)
+            "raw_ocr_text": "Processing failed. Please try re-uploading this document."
         }).eq("id", record_id).execute()
 
 
@@ -145,6 +165,12 @@ async def upload_file(
         contents = await file.read()
         if len(contents) > MAX_SIZE:
             raise HTTPException(status_code=400, detail="File too large. Max 10MB per file")
+
+        if not _content_matches_type(contents, file.content_type):
+            raise HTTPException(
+                status_code=400,
+                detail="File content does not match its declared type"
+            )
 
         original_name = file.filename or "upload"
         ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "bin"
@@ -188,6 +214,6 @@ async def upload_file(
         "message": "File(s) uploaded. OCR processing in background.",
         "record_id": record_id,
         "file_path": first["file_path"],
-        "file_url": first["file_url"],
+        "file_url": signed_url(first["file_path"]),
         "pages": len(file_entries),
     }

@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from app.schemas.record import RecordResponse, RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.storage import signed_url
+from app.logger import logger
 from typing import List, Optional
 from groq import Groq
 from app.config import settings
@@ -29,9 +31,13 @@ def _attach_files(records: list) -> list:
     files_result = supabase.table("record_files").select("*").in_("record_id", record_ids).order("page_number").execute()
     files_by_record: dict = {}
     for f in files_result.data:
+        if f.get("file_path"):
+            f["file_url"] = signed_url(f["file_path"])
         files_by_record.setdefault(f["record_id"], []).append(f)
     for r in records:
         r["files"] = files_by_record.get(r["id"], [])
+        if r.get("file_path"):
+            r["file_url"] = signed_url(r["file_path"])
     return records
 
 
@@ -256,7 +262,7 @@ def get_health_journey(profile_id: str, user_id: str = Depends(get_current_user)
     try:
         client = Groq(api_key=settings.GROQ_API_KEY)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=settings.GROQ_TEXT_MODEL,
             messages=[{
                 "role": "user",
                 "content": f"""Summarize this patient's health journey as a concise timeline narrative.
@@ -276,7 +282,8 @@ Return ONLY the bullet points, no intro or outro."""
         )
         summary = response.choices[0].message.content.strip()
     except Exception as e:
-        summary = f"Unable to generate health journey: {str(e)}"
+        logger.error("Health journey generation failed for profile %s: %s", profile_id, e)
+        summary = "Unable to generate your health journey summary right now. Please try again later."
 
     return {"summary": summary, "total_visits": len(records)}
 
