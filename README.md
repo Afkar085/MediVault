@@ -25,13 +25,13 @@
 
 <table>
   <tr>
-    <td width="25%"><img src="screenshots/mobile-login.png" alt="Mobile Login" /></td>
+    
     <td width="25%"><img src="screenshots/mobile-dashboard.png" alt="Mobile Dashboard" /></td>
     <td width="25%"><img src="screenshots/mobile-doctors.png" alt="Doctors List" /></td>
     <td width="25%"><img src="screenshots/mobile-health-journey.png" alt="Health Journey" /></td>
   </tr>
   <tr>
-    <td align="center">Sign In</td>
+    
     <td align="center">Dashboard</td>
     <td align="center">Doctors</td>
     <td align="center">AI Health Journey</td>
