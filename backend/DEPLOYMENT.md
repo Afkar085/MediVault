@@ -39,7 +39,7 @@ Pull these from wherever you saved them when you first set up Railway (or from S
    | `JWT_SECRET` | your existing secret, or a new random 32+ char string |
    | `JWT_EXPIRE_HOURS` | `24` |
    | `GROQ_API_KEY` | from console.groq.com |
-   | `GROQ_TEXT_MODEL` | `openai/gpt-oss-120b` |
+   | `GROQ_TEXT_MODEL` | `llama-3.3-70b-versatile` |
    | `ALLOWED_ORIGINS` | your exact frontend URL, e.g. `https://medivault.vercel.app` (comma-separate if there's more than one, no trailing slash) **(new)** |
    | `DEBUG` | `false` **(new)** — leave unset or `false` in production; only set `true` temporarily if you need `/docs` to debug something |
 

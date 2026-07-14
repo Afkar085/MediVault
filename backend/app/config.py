@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_EXPIRE_HOURS: int = 24
     GROQ_API_KEY: str
-    GROQ_TEXT_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     DEBUG: bool = False
 
