@@ -281,6 +281,9 @@ Return ONLY the bullet points, no intro or outro."""
             max_tokens=500,
         )
         summary = response.choices[0].message.content.strip()
+        if not summary:
+            logger.warning("Health journey generation returned empty content for profile %s", profile_id)
+            summary = "Not enough detail in these records yet to summarize — try adding a doctor name or diagnosis to a few of them."
     except Exception as e:
         logger.error("Health journey generation failed for profile %s: %s", profile_id, e)
         summary = "Unable to generate your health journey summary right now. Please try again later."
