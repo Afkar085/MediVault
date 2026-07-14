@@ -3,6 +3,7 @@ import { AppContext } from '../../App';
 import API from '../../api';
 import Gallery from '../common/Gallery';
 import { fmt, fmtRel, fmtDt, dateVal, cur, drN, getRecordFiles } from '../../utils/format';
+import Icon from '../common/Icon';
 
 
 const BILL_CATS = [
@@ -30,18 +31,18 @@ const MED_TYPES = [
 ];
 
 const MED_ICONS = {
-  tablet: '💊', capsule: '💊', syrup: '🍶', injection: '💉',
-  cream: '🧴', gel: '🧴', ointment: '🧴', lotion: '🧴',
-  drops: '💧', spray: '💨', sachet: '🧂', powder: '🧂',
-  inhaler: '💨', patch: '🩹', other: '💊',
+  tablet: 'medication', capsule: 'medication', syrup: 'water_full', injection: 'syringe',
+  cream: 'colorize', gel: 'colorize', ointment: 'colorize', lotion: 'colorize',
+  drops: 'water_drop', spray: 'air', sachet: 'grain', powder: 'grain',
+  inhaler: 'air', patch: 'healing', other: 'medication',
 };
 
 function getMedIcon(type) {
-  return MED_ICONS[type] || '💊';
+  return MED_ICONS[type] || 'medication';
 }
 
 function getMedSchedule(med) {
-  if (med.sos) return '⚠ SOS — take only when needed';
+  if (med.sos) return 'SOS — take only when needed';
   const t = med.type || '';
   if (['tablet', 'capsule'].includes(t)) {
     const m = med.morning ?? 0, a = med.afternoon ?? 0, n = med.night ?? 0;
@@ -127,7 +128,7 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
         <div className="med-sched-box">
           <div className="edit-lbl" style={{ marginBottom: 8 }}>Schedule (tablets per dose)</div>
           <div className="med-time-row">
-            {[['morning', '🌅 Morning'], ['afternoon', '☀️ Afternoon'], ['night', '🌙 Night']].map(([k, lbl]) => (
+            {[['morning', 'Morning'], ['afternoon', 'Afternoon'], ['night', 'Night']].map(([k, lbl]) => (
               <div key={k} className="med-time-cell">
                 <div className="med-time-lbl">{lbl}</div>
                 <input className="edit-inp med-num" type="number" min="0" step="0.5"
@@ -150,7 +151,7 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
         <div className="med-sched-box">
           <div className="edit-lbl" style={{ marginBottom: 8 }}>Schedule (ml per dose)</div>
           <div className="med-time-row">
-            {[['morning_ml', '🌅'], ['afternoon_ml', '☀️'], ['night_ml', '🌙']].map(([k, lbl]) => (
+            {[['morning_ml', 'Morning'], ['afternoon_ml', 'Afternoon'], ['night_ml', 'Night']].map(([k, lbl]) => (
               <div key={k} className="med-time-cell">
                 <div className="med-time-lbl">{lbl}</div>
                 <input className="edit-inp" value={f[k] || ''} onChange={e => set(k, e.target.value)} placeholder="ml" />
@@ -319,7 +320,7 @@ function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
         const typeLabel = med.type ? med.type.charAt(0).toUpperCase() + med.type.slice(1) : '';
         return (
           <div key={med.id || i} className="med-item">
-            <div className="med-item-icon">{getMedIcon(med.type)}</div>
+            <div className="med-item-icon"><Icon name={getMedIcon(med.type)} size={20} /></div>
             <div className="med-item-body">
               <div className="med-item-name">{med.name}</div>
               {(typeLabel || med.strength) && (
@@ -328,7 +329,7 @@ function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
                 </div>
               )}
               {sched && <div className="med-item-sched">{sched}</div>}
-              {med.duration && <div className="med-item-dur">⏱ {med.duration}</div>}
+              {med.duration && <div className="med-item-dur"><Icon name="schedule" size={11} style={{ marginRight: 3 }} />{med.duration}</div>}
               {med.instructions && <div className="med-item-notes">{med.instructions}</div>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -339,7 +340,7 @@ function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
                 </svg>
                 Edit
               </button>
-              <button className="med-edit-btn" style={{ background: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
+              <button className="med-edit-btn" style={{ background: 'var(--success-container)', color: 'var(--success)', borderColor: '#a7e8cf' }}
                 onClick={() => persistMeds([...meds.slice(0, i + 1), { ...med, id: String(Date.now()) }, ...meds.slice(i + 1)])}>
                 Dup
               </button>
@@ -479,7 +480,7 @@ export default function RecordModal({ record, onClose }) {
           {tab === 'details' && !editing && (
             <div>
               <div className="drow">
-                <div className="drow-icon" style={{ background: '#fffbeb' }}>📅</div>
+                <div className="drow-icon" style={{ background: 'var(--primary-container)', color: 'var(--primary)' }}><Icon name="calendar_month" size={16} /></div>
                 <div style={{ flex: 1 }}>
                   <div className="drow-key">Date</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -496,24 +497,24 @@ export default function RecordModal({ record, onClose }) {
                 <>
                   {record.bill_title && (
                     <div className="drow">
-                      <div className="drow-icon" style={{ background: '#fef9e7' }}>🏷️</div>
+                      <div className="drow-icon" style={{ background: 'var(--cat-bill-bg)', color: 'var(--cat-bill-fg)' }}><Icon name="sell" size={16} /></div>
                       <div><div className="drow-key">Bill Title</div><div className="drow-val">{record.bill_title}</div></div>
                     </div>
                   )}
                   {record.bill_category && (
                     <div className="drow">
-                      <div className="drow-icon" style={{ background: '#fef9e7' }}>📂</div>
+                      <div className="drow-icon" style={{ background: 'var(--cat-bill-bg)', color: 'var(--cat-bill-fg)' }}><Icon name="folder" size={16} /></div>
                       <div><div className="drow-key">Category</div><div className="drow-val">{record.bill_category}</div></div>
                     </div>
                   )}
                   {record.bill_number && (
                     <div className="drow">
-                      <div className="drow-icon" style={{ background: '#f8fafc' }}>🔢</div>
+                      <div className="drow-icon" style={{ background: 'var(--cat-other-bg)', color: 'var(--cat-other-fg)' }}><Icon name="tag" size={16} /></div>
                       <div><div className="drow-key">Bill No.</div><div className="drow-val">{record.bill_number}</div></div>
                     </div>
                   )}
                   <div className="drow">
-                    <div className="drow-icon" style={{ background: '#fef2f2' }}>💰</div>
+                    <div className="drow-icon" style={{ background: 'var(--error-container)', color: 'var(--error)' }}><Icon name="payments" size={16} /></div>
                     <div style={{ flex: 1 }}>
                       <div className="drow-key">Amount</div>
                       {record.bill_amount != null
@@ -525,7 +526,7 @@ export default function RecordModal({ record, onClose }) {
               )}
               {!record.doctor_name && !isBill && (
                 <div className="drow">
-                  <div className="drow-icon" style={{ background: '#fef3e8' }}>👨‍⚕️</div>
+                  <div className="drow-icon" style={{ background: 'var(--cat-prescription-bg)', color: 'var(--cat-prescription-fg)' }}><Icon name="stethoscope" size={16} /></div>
                   <div style={{ flex: 1 }}>
                     <div className="drow-key">Doctor</div>
                     <input className="edit-inp" style={{ padding: '6px 10px', fontSize: 12 }} placeholder="Enter doctor name and press Enter"
@@ -542,14 +543,14 @@ export default function RecordModal({ record, onClose }) {
                 </div>
               )}
               {[
-                { bg: '#fef3e8', icon: '👨‍⚕️', lbl: 'Doctor', val: record.doctor_name },
-                { bg: '#eef2ff', icon: '🏥', lbl: isBill ? 'Hospital / Pharmacy' : 'Hospital', val: record.hospital_name },
-                { bg: '#ecfdf5', icon: '🩺', lbl: 'Specialty', val: record.specialty },
-                { bg: '#fdf2f8', icon: '📋', lbl: isLab ? 'Findings / Results' : 'Diagnosis', val: record.diagnosis },
-                { bg: '#f0f9ff', icon: isLab ? '🔬' : '💊', lbl: isLab ? 'Interpretation / Follow-up' : isBill ? 'Notes' : 'Recommendations', val: record.recommendations },
+                { bg: 'var(--cat-prescription-bg)', fg: 'var(--cat-prescription-fg)', icon: 'stethoscope', lbl: 'Doctor', val: record.doctor_name },
+                { bg: 'var(--primary-container)', fg: 'var(--primary)', icon: 'local_hospital', lbl: isBill ? 'Hospital / Pharmacy' : 'Hospital', val: record.hospital_name },
+                { bg: 'var(--cat-bill-bg)', fg: 'var(--cat-bill-fg)', icon: 'stethoscope', lbl: 'Specialty', val: record.specialty },
+                { bg: 'var(--cat-lab-bg)', fg: 'var(--cat-lab-fg)', icon: 'clinical_notes', lbl: isLab ? 'Findings / Results' : 'Diagnosis', val: record.diagnosis },
+                { bg: 'var(--cat-discharge-bg)', fg: 'var(--cat-discharge-fg)', icon: isLab ? 'biotech' : 'medication', lbl: isLab ? 'Interpretation / Follow-up' : isBill ? 'Notes' : 'Recommendations', val: record.recommendations },
               ].filter(f => f.val).map(f => (
                 <div key={f.lbl} className="drow">
-                  <div className="drow-icon" style={{ background: f.bg }}>{f.icon}</div>
+                  <div className="drow-icon" style={{ background: f.bg, color: f.fg }}><Icon name={f.icon} size={16} /></div>
                   <div><div className="drow-key">{f.lbl}</div><div className="drow-val" style={{ whiteSpace: 'pre-wrap' }}>{f.val}</div></div>
                 </div>
               ))}
@@ -662,9 +663,9 @@ export default function RecordModal({ record, onClose }) {
                 : hist.map(h => (
                   <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 0', borderBottom: '1px solid #f1f5f9', fontSize: 12 }}>
                     <span style={{ fontWeight: 700, color: '#0f172a', minWidth: 90 }}>{h.field_name}</span>
-                    <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>{h.old_value || 'empty'}</span>
+                    <span style={{ color: 'var(--error)', textDecoration: 'line-through' }}>{h.old_value || 'empty'}</span>
                     <span style={{ color: '#94a3b8', margin: '0 3px' }}>→</span>
-                    <span style={{ color: '#10b981' }}>{h.new_value}</span>
+                    <span style={{ color: 'var(--success)' }}>{h.new_value}</span>
                     <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDt(h.edited_at)}</span>
                   </div>
                 ))

@@ -1,6 +1,7 @@
 import { useState, useMemo, useContext, useEffect } from 'react';
 import { AppContext } from '../../App';
-import { drN, fmtRel } from '../../utils/format';
+import { drN, fmtRel, cur, catIcon } from '../../utils/format';
+import Icon from '../common/Icon';
 
 const FILTERS = ['All', 'Prescriptions', 'Lab Reports', 'Bills', 'Medicines'];
 
@@ -11,10 +12,10 @@ const CAT_MAP = {
 };
 
 const EMPTY_MSGS = {
-  'Prescriptions': { icon: '📄', title: 'No Prescriptions Found', sub: 'Upload a prescription to see it here.' },
-  'Lab Reports': { icon: '🧪', title: 'No Lab Reports Found', sub: 'Upload lab reports to see them here.' },
-  'Bills': { icon: '🧾', title: 'No Bills Found', sub: 'Upload bills to see them here.' },
-  'Medicines': { icon: '💊', title: 'No Medicines Found', sub: 'Medicines are extracted from prescriptions automatically.' },
+  'Prescriptions': { icon: 'description', title: 'No Prescriptions Found', sub: 'Upload a prescription to see it here.' },
+  'Lab Reports': { icon: 'science', title: 'No Lab Reports Found', sub: 'Upload lab reports to see them here.' },
+  'Bills': { icon: 'receipt_long', title: 'No Bills Found', sub: 'Upload bills to see them here.' },
+  'Medicines': { icon: 'medication', title: 'No Medicines Found', sub: 'Medicines are extracted from prescriptions automatically.' },
 };
 
 export default function SearchPage() {
@@ -59,7 +60,7 @@ export default function SearchPage() {
   const handleClear = () => setQ('');
 
   const emptyMsg = EMPTY_MSGS[filter] || {
-    icon: '😶',
+    icon: 'search_off',
     title: q ? `No results for "${q}"` : 'No records found',
     sub: 'Try a different search term.',
   };
@@ -103,11 +104,13 @@ export default function SearchPage() {
 
       {showResults && filteredRecords.map(r => (
         <div key={r.id} className="rcard" onClick={() => openRecord(r)}>
-          <div className={'rdot ' + (r.document_category || 'other')} />
+          <div className={'ricon ' + (r.document_category || 'other')}>
+            <Icon name={catIcon(r.document_category)} size={16} />
+          </div>
           <div className="rbody">
             <div className="rtitle">{r.doctor_name ? drN(r.doctor_name) : r.hospital_name || r.document_type || 'Record'}</div>
             <div className="rsub">
-              {r.diagnosis || r.document_category || r.document_type}
+              {r.diagnosis || (r.document_category === 'bill' ? (r.bill_title || 'Bill' + (r.bill_amount != null ? ' · ' + cur(r.bill_amount) : '')) : r.document_category) || r.document_type}
               {r.specialty ? ' · ' + r.specialty : ''}
             </div>
             {filter === 'Medicines' && (r.medicines || []).length > 0 && (
@@ -122,7 +125,7 @@ export default function SearchPage() {
 
       {showResults && !filteredRecords.length && (
         <div className="empty">
-          <div className="empty-icon">{emptyMsg.icon}</div>
+          <div className="empty-icon"><Icon name={emptyMsg.icon} size={30} /></div>
           <div className="empty-title">{emptyMsg.title}</div>
           <div className="empty-sub">{emptyMsg.sub}</div>
         </div>
@@ -130,7 +133,7 @@ export default function SearchPage() {
 
       {!showResults && (
         <div className="empty">
-          <div className="empty-icon">🔍</div>
+          <div className="empty-icon"><Icon name="search" size={30} /></div>
           <div className="empty-title">Search your records</div>
           <div className="empty-sub">Find by doctor, medicine, diagnosis, or hospital. Or tap a filter above.</div>
         </div>

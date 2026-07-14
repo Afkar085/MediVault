@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { AppContext } from '../../App';
 import { fmt, fmtRel, drN, drInitial, getRecordDate } from '../../utils/format';
+import Icon from '../common/Icon';
 
 export default function DoctorDetailPage() {
   const { nav, navigate, docGroups } = useContext(AppContext);
@@ -87,7 +88,7 @@ export default function DoctorDetailPage() {
 
       {sortedDates.length === 0 && (
         <div className="empty">
-          <div className="empty-icon">📅</div>
+          <div className="empty-icon"><Icon name="calendar_month" size={30} /></div>
           <div className="empty-title">No visits yet</div>
           <div className="empty-sub">Upload a record to create a visit entry.</div>
         </div>
