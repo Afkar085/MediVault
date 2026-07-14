@@ -2,6 +2,10 @@
   <img src="https://img.shields.io/badge/MediVault-Family%20Health%20Records-0d9488?style=for-the-badge" alt="MediVault" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/Afkar085/MediVault/actions/workflows/ci.yml"><img src="https://github.com/Afkar085/MediVault/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+</p>
+
 <h1 align="center">MediVault</h1>
 
 <p align="center">
@@ -151,7 +155,7 @@ React 19 (Vercel)
 FastAPI (Railway)
     │ background OCR tasks
     ├── Groq Vision  →  raw text
-    └── Groq Llama 3.3  →  structured data
+    └── Groq Llama / GPT-OSS  →  structured data
     │
 Supabase (PostgreSQL + Storage)
 ```
@@ -160,6 +164,7 @@ Supabase (PostgreSQL + Storage)
 
 ## Future Roadmap
 
+- [ ] Semantic search + "Ask Your Records" (RAG) — built on a feature branch (hybrid keyword + vector search via pgvector, grounded Q&A with citations), held back from this deploy pending the pgvector migration and a resource check on the hosting tier
 - [ ] Bill PDF export and share
 - [ ] Prescription refill reminders
 - [ ] Lab result trend graphs (haemoglobin, blood sugar over time)
