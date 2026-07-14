@@ -44,12 +44,47 @@ function MainApp({ onLogout }) {
 
   const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
 
+  // Navigation is backed by the real browser History API so the phone's
+  // hardware/swipe back button (which knows nothing about in-app React state
+  // on its own) correctly steps back through screens instead of falling
+  // through to whatever was in browser history before the app loaded.
   const navigate = useCallback((page, params = {}) => {
+    const state = { kind: 'page', page, params };
     setNav({ page, ...params });
+    window.history.pushState(state, '');
     window.scrollTo(0, 0);
   }, []);
 
-  const openRecord = useCallback((record) => setSelRec(record), []);
+  const goBack = useCallback(() => window.history.back(), []);
+
+  const openRecord = useCallback((record) => {
+    setSelRec(record);
+    window.history.pushState({ kind: 'modal', recordId: record.id }, '');
+  }, []);
+
+  useEffect(() => {
+    window.history.replaceState({ kind: 'page', page: 'home', params: {} }, '');
+    const onPopState = (e) => {
+      const state = e.state;
+      if (!state) {
+        setSelRec(null);
+        setNav({ page: 'home' });
+        return;
+      }
+      if (state.kind === 'modal') {
+        setRecords(prev => {
+          const rec = prev.find(r => r.id === state.recordId);
+          setSelRec(rec || null);
+          return prev;
+        });
+      } else {
+        setSelRec(null);
+        setNav({ page: state.page, ...state.params });
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const loadRecs = useCallback((pid) =>
     API.get('/profiles/' + pid + '/records')
@@ -236,6 +271,7 @@ function MainApp({ onLogout }) {
     sortedDocs,
     nav,
     navigate,
+    goBack,
     openRecord,
     showToast,
     showUpload,
@@ -297,7 +333,7 @@ function MainApp({ onLogout }) {
         {selRec && (
           <RecordModal
             record={selRec}
-            onClose={() => setSelRec(null)}
+            onClose={goBack}
           />
         )}
 

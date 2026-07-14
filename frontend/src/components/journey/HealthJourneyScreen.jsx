@@ -15,10 +15,11 @@ const DEFAULT_META = { icon: 'folder', label: 'Record', cls: 'other' };
 const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 export default function HealthJourneyScreen() {
-  const { sel, records, navigate, docGroups, openRecord } = useContext(AppContext);
+  const { sel, records, navigate, goBack, docGroups, openRecord } = useContext(AppContext);
   const [summary, setSummary] = useState('');
   const [sumLines, setSumLines] = useState([]);
   const [ld, setLd] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     if (!sel) return;
@@ -85,7 +86,7 @@ export default function HealthJourneyScreen() {
   return (
     <div>
       <div className="ph">
-        <button className="ph-back" onClick={() => navigate('home')}>
+        <button className="ph-back" onClick={goBack}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -100,16 +101,29 @@ export default function HealthJourneyScreen() {
 
       {(ld || sumLines.length > 0) && (
         <div className="journey-ai-card">
-          <div className="journey-ai-hdr">
+          <div
+            className="journey-ai-hdr"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            onClick={() => setAiOpen(o => !o)}
+          >
             <span className="journey-ai-badge"><Icon name="auto_awesome" size={14} /> AI Summary</span>
+            <button
+              aria-label={aiOpen ? 'Collapse AI summary' : 'Expand AI summary'}
+              style={{ background: 'none', border: 'none', padding: 4, display: 'flex', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ transform: aiOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
           </div>
-          {ld && (
+          {aiOpen && ld && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
               <div className="spinner" style={{ width: 20, height: 20, margin: 0, borderWidth: 2 }} />
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Analyzing records...</span>
             </div>
           )}
-          {!ld && sumLines.length > 0 && sumLines.map((line, i) => (
+          {aiOpen && !ld && sumLines.length > 0 && sumLines.map((line, i) => (
             <div key={i} className="journey-ai-line">
               <div className="journey-ai-dot" />
               <div className="journey-ai-text">{line}</div>

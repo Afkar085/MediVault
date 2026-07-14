@@ -104,8 +104,8 @@ function medSummary(m) {
 }
 
 export default function VisitDetailPage() {
-  const { nav, navigate, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
-  const { visitDate, doctorKey, doctorName, specialty, hospital } = nav;
+  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
+  const { visitDate, doctorKey, doctorName } = nav;
 
   const [vtab, setVtab] = useState('prescription');
   const [gal, setGal] = useState(null);
@@ -125,8 +125,6 @@ export default function VisitDetailPage() {
   const bills = (visitRecords || []).filter(r => r.document_category === 'bill');
 
   const allFiles = prescriptions.flatMap(r => getRecordFiles(r));
-
-  const goBack = () => navigate('doctor-detail', { doctorKey, doctorName, specialty, hospital });
 
   const handleAddFiles = (e, type) => {
     const files = Array.from(e.target.files || []);
