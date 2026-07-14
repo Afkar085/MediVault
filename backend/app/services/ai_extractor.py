@@ -1,6 +1,9 @@
 import json
+import logging
 from groq import Groq
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 client = Groq(api_key=settings.GROQ_API_KEY)
 
@@ -61,5 +64,10 @@ Return only the JSON, no explanation.
             if raw.startswith("json"):
                 raw = raw[4:]
         return json.loads(raw)
-    except:
+    except (json.JSONDecodeError, IndexError, AttributeError) as e:
+        # The model returned something that isn't valid JSON. Log the raw output
+        # (truncated) so the failure is debuggable instead of silently swallowed.
+        logger.error(
+            "Failed to parse extraction JSON (%s): %r", e, raw[:500]
+        )
         return {}
