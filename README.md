@@ -109,6 +109,18 @@ MediVault lets families store their complete medical history in one place. Take 
 **Edit History**
 - Every field change logged with old → new value and timestamp
 
+**Security**
+- Rate limiting on auth endpoints, restricted CORS, security headers (HSTS, CSP, X-Frame-Options) on every response
+- Time-limited signed URLs for stored documents instead of permanent public links
+- Server-side file-content validation on upload (checks actual file bytes, not just the claimed type)
+- Full account deletion, cascading through every family profile and document
+
+---
+
+## Design System
+
+A deliberate visual identity rather than default styling — deep navy primary with a restrained teal secondary, a consistent 4-color semantic system for document categories (prescriptions, lab reports, bills, discharge summaries) used identically across every screen, and real iconography (Google Material Symbols) throughout instead of emoji.
+
 ---
 
 ## Tech Stack
@@ -118,12 +130,13 @@ MediVault lets families store their complete medical history in one place. Take 
 | Frontend | React 19, custom CSS (no UI library) |
 | Backend | FastAPI, Pydantic v2 |
 | Database | PostgreSQL via Supabase |
-| File Storage | Supabase Storage |
-| OCR | Groq — `llama-3.2-11b-vision-preview` |
-| AI Extraction | Groq — `llama-3.3-70b-versatile` |
+| File Storage | Supabase Storage (private bucket, signed URLs) |
+| OCR | Groq — `meta-llama/llama-4-scout-17b-16e-instruct` (vision) |
+| AI Extraction & Summaries | Groq — `llama-3.3-70b-versatile` |
 | Auth | JWT + bcrypt |
+| Testing | pytest, GitHub Actions CI |
 | Frontend Hosting | Vercel |
-| Backend Hosting | Railway |
+| Backend Hosting | Render |
 
 ---
 
@@ -152,12 +165,12 @@ post-OCR so the document stays in the right visit
 ```
 React 19 (Vercel)
     │ HTTPS + JWT
-FastAPI (Railway)
+FastAPI (Render)
     │ background OCR tasks
-    ├── Groq Vision  →  raw text
-    └── Groq Llama / GPT-OSS  →  structured data
+    ├── Groq Vision (Llama 4 Scout)  →  raw text
+    └── Groq Llama 3.3 70B  →  structured data + summaries
     │
-Supabase (PostgreSQL + Storage)
+Supabase (PostgreSQL + private Storage)
 ```
 
 ---
@@ -187,5 +200,5 @@ Supabase (PostgreSQL + Storage)
 </p>
 
 <p align="center">
-  React 19 · FastAPI · PostgreSQL · Supabase · Groq AI · Vercel · Railway
+  React 19 · FastAPI · PostgreSQL · Supabase · Groq AI · Vercel · Render
 </p>
