@@ -21,6 +21,8 @@ export default function HealthJourneyScreen() {
   const [ld, setLd] = useState(true);
   const [err, setErr] = useState(false);
 
+  const [retryTick, setRetryTick] = useState(0);
+
   useEffect(() => {
     if (!sel) return;
     let cancelled = false;
@@ -35,7 +37,7 @@ export default function HealthJourneyScreen() {
       })
       .catch(() => { if (!cancelled) { setErr(true); setLd(false); } });
     return () => { cancelled = true; };
-  }, [sel]);
+  }, [sel, retryTick]);
 
   const doneRecords = records.filter(r => r.status === 'done');
 
@@ -99,7 +101,7 @@ export default function HealthJourneyScreen() {
         </div>
       </div>
 
-      {(ld || sumLines.length > 0) && (
+      {(ld || err || sumLines.length > 0) && (
         <div className="journey-ai-card">
           <div className="journey-ai-hdr">
             <span className="journey-ai-badge"><Icon name="auto_awesome" size={14} /> AI Summary</span>
@@ -107,10 +109,20 @@ export default function HealthJourneyScreen() {
           {ld && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
               <div className="spinner" style={{ width: 20, height: 20, margin: 0, borderWidth: 2 }} />
-              <span style={{ fontSize: 13, color: '#64748b' }}>Analyzing records...</span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Analyzing records...</span>
             </div>
           )}
-          {err && !ld && <div style={{ fontSize: 13, color: '#94a3b8' }}>Could not generate AI summary.</div>}
+          {err && !ld && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Could not generate an AI summary right now.</span>
+              <button
+                onClick={() => setRetryTick(t => t + 1)}
+                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {!ld && !err && sumLines.map((line, i) => (
             <div key={i} className="journey-ai-line">
               <div className="journey-ai-dot" />
