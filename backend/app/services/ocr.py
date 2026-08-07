@@ -26,7 +26,7 @@ def _extract_from_image(image_bytes: bytes) -> str:
         mime = "image/webp"
 
     response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model="qwen/qwen3.6-27b",
         messages=[{
             "role": "user",
             "content": [
@@ -36,6 +36,7 @@ def _extract_from_image(image_bytes: bytes) -> str:
         }],
         temperature=0,
         max_tokens=2000,
+        reasoning_effort="none",
     )
 
     text = response.choices[0].message.content.strip()
