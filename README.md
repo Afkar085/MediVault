@@ -131,7 +131,7 @@ A deliberate visual identity rather than default styling — deep navy primary w
 | Backend | FastAPI, Pydantic v2 |
 | Database | PostgreSQL via Supabase |
 | File Storage | Supabase Storage (private bucket, signed URLs) |
-| OCR | Groq — `meta-llama/llama-4-scout-17b-16e-instruct` (vision) |
+| OCR | Groq — `qwen/qwen3.6-27b` (vision) |
 | AI Extraction & Summaries | Groq — `llama-3.3-70b-versatile` |
 | Auth | JWT + bcrypt |
 | Testing | pytest, GitHub Actions CI |
@@ -167,7 +167,7 @@ React 19 (Vercel)
     │ HTTPS + JWT
 FastAPI (Render)
     │ background OCR tasks
-    ├── Groq Vision (Llama 4 Scout)  →  raw text
+    ├── Groq Vision (Qwen3.6 27B)  →  raw text
     └── Groq Llama 3.3 70B  →  structured data + summaries
     │
 Supabase (PostgreSQL + private Storage)
