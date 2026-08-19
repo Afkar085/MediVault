@@ -6,6 +6,10 @@ from app.config import settings
 
 client = Groq(api_key=settings.GROQ_API_KEY)
 
+# Cap how many pages of a scanned PDF we run through vision OCR, to keep cost and
+# latency bounded on large documents.
+MAX_PDF_OCR_PAGES = 5
+
 
 def extract_text_from_bytes(file_bytes: bytes, content_type: str = "") -> str:
     try:
@@ -35,7 +39,7 @@ def _extract_from_image(image_bytes: bytes) -> str:
             ],
         }],
         temperature=0,
-        max_tokens=2000,
+        max_tokens=4000,
         reasoning_effort="none",
     )
 
@@ -44,12 +48,40 @@ def _extract_from_image(image_bytes: bytes) -> str:
 
 
 def _extract_from_pdf(pdf_bytes: bytes) -> str:
+    # 1. Fast path: PDFs that already have a real text layer (digital lab reports,
+    #    e-prescriptions). pdfminer reads that text directly — no AI needed.
     try:
         from pdfminer.high_level import extract_text as pdfminer_extract
         text = pdfminer_extract(io.BytesIO(pdf_bytes))
-        if text and text.strip():
+        if text and len(text.strip()) >= 40:
             return text.strip()
     except Exception:
         pass
 
-    return "PDF text extraction failed. Try uploading as an image instead."
+    # 2. Fallback for scanned / photo PDFs (no text layer): render each page to an
+    #    image and run it through the same vision OCR model used for images.
+    #    Best-effort — requires PyMuPDF; if it's unavailable we degrade to the
+    #    original guidance instead of crashing.
+    try:
+        import fitz  # PyMuPDF
+    except Exception:
+        return "PDF text extraction failed. Try uploading the document as an image instead."
+
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return "This PDF could not be opened. Try uploading the document as an image instead."
+
+    page_texts = []
+    for page in doc[:MAX_PDF_OCR_PAGES]:
+        try:
+            pix = page.get_pixmap(dpi=200)
+            page_texts.append(_extract_from_image(pix.tobytes("png")))
+        except Exception as e:
+            page_texts.append(f"(page skipped: {e})")
+    doc.close()
+
+    combined = "\n\n".join(
+        t for t in page_texts if t and not t.startswith("OCR failed") and not t.startswith("(page skipped")
+    )
+    return combined.strip() or "No readable text found in this PDF."
