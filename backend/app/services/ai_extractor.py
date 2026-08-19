@@ -53,7 +53,13 @@ Return only the JSON, no explanation.
         model=settings.GROQ_TEXT_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
-        max_tokens=1000
+        # gpt-oss-120b is a reasoning model: reasoning tokens count against the
+        # completion budget, so keep this generous enough to leave room for the
+        # actual JSON after any internal reasoning.
+        max_tokens=3000,
+        # Guarantee the content channel is a JSON object (supported by both
+        # gpt-oss and qwen text models). The prompt already asks for JSON.
+        response_format={"type": "json_object"},
     )
 
     raw = response.choices[0].message.content.strip()

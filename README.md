@@ -132,7 +132,7 @@ A deliberate visual identity rather than default styling — deep navy primary w
 | Database | PostgreSQL via Supabase |
 | File Storage | Supabase Storage (private bucket, signed URLs) |
 | OCR | Groq — `qwen/qwen3.6-27b` (vision) |
-| AI Extraction & Summaries | Groq — `llama-3.3-70b-versatile` |
+| AI Extraction & Summaries | Groq — `openai/gpt-oss-120b` |
 | Auth | JWT + bcrypt |
 | Testing | pytest, GitHub Actions CI |
 | Frontend Hosting | Vercel |
