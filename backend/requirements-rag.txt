@@ -1,0 +1,15 @@
+# Optional dependencies to ENABLE the semantic-search / RAG layer.
+#
+# Kept separate from requirements.txt on purpose: fastembed pulls in onnxruntime
+# and loads a ~130MB embedding model into RAM, which does NOT fit on small hosts
+# like Render's 512MB free tier (it would OOM-crash during upload processing).
+#
+# The app degrades gracefully without this: if fastembed isn't installed, semantic
+# search + "Ask Your Records" fall back to keyword search, and nothing crashes.
+#
+# Install ONLY on a host with enough RAM (Oracle / Hugging Face Spaces / a paid
+# tier), on top of the base requirements:
+#     pip install -r requirements.txt -r requirements-rag.txt
+# Then run backend/database/migrations/001_semantic_search.sql in Supabase.
+
+fastembed==0.5.1

@@ -133,6 +133,22 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
             if rows:
                 supabase.table("medicines").insert(rows).execute()
 
+        # Generate and store the semantic embedding for this record. Best-effort:
+        # if embeddings are unavailable the record is still fully usable via
+        # keyword search, so we never fail the upload over this.
+        try:
+            from app.services.embeddings import build_record_text, embed_text
+
+            record_for_text = dict(update_data)
+            record_for_text["raw_ocr_text"] = combined_text
+            embedding = embed_text(build_record_text(record_for_text, medicines))
+            if embedding is not None:
+                supabase.table("records").update(
+                    {"embedding": embedding}
+                ).eq("id", record_id).execute()
+        except Exception as embed_err:
+            logger.warning("Embedding skipped for record %s: %s", record_id, embed_err)
+
     except Exception as e:
         logger.error("OCR/extraction pipeline failed for record %s: %s", record_id, e)
         supabase.table("records").update({
