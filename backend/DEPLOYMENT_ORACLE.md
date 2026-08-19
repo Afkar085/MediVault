@@ -88,7 +88,7 @@ Paste this in (Ctrl+Shift+V to paste in most terminals), filling in your real va
 
 ```
 SUPABASE_URL=https://fqjhtnginpipdpldifpy.supabase.co
-SUPABASE_KEY=your_real_anon_key
+SUPABASE_KEY=your_real_SERVICE_ROLE_key
 JWT_SECRET=your_real_secret
 JWT_EXPIRE_HOURS=24
 GROQ_API_KEY=your_real_groq_key
@@ -96,6 +96,28 @@ GROQ_TEXT_MODEL=openai/gpt-oss-120b
 ALLOWED_ORIGINS=https://your-frontend.vercel.app
 DEBUG=false
 ```
+
+> **Use the SERVICE_ROLE key, not the anon key** (Supabase Dashboard → Project
+> Settings → API → `service_role`). The backend does its own JWT auth and needs
+> service_role to work through the deny-all RLS set up in migration 002. This key
+> lives only here on the server — never in the frontend.
+
+### Part 5b — Apply the database migrations (once, in the Supabase SQL editor)
+
+Two SQL files must be run against your Supabase database — open the **SQL editor**
+in the Supabase dashboard and paste each one's contents, in order:
+
+1. `backend/database/migrations/001_semantic_search.sql` — enables pgvector, the
+   `embedding` column, the ANN index, and the `match_records` RPC that powers
+   semantic search + the "Ask Your Records" RAG feature.
+2. `backend/database/migrations/002_security_advisor_fixes.sql` — enables deny-all
+   RLS on all tables (closes the public-API data leak the Supabase advisor flagged)
+   and pins the function `search_path`. **Set `SUPABASE_KEY` to the service_role
+   key first (above) so the app keeps working once RLS is on.**
+
+Note: `fastembed` (in requirements.txt) downloads its ~130 MB embedding model the
+first time RAG runs — the VM has plenty of RAM/disk for this, unlike Render's free
+tier. That RAM ceiling is exactly why RAG couldn't run on Render.
 
 ## Part 6 — Make it run permanently (systemd)
 
