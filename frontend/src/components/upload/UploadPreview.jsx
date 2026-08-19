@@ -1,4 +1,18 @@
+import { useEffect, useMemo } from 'react';
+import Icon from '../common/Icon';
+
 export default function UploadPreview({ files, onAdd, onRemove, onUpload, uploading, docType, setDocType, docDate, setDocDate }) {
+  // Create object URLs once per file set (not on every render), and revoke them
+  // on cleanup so we don't leak blob URLs. PDFs get no preview URL — they render
+  // as an icon instead of a broken <img>.
+  const previews = useMemo(
+    () => files.map(f => (f.type === 'application/pdf' ? null : URL.createObjectURL(f))),
+    [files]
+  );
+  useEffect(() => {
+    return () => previews.forEach(url => url && URL.revokeObjectURL(url));
+  }, [previews]);
+
   return (
     <div className="uprev">
       <div className="uprev-box" onClick={e => e.stopPropagation()}>
@@ -6,7 +20,9 @@ export default function UploadPreview({ files, onAdd, onRemove, onUpload, upload
         <div className="uprev-thumbs">
           {files.map((f, i) => (
             <div key={i} className="uprev-thumb">
-              <img src={URL.createObjectURL(f)} alt={'P' + (i + 1)} />
+              {previews[i]
+                ? <img src={previews[i]} alt={'P' + (i + 1)} />
+                : <div className="uprev-thumb-pdf" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', minHeight: 72, background: 'var(--surface-2, #eef1f6)', color: 'var(--muted, #64748b)', borderRadius: 8 }}><Icon name="picture_as_pdf" size={28} /></div>}
               <div className="uprev-lbl">Page {i + 1}</div>
               <button className="uprev-x" onClick={() => onRemove(i)}>&#x2715;</button>
             </div>
