@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.logger import logger
 from app.services.record_assembly import attach_files
 from app.services.retrieval import vector_search, reciprocal_rank_fusion
 from typing import Optional
@@ -8,14 +9,38 @@ import re
 
 router = APIRouter()
 
-# Search ranks on these fields server-side but the response must not carry the
-# embedding vector or any stored document URL back to the client.
+# raw_ocr_text is the full text of every document. Selecting it for every record
+# on every search meant shipping all of it out of Postgres just to substring-match
+# it, so the match is done with a separate id-only query instead (see below).
 _SEARCH_COLUMNS = (
     "id, profile_id, document_type, status, doctor_name, hospital_name, "
     "document_date, specialty, diagnosis, recommendations, document_category, "
-    "bill_amount, insurance_claimed, visit_group, raw_ocr_text, created_at, "
+    "bill_amount, insurance_claimed, visit_group, created_at, "
     "updated_at, profiles(name, relationship)"
 )
+
+
+def _records_mentioning(profile_ids, term):
+    """Ids of records whose scanned text contains the term.
+
+    Postgres does the matching and returns ids only, so the document text never
+    leaves the database.
+    """
+    escaped = term.replace("%", r"%").replace("_", r"_")
+    try:
+        rows = (
+            supabase.table("records")
+            .select("id")
+            .in_("profile_id", profile_ids)
+            .ilike("raw_ocr_text", f"%{escaped}%")
+            .execute()
+            .data
+            or []
+        )
+        return {row["id"] for row in rows}
+    except Exception as e:
+        logger.warning("Document-text search unavailable: %s", e)
+        return set()
 
 MONTH_NAMES = {
     "january": "01", "february": "02", "march": "03", "april": "04",
@@ -27,8 +52,10 @@ MONTH_NAMES = {
 }
 
 
-def _match_record(r, q_lower, medicines_map, profiles_map):
+def _match_record(r, q_lower, medicines_map, profiles_map, ocr_matches=frozenset()):
     score = 0
+    if r["id"] in ocr_matches:
+        score += 1  # mentioned somewhere in the scanned document text
 
     text_fields = {
         "doctor_name": 10,
@@ -37,7 +64,6 @@ def _match_record(r, q_lower, medicines_map, profiles_map):
         "diagnosis": 7,
         "document_type": 5,
         "recommendations": 3,
-        "raw_ocr_text": 1,
     }
 
     for field, weight in text_fields.items():
@@ -81,14 +107,14 @@ def _match_record(r, q_lower, medicines_map, profiles_map):
     return score
 
 
-def _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, profile_ids):
+def _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, profile_ids, ocr_matches=frozenset()):
     """Rank records by fusing keyword scoring with vector similarity.
 
     Keyword scoring catches exact/field matches; vector search catches semantic
     matches (e.g. "sugar" -> "diabetes"). Reciprocal Rank Fusion merges them.
     Falls back to keyword-only when the semantic layer is unavailable.
     """
-    scored = [(r, _match_record(r, q_lower, medicines_map, profiles_map)) for r in records]
+    scored = [(r, _match_record(r, q_lower, medicines_map, profiles_map, ocr_matches)) for r in records]
     keyword_ranking = [r["id"] for r, s in sorted(scored, key=lambda x: -x[1]) if s > 0]
 
     vector_ranking = vector_search(profile_ids, q)
@@ -149,6 +175,7 @@ def search_records(
 
     if q and q.strip():
         q_lower = q.strip().lower()
+        ocr_matches = _records_mentioning(search_profile_ids, q_lower) if record_ids else frozenset()
 
         if category:
             cat = category.lower()
@@ -167,13 +194,12 @@ def search_records(
             elif cat == "date":
                 records = [r for r in records if q_lower in (r.get("document_date") or "") or q_lower in (r.get("created_at") or "")]
             else:
-                records = _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, search_profile_ids)
+                records = _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, search_profile_ids, ocr_matches)
         else:
-            records = _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, search_profile_ids)
+            records = _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, search_profile_ids, ocr_matches)
 
     for r in records:
         r["medicines"] = medicines_map.get(r["id"], [])
-        r.pop("raw_ocr_text", None)  # scored against above; never shipped in a list
 
     # Results open the same record view as the rest of the app, so they need
     # their pages with signed URLs too.

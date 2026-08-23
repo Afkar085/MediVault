@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from app.schemas.record import RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services import summary_cache
 from app.services.record_assembly import attach_files, attach_medicines
 from app.services.retrieval import keyword_rank, vector_search
 from app.services import rag
@@ -292,8 +293,15 @@ def get_health_journey(request: Request, profile_id: str, user_id: str = Depends
 
     visit_text = "\n".join(visits)
 
+    # The summary is a pure function of these records, so regenerating it on
+    # every visit spends seconds and tokens producing an answer we already had.
+    records_fingerprint = summary_cache.fingerprint(records)
+    cached = summary_cache.get(profile_id, records_fingerprint)
+    if cached:
+        return {"summary": cached, "total_visits": len(records), "cached": True}
+
     try:
-        client = Groq(api_key=settings.GROQ_API_KEY)
+        client = Groq(api_key=settings.GROQ_API_KEY, timeout=60.0, max_retries=1)
         response = client.chat.completions.create(
             model=settings.GROQ_TEXT_MODEL,
             messages=[{
@@ -316,11 +324,14 @@ Return ONLY the bullet points, no intro or outro."""
             max_tokens=2000,
         )
         summary = response.choices[0].message.content.strip()
-        if not summary:
+        if summary:
+            summary_cache.put(profile_id, records_fingerprint, summary)
+        else:
             logger.warning("Health journey generation returned empty content for profile %s", profile_id)
     except Exception as e:
         logger.error("Health journey generation failed for profile %s: %s", profile_id, e)
-        summary = "Unable to generate your health journey summary right now. Please try again later."
+        # Deliberately not cached: the next attempt should try again.
+        summary = "We couldn't put your health journey together just now. Please try again in a moment."
 
     return {"summary": summary, "total_visits": len(records)}
 
