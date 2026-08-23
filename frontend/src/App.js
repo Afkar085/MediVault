@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, createContext, useMemo } from
 import './index.css';
 import API from './api';
 import { buildDocGroups } from './utils/format';
+import { validateFiles, describeRejections } from './utils/uploads';
 
 import AuthScreen from './components/auth/AuthScreen';
 import TopBar from './components/layout/TopBar';
@@ -22,6 +23,15 @@ import Toast from './components/common/Toast';
 export const AppContext = createContext(null);
 
 const POLL = 4000;
+
+// Server rejections are phrased for developers; say what the person can do.
+const uploadErrorMessage = (e) => {
+  const status = e?.response?.status;
+  if (status === 429) return 'That is a lot of uploads at once — try again in a minute.';
+  if (status === 413) return 'That file is too large to upload.';
+  if (!e?.response) return 'Upload failed — check your connection and try again.';
+  return e.response.data?.detail || 'Upload failed. Please try again.';
+};
 // The backend gives a background OCR job 10 minutes before declaring it failed.
 // Polling past that just burns battery and requests, so we stop and let the
 // user refresh — the server will have settled the record's status by then.
@@ -40,6 +50,7 @@ function MainApp({ onLogout }) {
   const [upDocDate, setUpDocDate] = useState('');
   const [upDrName, setUpDrName] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
   const [visitUploading, setVisitUploading] = useState(false);
   const [showUploadSheet, setShowUploadSheet] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -201,13 +212,21 @@ function MainApp({ onLogout }) {
 
   const showUpload = useCallback(() => setShowUploadSheet(true), []);
 
+  const acceptFiles = useCallback((picked, existing = []) => {
+    const { accepted, rejected } = validateFiles(picked, existing);
+    if (rejected.length) showToast(describeRejections(rejected), 'error');
+    return accepted;
+  }, [showToast]);
+
   const onUploadSelect = useCallback((files, type) => {
-    setUpFiles(files);
+    const accepted = acceptFiles(files);
+    setShowUploadSheet(false);
+    if (!accepted.length) return;
+    setUpFiles(accepted);
     setUpDocType(type);
     setUpDocDate('');
     setUpDrName('');
-    setShowUploadSheet(false);
-  }, []);
+  }, [acceptFiles]);
 
   const startUpload = useCallback((files, type, doctorName) => {
     setUpFiles(files);
@@ -241,16 +260,22 @@ function MainApp({ onLogout }) {
       await loadRecs(sel.id);
       showToast('Uploaded — AI is extracting info');
     } catch (e) {
-      showToast(e?.response?.data?.detail || 'Upload failed', 'error');
+      showToast(uploadErrorMessage(e), 'error');
     } finally { setVisitUploading(false); }
   }, [sel, loadRecs, showToast]);
 
   const onAddMore = (e) => {
-    const nf = Array.from(e.target.files || []);
+    const picked = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!nf.length) return;
-    setUpFiles(prev => [...(prev || []), ...nf]);
+    if (!picked.length) return;
+    setUpFiles(prev => {
+      const current = prev || [];
+      const accepted = acceptFiles(picked, current);
+      return accepted.length ? [...current, ...accepted] : current;
+    });
   };
+
+  const cancelUpload = () => { setUpFiles(null); setUploadPct(0); };
 
   const onRemoveFile = (i) => setUpFiles(prev => {
     const n = prev.filter((_, j) => j !== i);
@@ -260,12 +285,16 @@ function MainApp({ onLogout }) {
   const doUpload = async () => {
     if (!upFiles || !sel) return;
     setUploading(true);
+    setUploadPct(0);
     const fd = new FormData();
     upFiles.forEach(f => fd.append('files', f));
     try {
       const res = await API.post('/upload/' + sel.id, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 60000,
+        timeout: 120000,
+        onUploadProgress: (e) => {
+          if (e.total) setUploadPct(Math.round((e.loaded / e.total) * 100));
+        },
       });
       const rid = res.data.record_id;
       if (rid) {
@@ -279,8 +308,8 @@ function MainApp({ onLogout }) {
       await loadRecs(sel.id);
       showToast(upDrName ? 'Saved — AI is processing' : 'Uploaded — AI is extracting info');
     } catch (e) {
-      showToast(e?.response?.data?.detail || 'Upload failed', 'error');
-    } finally { setUploading(false); }
+      showToast(uploadErrorMessage(e), 'error');
+    } finally { setUploading(false); setUploadPct(0); }
   };
 
   const deleteAccount = useCallback(async () => {
@@ -348,7 +377,9 @@ function MainApp({ onLogout }) {
             onAdd={onAddMore}
             onRemove={onRemoveFile}
             onUpload={doUpload}
+            onCancel={cancelUpload}
             uploading={uploading}
+            progress={uploadPct}
             docType={upDocType}
             setDocType={setUpDocType}
             docDate={upDocDate}

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import Icon from '../common/Icon';
+import { ACCEPT_ATTR } from '../../utils/uploads';
 
 const TYPES = [
   { key: 'prescription', icon: 'description', bg: 'var(--cat-prescription-bg)', fg: 'var(--cat-prescription-fg)', label: 'Prescription', sub: 'Doctor\'s prescription or treatment notes' },
@@ -48,7 +49,7 @@ export default function UploadSheet({ onSelect, onClose }) {
                 type="file"
                 hidden
                 multiple
-                accept="image/*,.pdf"
+                accept={ACCEPT_ATTR}
                 onChange={e => handleFiles(e, t.key)}
               />
             </div>

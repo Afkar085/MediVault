@@ -260,13 +260,13 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 @media(min-width:600px){.uprev{align-items:center;}}
 .uprev-box{background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:24px;animation:modalIn 0.3s ease;}
 @media(min-width:600px){.uprev-box{border-radius:20px;}}
-.uprev-title{font-size:18px;font-weight:700;color:var(--on-surface);margin-bottom:16px;}
+.uprev-title{font-size:18px;font-weight:700;color:var(--on-surface);margin-bottom:3px;}
 .uprev-thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;}
 .uprev-thumbs::-webkit-scrollbar{display:none;}
 .uprev-thumb{width:80px;height:80px;border-radius:14px;overflow:hidden;flex-shrink:0;position:relative;border:2px solid var(--outline);background:#f1f5f9;}
 .uprev-thumb img{width:100%;height:100%;object-fit:cover;}
 .uprev-lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);color:#fff;font-size:9px;font-weight:700;padding:2px;text-align:center;}
-.uprev-x{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(186,26,26,0.9);color:#fff;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
+.uprev-x{position:absolute;top:2px;right:2px;width:26px;height:26px;border-radius:50%;background:rgba(186,26,26,0.9);color:#fff;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
 .type-picker{display:flex;gap:8px;margin:14px 0;}
 .type-opt{flex:1;padding:10px 8px;border:1.5px solid var(--outline);border-radius:12px;background:#fff;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;text-align:center;color:#64748b;transition:all 0.2s;}
 .type-opt:hover{border-color:var(--primary);color:var(--primary);}
@@ -551,3 +551,15 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
   .ask-form{flex-wrap:wrap;}
   .ask-send{width:100%;}
 }
+
+/* ── Upload preview: PDF thumbs, progress, cancel ── */
+.uprev-meta{font-size:12px;color:#94a3b8;font-weight:500;margin-bottom:14px;}
+.uprev-thumb-doc{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--cat-lab-fg);background:var(--cat-lab-bg);}
+.uprev-progress{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:12px;color:#64748b;font-weight:600;}
+.uprev-progress-bar{flex:1;height:6px;border-radius:4px;background:#e2e8f0;overflow:hidden;}
+.uprev-progress-fill{height:100%;background:var(--primary);border-radius:4px;transition:width 0.2s ease;}
+.uprev-cancel{width:100%;margin-top:10px;min-height:42px;background:none;border:none;color:#64748b;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border-radius:12px;}
+.uprev-cancel:hover:not(:disabled){background:#f1f5f9;}
+.uprev-cancel:disabled{opacity:0.4;cursor:default;}
+.ubtn-add.is-disabled{opacity:0.5;pointer-events:none;}
+.ubtn-add{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;}
