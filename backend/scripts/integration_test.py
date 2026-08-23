@@ -40,6 +40,21 @@ RUN = uuid.uuid4().hex[:8]
 PASSWORD = "itest-" + uuid.uuid4().hex          # never printed, never reused
 PROCESSING_TIMEOUT_S = 180
 
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "synthetic_prescription.png")
+
+# What the fixture is known to contain. Asserting against these turns "OCR
+# returned something" into "OCR returned the right thing" - which a real photo
+# cannot give you without transcribing it first.
+TRUTH = {
+    "doctor": "kumar",
+    "diagnosis_word": "knee",
+    "medicines": ["paracetamol", "etoricoxib", "omeprazole"],
+    # Present only in the document text; no column holds it. This is the term
+    # that proves passage retrieval is doing real work.
+    "text_only_term": "haemoglobin",
+    "text_only_value": "11.4",
+}
+
 GREEN, YELLOW, RED = "GREEN", "YELLOW", "RED"
 _MARK = {GREEN: "[GREEN] ", YELLOW: "[YELLOW]", RED: "[RED]   "}
 
@@ -185,20 +200,44 @@ def c9(state):
         assert leak not in text, f"an error message was stored as the document text: {leak!r}"
     state["ocr_text"] = text
     words = len(text.split())
+    if state.get("synthetic"):
+        low = text.lower()
+        assert TRUTH["text_only_term"] in low, (
+            "the word Haemoglobin is printed on the document but is not in the stored text"
+        )
+        assert TRUTH["text_only_value"] in low, (
+            "the value 11.4 is printed on the document but is not in the stored text"
+        )
+        return GREEN, f"{len(text)} chars / {words} words; the known lab value 11.4 g/dL was read correctly"
     return GREEN, f"{len(text)} chars / {words} words stored; no error string in the text"
 
 
 @check(8, "Extracted fields are stored correctly")
 def c8(state):
     record = state.get("record") or {}
-    fields = {k: record.get(k) for k in
-              ("doctor_name", "hospital_name", "document_date", "specialty", "diagnosis", "document_category")}
-    found = {k: v for k, v in fields.items() if v}
-    meds = record.get("medicines") or []
+    found = {k: record.get(k) for k in
+             ("doctor_name", "hospital_name", "document_date", "specialty", "diagnosis", "document_category")
+             if record.get(k)}
+    meds = [m.get("name", "").lower() for m in (record.get("medicines") or [])]
     if not found and not meds:
         return YELLOW, "Nothing was extracted. The text was read, so this is the extraction step, not OCR."
-    summary = ", ".join(f"{k}={str(v)[:28]}" for k, v in found.items())
-    return GREEN, f"{summary}" + (f"; {len(meds)} medicine(s)" if meds else "")
+    summary = ", ".join(f"{k}={str(v)[:26]}" for k, v in found.items())
+
+    if not state.get("synthetic"):
+        return GREEN, summary + (f"; {len(meds)} medicine(s)" if meds else "")
+
+    # The fixture has known contents, so check the values, not just presence.
+    wrong = []
+    if TRUTH["doctor"] not in (record.get("doctor_name") or "").lower():
+        wrong.append("doctor_name=" + repr(record.get("doctor_name")) + " (expected to contain Kumar)")
+    if TRUTH["diagnosis_word"] not in (record.get("diagnosis") or "").lower():
+        wrong.append("diagnosis=" + repr(record.get("diagnosis")) + " (expected to mention the knee)")
+    missed = [m for m in TRUTH["medicines"] if not any(m in got for got in meds)]
+    if missed:
+        wrong.append("medicines missed: " + ", ".join(missed))
+    if wrong:
+        return YELLOW, "Extraction ran but got some values wrong: " + "; ".join(wrong)
+    return GREEN, summary + "; all three medicines found with correct names"
 
 
 @check(10, "Passage chunking works")
@@ -255,9 +294,12 @@ def c13(state):
 @check(14, "Fallback document retrieval works")
 def c14(state):
     from app.services.passages import _from_ocr_text
-    words = [w for w in state["ocr_text"].split() if len(w) > 4]
-    assert words, "the document text has no word long enough to search for"
-    term = words[0]
+    if state.get("synthetic"):
+        term = TRUTH["text_only_term"]
+    else:
+        words = [w for w in state["ocr_text"].split() if len(w) > 4]
+        assert words, "the document text has no word long enough to search for"
+        term = words[0]
     hits = _from_ocr_text([state["record_id"]], term)
     assert hits, f"no passage matched {term!r}, a word taken from the document itself"
     assert term.lower() in hits[0]["text"].lower()
@@ -321,6 +363,16 @@ def c18(state):
     overlap = [w for w in state["known_term"].lower().split()
                if any(w in e.lower() for e in excerpts)]
     assert overlap, "the cited excerpt does not contain the term the question asked about"
+    if state.get("synthetic"):
+        value = TRUTH["text_only_value"]
+        assert any(value in e for e in excerpts), (
+            "the cited excerpt does not contain 11.4, which is printed on the document"
+        )
+        if value not in answer:
+            return YELLOW, ("The excerpt contains 11.4 but the answer did not quote it. "
+                            "Retrieval is grounded; the model summarised instead.")
+        return GREEN, ("The answer states 11.4, a value that exists only in the document text "
+                       "and in no database column - so it came from the retrieved passage")
     return GREEN, f"Cited excerpt contains {state['known_term']!r}; answer drawn from real document text"
 
 
@@ -454,23 +506,42 @@ def cleanup():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True, help="a real prescription or lab report")
+    parser.add_argument("--image", help="a real prescription or lab report; omit to use the synthetic fixture")
     parser.add_argument("--keep", action="store_true", help="skip cleanup (leaves test data behind)")
     args = parser.parse_args()
 
-    if not os.path.exists(args.image):
-        print(f"No such file: {args.image}")
+    image = args.image or FIXTURE
+    synthetic = args.image is None
+    if not os.path.exists(image):
+        if synthetic:
+            print("Fixture missing. Run: python scripts/make_test_document.py")
+        else:
+            print("No such file: " + image)
         return 2
 
     print(f"MediVault integration run {RUN} against {API}")
-    print(f"started {datetime.now():%H:%M:%S}\n")
+    print(f"started {datetime.now():%H:%M:%S}")
+    if synthetic:
+        print("document: synthetic fixture with known contents.")
+        print("          OCR correctness IS checked; handwriting and photo quality are NOT.")
+    else:
+        print("document: " + os.path.basename(image))
+    print("")
 
-    state = {}
+    state = {"synthetic": synthetic}
     try:
-        c1()
-        c3(state)
+        if c1() == RED:
+            print("")
+            print("  The backend is not answering. Start it first:")
+            print("      uvicorn app.main:app --reload")
+            print("  Everything after this would fail for the same reason, so stopping here.")
+            return 1
+        if c3(state) == RED:
+            print("")
+            print("  Authentication failed, so nothing downstream can be tested. Stopping here.")
+            return 1
         c4(state)
-        c5(state, args.image)
+        c5(state, image)
         c6(state)
         c7(state)
         c9(state)

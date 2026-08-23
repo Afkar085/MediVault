@@ -2,3 +2,4 @@
 pytest==8.3.4
 pytest-mock==3.14.0
 ruff==0.14.5
+Pillow==11.0.0   # renders the synthetic test document (scripts/make_test_document.py)
