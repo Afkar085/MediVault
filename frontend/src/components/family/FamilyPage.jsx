@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
+import { clickable } from '../../utils/interaction';
 
 const RELATIONSHIPS = ['Self', 'Father', 'Mother', 'Spouse', 'Son', 'Daughter', 'Brother', 'Sister', 'Other'];
 
@@ -62,7 +63,7 @@ export default function FamilyPage() {
       </div>
 
       {profiles.map(p => (
-        <div key={p.id} className={'family-member' + (sel?.id === p.id ? ' active' : '')} onClick={() => handleSelect(p)}>
+        <div key={p.id} className={'family-member' + (sel?.id === p.id ? ' active' : '')} {...clickable(() => handleSelect(p), 'Show records for ' + p.name + ', ' + p.relationship)}>
           <div className="family-av">{p.name[0].toUpperCase()}</div>
           <div className="family-info">
             <div className="family-name">{p.name}</div>

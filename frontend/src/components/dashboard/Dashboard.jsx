@@ -2,6 +2,7 @@ import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import { drN, drInitial, fmt, fmtRel, getRecordDate, getActivityLabel, catIcon } from '../../utils/format';
 import Icon from '../common/Icon';
+import { clickable } from '../../utils/interaction';
 
 function Greeting({ name }) {
   const hour = new Date().getHours();
@@ -25,18 +26,18 @@ function MedicalOverviewCard({ records, docGroups, profiles, navigate }) {
   const famCount = profiles.length;
 
   const tiles = [
-    { icon: 'stethoscope', label: 'Doctors', val: doctorCount, action: () => navigate('doctors') },
-    { icon: 'description', label: 'Prescriptions', val: prescCount, action: () => navigate('search', { initialFilter: 'Prescriptions' }) },
-    { icon: 'science', label: 'Lab Reports', val: labCount, action: () => navigate('search', { initialFilter: 'Lab Reports' }) },
-    { icon: 'receipt_long', label: 'Bills', val: billCount, action: () => navigate('search', { initialFilter: 'Bills' }) },
-    { icon: 'medication', label: 'Medicines', val: medCount, action: () => navigate('search', { initialFilter: 'Medicines' }) },
-    { icon: 'group', label: 'Family', val: famCount, action: () => navigate('family') },
+    { icon: 'stethoscope', label: 'Doctors', unit: 'doctor', val: doctorCount, action: () => navigate('doctors') },
+    { icon: 'description', label: 'Prescriptions', unit: 'prescription', val: prescCount, action: () => navigate('search', { initialFilter: 'Prescriptions' }) },
+    { icon: 'science', label: 'Lab Reports', unit: 'lab report', val: labCount, action: () => navigate('search', { initialFilter: 'Lab Reports' }) },
+    { icon: 'receipt_long', label: 'Bills', unit: 'bill', val: billCount, action: () => navigate('search', { initialFilter: 'Bills' }) },
+    { icon: 'medication', label: 'Medicines', unit: 'medicine', val: medCount, action: () => navigate('search', { initialFilter: 'Medicines' }) },
+    { icon: 'group', label: 'Family', unit: 'family member', val: famCount, action: () => navigate('family') },
   ];
 
   return (
     <div className="ov-grid">
       {tiles.map(t => (
-        <button key={t.label} className="ov-tile" onClick={t.action}>
+        <button key={t.label} className="ov-tile" onClick={t.action} aria-label={t.val + ' ' + t.unit + (t.val === 1 ? '' : 's')}>
           <Icon name={t.icon} size={20} style={{ marginBottom: 3, color: 'var(--primary)' }} />
           <span className="ov-tile-val">{t.val}</span>
           <span className="ov-tile-label">{t.label}</span>
@@ -75,7 +76,7 @@ function RecentActivity({ records, openRecord }) {
         const pending = r.status === 'processing' || r.status === 'extracting';
         const failed = r.status === 'failed';
         return (
-          <div key={r.id} className="activity-item" onClick={() => openRecord(r)}>
+          <div key={r.id} className="activity-item" {...clickable(() => openRecord(r), failed ? "Couldn't read this document, uploaded " + fmtRel(r.created_at) : label + (sub ? ', ' + sub : ''))}>
             <div className={'activity-icon ' + (r.document_category || 'other')}>
               <Icon name={failed ? 'error' : catIcon(r.document_category)} size={17} />
             </div>
@@ -118,7 +119,7 @@ function DoctorsPreview({ docGroups, docNameMap, sortedDocs, navigate }) {
         const lastDate = last ? (fmt(getRecordDate(last)) || fmtRel(last.created_at)) : '';
         const openDr = () => navigate('doctor-detail', { doctorKey: key, doctorName: displayName, specialty, hospital });
         return (
-          <div key={key} className="dr-row" onClick={openDr}>
+          <div key={key} className="dr-row" {...clickable(openDr, "Visits with " + drN(displayName))}>
             <div className="dr-av">
               {drInitial(displayName)}
             </div>
@@ -203,7 +204,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="journey-banner" onClick={() => navigate('journey')}>
+      <div className="journey-banner" {...clickable(() => navigate('journey'), 'Health Journey, your complete medical timeline')}>
         <div className="jb-left">
           <div className="jb-icon"><Icon name="route" size={20} /></div>
           <div>

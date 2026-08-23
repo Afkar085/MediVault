@@ -3,6 +3,7 @@ import { AppContext } from '../../App';
 import API from '../../api';
 import { drN, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
+import { clickable } from '../../utils/interaction';
 
 const CAT_META = {
   prescription:      { icon: 'description', label: 'Prescription',  cls: 'prescription' },
@@ -165,7 +166,7 @@ export default function HealthJourneyScreen() {
                       const meta = CAT_META[r.document_category] || DEFAULT_META;
                       const title = r.diagnosis || r.hospital_name || meta.label;
                       return (
-                        <div key={r.id} className={'jt-item ' + meta.cls} onClick={() => openRec(r)}>
+                        <div key={r.id} className={'jt-item ' + meta.cls} {...clickable(() => openRec(r), title + ', ' + meta.label)}>
                           <div className={'jt-item-icon ' + meta.cls}><Icon name={meta.icon} size={16} /></div>
                           <div className="jt-item-body">
                             <div className="jt-item-title">{title}</div>

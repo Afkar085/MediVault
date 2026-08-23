@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { AppContext } from '../../App';
 import { fmt, fmtRel, drN, drInitial, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
+import { clickable } from '../../utils/interaction';
 
 export default function DoctorDetailPage() {
   const { nav, navigate, goBack, docGroups } = useContext(AppContext);
@@ -99,7 +100,7 @@ export default function DoctorDetailPage() {
         const cats = getCatBadges(recs);
         const label = getVisitLabel(recs);
         return (
-          <div key={date} className="visit-row" onClick={() => openVisit(date)}>
+          <div key={date} className="visit-row" {...clickable(() => openVisit(date), 'Visit on ' + (fmt(date) || date))}>
             <div className="visit-dot" />
             <div className="visit-info">
               <div className="visit-date">{date === 'unknown' ? 'Date Unknown' : fmt(date) || date}</div>

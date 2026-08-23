@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { AppContext } from '../../App';
 import { drN, drInitial, fmt, fmtRel, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
+import { clickable } from '../../utils/interaction';
 
 const CAT_LABEL = { prescription: 'Rx', lab_report: 'Lab', bill: 'Bill' };
 
@@ -58,7 +59,7 @@ export default function DoctorsPage() {
         const comp = composition(visits);
 
         return (
-          <div key={key} className="dr-row" onClick={() => openDoctor(key)}>
+          <div key={key} className="dr-row" {...clickable(() => openDoctor(key), 'Visits with ' + drN(displayName))}>
             <div className="dr-av">
               {drInitial(displayName)}
             </div>
