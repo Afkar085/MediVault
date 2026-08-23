@@ -102,6 +102,15 @@ MediVault lets families store their complete medical history in one place. Take 
 - Switch between profiles from the top bar; records are never shown under the wrong name,
   even when switching faster than the network responds
 
+**Retrieval**
+- Structured search ranks records; passage retrieval finds the text inside them. Both are
+  used where they are better, per the question
+- Semantic matching via pgvector when the embedding model is available; term-overlap
+  ranking when it is not. Nothing about the feature disappears on a small host — semantic
+  matching just becomes literal matching
+- Records indexed before and after the passage migration are both searched, so applying it
+  never hides existing history
+
 **Find — structured search**
 - Server-side ranking across doctor, hospital, department, diagnosis, medicines, the scanned
   document text, and dates ("June", "2026")
@@ -111,12 +120,17 @@ MediVault lets families store their complete medical history in one place. Take 
 
 **Ask — questions in plain words**
 - "What medicines was Dad prescribed for his knee?" · "When was Mum's last blood test?"
-- Answers come only from that family's uploaded documents, with the source records listed
-  underneath and openable
-- Backed by a bounded tool-calling loop over six read-only tools (family members, records,
-  medication history, test history, timeline, record details)
+  · "What was my haemoglobin?"
+- Grounded in the documents themselves, not only the extracted fields. Each document is
+  split into passages, and the passages relevant to the question are quoted to the model —
+  so a lab value or a specific instruction that was never extracted into a column can still
+  be answered, and quoted back
+- Every answer lists the records it used. Each citation shows the excerpt it came from and
+  opens that record, including when it belongs to a different family member
+- Backed by a bounded tool-calling loop over seven read-only tools (family members,
+  records, medication history, test history, timeline, document passages, record details)
 - Never diagnoses and never advises changing treatment; if the records do not contain the
-  answer, it says so rather than guessing
+  answer, it says so rather than guessing, and it is told never to round or estimate a figure
 
 **AI health journey**
 - Bullet-point summary of a profile's entire health history
@@ -128,9 +142,18 @@ MediVault lets families store their complete medical history in one place. Take 
 
 **Accessibility**
 - Every row and control is reachable and operable from a keyboard, with visible focus
+- Every overlay is a real dialog: focus moves into it, Tab stays inside it, Escape closes
+  it, and focus returns to whatever opened it
 - Icons are hidden from screen readers so controls announce their own label
 - Pinch-zoom works — the documents are photographs, and reading small print matters
 - Touch targets sized for a fingertip; verified at 320px through 1920px
+
+**Behaves on a small host**
+- Multi-page uploads read their pages concurrently instead of one after another
+- The health-journey summary is cached against the records that produced it, so reopening
+  it is instant and costs nothing until something changes
+- A free-tier backend sleeps when idle and takes up to a minute to wake. Reads are retried
+  patiently and the app says what is happening, instead of reporting itself broken
 
 **Security**
 - Documents are only ever served through short-lived signed URLs generated per request;
@@ -206,9 +229,12 @@ These need the Supabase and hosting dashboards:
    hands out signed URLs, but a public bucket means anyone who ever saw a URL keeps access.
 5. Set `ALLOWED_ORIGINS` on the backend host to the deployed frontend URL, so CORS is
    actually restricted.
-6. Optional — semantic search: run `001_semantic_search.sql` and install
-   `requirements-rag.txt`. It needs more RAM than a 512MB tier provides; without it, search
-   and Ask fall back to keyword retrieval and nothing breaks.
+6. Optional — semantic search: run `001_semantic_search.sql` and `004_document_passages.sql`,
+   and install `requirements-rag.txt`. These need more RAM than a 512MB tier provides.
+   Without them, search and Ask fall back to term-overlap ranking and passages are computed
+   from the stored document text on the fly — everything still works, matching is just
+   literal rather than semantic. Applying them later is safe: records without stored
+   passages continue to be searched.
 
 **Not implemented:** password reset by email. It needs an email provider, which is a paid
 infrastructure decision. The sign-in screen says so plainly rather than pretending to send
@@ -231,7 +257,7 @@ A deliberate visual identity rather than default styling — deep navy primary w
 | OCR | Groq — `qwen/qwen3.6-27b` (vision) |
 | AI extraction, summaries & answers | Groq — `openai/gpt-oss-120b` (env-driven via `GROQ_TEXT_MODEL`) |
 | Auth | JWT + bcrypt |
-| Retrieval | pgvector (optional) + keyword ranking, fused with RRF |
+| Retrieval | Document passages + pgvector (optional), fused with keyword ranking via RRF |
 | Testing | pytest + ruff (backend), Jest + Testing Library (frontend), GitHub Actions CI |
 | Frontend Hosting | Vercel |
 | Backend Hosting | Render |
@@ -265,10 +291,12 @@ React 19 (Vercel)
     │ HTTPS + JWT
 FastAPI (Render)
     │ background OCR tasks
-    ├── Groq Vision (Qwen3.6 27B)  →  raw text
-    └── Groq gpt-oss-120b  →  structured data, summaries, grounded answers
+    ├── Groq Vision (Qwen3.6 27B)  →  raw text  (pages read concurrently)
+    └── Groq gpt-oss-120b  →  structured data, summaries, tool-calling answers
     │
 Supabase (PostgreSQL + private Storage)
+    ├── records            →  extracted fields + optional record embedding
+    └── document_passages  →  the document text, chunked, optionally embedded
 ```
 
 ---
