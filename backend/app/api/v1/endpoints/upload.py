@@ -17,6 +17,19 @@ ALLOWED_TYPES = {
 }
 MAX_SIZE = 10 * 1024 * 1024
 
+# The stored object key must never be built from the user-supplied filename:
+# an extension like "pdf/../../other-user" would escape the per-user prefix.
+# We derive it from the content type we already verified by magic bytes.
+_EXTENSION_BY_TYPE = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "application/pdf": "pdf",
+}
+
 # Magic-byte signatures — the client-supplied content_type header can be spoofed,
 # so we verify the actual file bytes match what's claimed before accepting the upload.
 _MAGIC_CHECKS = {
@@ -188,8 +201,7 @@ async def upload_file(
                 detail="File content does not match its declared type"
             )
 
-        original_name = file.filename or "upload"
-        ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else "bin"
+        ext = _EXTENSION_BY_TYPE[file.content_type]
         file_path = f"{user_id}/{profile_id}/{uuid.uuid4()}.{ext}"
 
         supabase.storage.from_("medical-records").upload(
@@ -198,8 +210,7 @@ async def upload_file(
             file_options={"content-type": file.content_type},
         )
 
-        file_url = supabase.storage.from_("medical-records").get_public_url(file_path)
-        file_entries.append({"file_url": file_url, "file_path": file_path})
+        file_entries.append({"file_path": file_path})
         content_types.append(file.content_type)
 
     first = file_entries[0]
@@ -207,7 +218,6 @@ async def upload_file(
         "profile_id": profile_id,
         "document_type": "Unknown",
         "status": "processing",
-        "file_url": first["file_url"],
         "file_path": first["file_path"],
     }).execute()
 
@@ -216,7 +226,9 @@ async def upload_file(
     record_file_rows = [
         {
             "record_id": record_id,
-            "file_url": entry["file_url"],
+            # Kept empty (the column is NOT NULL until migration 003 runs) so no
+            # long-lived public URL is ever stored; readers get a signed URL.
+            "file_url": "",
             "file_path": entry["file_path"],
             "page_number": i + 1,
         }

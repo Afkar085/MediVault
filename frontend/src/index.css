@@ -478,3 +478,6 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
   .med-time-row{gap:6px;}
   .med-time-lbl{font-size:9px;}
 }
+
+/* ── Inline notice (non-blocking explanation inside a panel) ── */
+.notice{background:#fffbeb;border:1.5px solid #fde68a;color:#92400e;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.5;}

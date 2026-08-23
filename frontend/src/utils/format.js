@@ -95,11 +95,16 @@ export const getActivityLabel = r => {
   return 'Record added';
 };
 
+// Only files with a usable signed URL are returned. Signed URLs are minted per
+// request and can be absent if signing failed, so every caller would otherwise
+// have to guard against rendering an image with no source.
 export const getRecordFiles = r => {
-  if (r.files && r.files.length > 0) return r.files;
+  if (r.files && r.files.length > 0) return r.files.filter(f => f.file_url);
   if (r.file_url) return [{ file_url: r.file_url, file_path: r.file_path, page_number: 1 }];
   return [];
 };
+
+export const hasStoredDocument = r => Boolean((r.files && r.files.length > 0) || r.file_path || r.file_url);
 
 const CAT_ICON = {
   prescription: 'description',

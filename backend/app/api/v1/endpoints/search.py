@@ -8,6 +8,15 @@ from datetime import datetime
 
 router = APIRouter()
 
+# Search ranks on these fields server-side but the response must not carry the
+# embedding vector or any stored document URL back to the client.
+_SEARCH_COLUMNS = (
+    "id, profile_id, document_type, status, doctor_name, hospital_name, "
+    "document_date, specialty, diagnosis, recommendations, document_category, "
+    "bill_amount, insurance_claimed, visit_group, raw_ocr_text, created_at, "
+    "updated_at, profiles(name, relationship)"
+)
+
 MONTH_NAMES = {
     "january": "01", "february": "02", "march": "03", "april": "04",
     "may": "05", "june": "06", "july": "07", "august": "08",
@@ -118,7 +127,7 @@ def search_records(
 
     query = (
         supabase.table("records")
-        .select("*, profiles(name, relationship)")
+        .select(_SEARCH_COLUMNS)
         .in_("profile_id", search_profile_ids)
         .order("created_at", desc=True)
     )
@@ -164,5 +173,6 @@ def search_records(
 
     for r in records:
         r["medicines"] = medicines_map.get(r["id"], [])
+        r.pop("raw_ocr_text", None)  # scored against above; never shipped in a list
 
     return records

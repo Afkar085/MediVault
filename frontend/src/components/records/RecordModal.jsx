@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
 import Gallery from '../common/Gallery';
-import { fmt, fmtRel, fmtDt, dateVal, cur, drN, getRecordFiles } from '../../utils/format';
+import { fmt, fmtRel, fmtDt, dateVal, cur, drN, getRecordFiles, hasStoredDocument } from '../../utils/format';
 import Icon from '../common/Icon';
 
 
@@ -374,6 +374,9 @@ export default function RecordModal({ record, onClose }) {
   const [del, setDel] = useState(false);
   const [gal, setGal] = useState(null);
   const [form, setForm] = useState({});
+  // Raw OCR text is large and only shown on the Documents tab, so the list
+  // endpoint omits it and we fetch the full record the first time it's opened.
+  const [ocr, setOcr] = useState(null);
 
   // Form-based variants for edit form conditionals (reflect live category changes)
   const formCat = form.document_category || cat;
@@ -384,6 +387,7 @@ export default function RecordModal({ record, onClose }) {
     setEditing(false);
     setHld(false);
     setGal(null);
+    setOcr(null);
     setTab(t => tabList.includes(t) ? t : 'details');
     setForm({
       document_category: record.document_category || 'prescription',
@@ -399,6 +403,16 @@ export default function RecordModal({ record, onClose }) {
       bill_amount: record.bill_amount != null ? String(record.bill_amount) : '',
     });
   }, [record.id]);
+
+  useEffect(() => {
+    if (tab !== 'documents' || ocr !== null || !profileId) return;
+    let cancelled = false;
+    if (record.raw_ocr_text !== undefined) { setOcr(record.raw_ocr_text || ''); return; }
+    API.get('/profiles/' + profileId + '/records/' + record.id)
+      .then(r => { if (!cancelled) setOcr(r.data.raw_ocr_text || ''); })
+      .catch(() => { if (!cancelled) setOcr(''); });
+    return () => { cancelled = true; };
+  }, [tab, ocr, profileId, record.id, record.raw_ocr_text]);
 
   useEffect(() => {
     if (tab === 'history' && !hld && profileId) {
@@ -646,14 +660,19 @@ export default function RecordModal({ record, onClose }) {
                 <div className="vd-docs" style={{ marginBottom: 14 }}>
                   {files.map((f, idx) => (
                     <div key={idx} className="vd-doc" onClick={() => setGal(idx)}>
-                      <img src={f.file_url} alt={'P' + (f.page_number || idx + 1)} onError={e => e.target.style.display = 'none'} />
+                      <img src={f.file_url} alt={'Page ' + (f.page_number || idx + 1)} onError={e => e.target.style.display = 'none'} />
                       <div className="vd-doc-lbl">Page {f.page_number || idx + 1}</div>
                     </div>
                   ))}
                 </div>
               )}
+              {files.length === 0 && hasStoredDocument(record) && (
+                <div className="notice" style={{ marginBottom: 14 }}>
+                  Document previews couldn't be loaded right now. Your file is safe — try reopening this record in a moment.
+                </div>
+              )}
               <div className="drow-key" style={{ marginBottom: 8 }}>Raw OCR Text</div>
-              <div className="ocr">{record.raw_ocr_text || 'No OCR text.'}</div>
+              <div className="ocr">{ocr === null ? 'Loading…' : (ocr || 'No OCR text.')}</div>
             </div>
           )}
 
