@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, BackgroundTasks
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.chunking import chunk_document
 from app.services.ocr import extract_text_from_bytes
 from app.services.storage import signed_url
 from app.limiter import limiter
@@ -83,6 +84,42 @@ def _compute_visit_group(profile_id: str, doctor_name: str, doc_date_str: str) -
     return f"{slug}_{doc_date.isoformat()}"
 
 
+def index_passages(record_id: str, text: str) -> None:
+    """Store the document split into retrievable passages.
+
+    Best-effort in both directions: if the table is missing (migration 004 not
+    applied) nothing is stored and retrieval chunks the OCR text on the fly
+    instead; if the embedding model is missing the passages are still stored so
+    they can be term-matched.
+    """
+    passages = chunk_document(text)
+    if not passages:
+        return
+
+    try:
+        from app.services.embeddings import embed_text
+    except Exception:  # pragma: no cover - import guard
+        embed_text = None
+
+    rows = []
+    for index, content in enumerate(passages):
+        row = {"record_id": record_id, "chunk_index": index, "content": content}
+        if embed_text is not None:
+            try:
+                vector = embed_text(content)
+                if vector is not None:
+                    row["embedding"] = vector
+            except Exception:
+                pass  # a passage without a vector is still term-searchable
+        rows.append(row)
+
+    try:
+        supabase.table("document_passages").delete().eq("record_id", record_id).execute()
+        supabase.table("document_passages").insert(rows).execute()
+    except Exception as e:
+        logger.info("Passage index unavailable for record %s (run migration 004?): %s", record_id, e)
+
+
 def process_ocr(record_id: str, file_entries: list, content_types: list):
     try:
         all_texts = []
@@ -162,6 +199,8 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
                 ).eq("id", record_id).execute()
         except Exception as embed_err:
             logger.warning("Embedding skipped for record %s: %s", record_id, embed_err)
+
+        index_passages(record_id, combined_text)
 
     except Exception as e:
         logger.error("OCR/extraction pipeline failed for record %s: %s", record_id, e)

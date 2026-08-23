@@ -75,6 +75,23 @@ def vector_search(
         return None
 
 
+def score_text(text: str, terms: List[str]) -> float:
+    """How many distinct query terms a passage contains, weighted by repetition.
+
+    Distinct coverage dominates: a passage mentioning both "haemoglobin" and
+    "iron" beats one that says "haemoglobin" five times.
+    """
+    if not text or not terms:
+        return 0.0
+    haystack = text.lower()
+    score = 0.0
+    for term in set(terms):
+        occurrences = haystack.count(term)
+        if occurrences:
+            score += 3.0 + min(occurrences - 1, 3) * 0.5
+    return score
+
+
 def score_record(record: dict, terms: List[str], medicines: Optional[list] = None) -> float:
     """How well one record answers a query, from term overlap alone.
 

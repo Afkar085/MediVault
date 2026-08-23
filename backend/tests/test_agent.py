@@ -144,3 +144,62 @@ def test_the_model_is_told_to_use_only_the_records(fake):
     assert system["role"] == "system"
     assert "Never answer from memory" in system["content"]
     assert "do not advise starting, stopping or changing any treatment" in system["content"]
+
+
+def test_the_model_is_told_when_extracted_fields_are_not_enough(fake):
+    """Values like a lab reading only exist in the document text."""
+    fake([message(content="ok")])
+    client = agent.client
+    agent.answer_with_tools("?", _Tools())
+    system = client.requests[0]["messages"][0]["content"]
+    assert "retrieve_document_context" in system
+    assert "Never round, convert or estimate" in system
+
+
+def test_a_document_passage_reaches_the_model_verbatim(fake):
+    client = fake([
+        message(tool_calls=[_Call("retrieve_document_context", {"query": "haemoglobin"})]),
+        message(content="Your haemoglobin was 9.2 g/dL on 2 May 2026 [Record 1]."),
+    ])
+    tools = _Tools({"passages": [
+        {"record_id": "r-blood", "date": "2026-05-02", "doctor": "Bhat",
+         "text": "Haemoglobin 9.2 g/dL (13.0 - 17.0)"},
+    ]})
+
+    result = agent.answer_with_tools("what was my haemoglobin?", tools)
+
+    tool_message = [m for m in client.requests[1]["messages"] if m["role"] == "tool"][0]
+    assert "9.2 g/dL" in tool_message["content"]
+    assert "13.0 - 17.0" in tool_message["content"]
+    assert "9.2" in result["answer"]
+
+
+def test_a_passage_becomes_a_citable_source(fake):
+    fake([
+        message(tool_calls=[_Call("retrieve_document_context", {"query": "haemoglobin"})]),
+        message(content="9.2 g/dL [Record 1]."),
+    ])
+    tools = _Tools({"passages": [
+        {"record_id": "r-blood", "date": "2026-05-02", "doctor": "Bhat", "text": "Haemoglobin 9.2"},
+    ]})
+
+    sources = agent.answer_with_tools("?", tools)["sources"]
+
+    assert sources == [{
+        "ref": 1, "record_id": "r-blood", "date": "2026-05-02",
+        "doctor_name": "Bhat", "member": None,
+    }]
+
+
+def test_a_tool_reporting_an_error_produces_no_citations(fake):
+    """An error must never be dressed up as a source the user can open."""
+    fake([
+        message(tool_calls=[_Call("search_records", {"query": "x", "member": "Nobody"})]),
+        message(content="I couldn't find that family member."),
+    ])
+    tools = _Tools({"error": "No family member matching 'Nobody'.", "records": []})
+
+    result = agent.answer_with_tools("?", tools)
+
+    assert result["sources"] == []
+    assert "couldn't find" in result["answer"]

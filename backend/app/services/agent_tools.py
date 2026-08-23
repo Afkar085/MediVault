@@ -10,7 +10,8 @@ from typing import Dict, List, Optional
 
 from app.database import supabase
 from app.logger import logger
-from app.services.retrieval import keyword_rank
+from app.services.passages import relevant_passages
+from app.services.retrieval import keyword_rank, reciprocal_rank_fusion, vector_search
 
 # Columns a tool may return. Deliberately excludes file paths and the embedding.
 _RECORD_COLUMNS = (
@@ -132,8 +133,22 @@ class RecordTools:
             return {"error": f"No family member matching '{member}'.", "records": []}
         records = self._with_medicines(self._fetch(ids, category))
         if query:
-            records = keyword_rank(records, query, limit=MAX_RESULTS)
+            records = self._rank(records, query, ids)
         return {"records": [self._present(r) for r in records[:MAX_RESULTS]]}
+
+    def _rank(self, records: List[dict], query: str, profile_ids: List[str]) -> List[dict]:
+        """Keyword ranking, fused with semantic ranking when it is available.
+
+        Reciprocal rank fusion needs only ranks, so it works whether or not the
+        embedding model is installed.
+        """
+        by_keyword = keyword_rank(records, query, limit=MAX_RESULTS * 2)
+        semantic = vector_search(profile_ids, query, limit=MAX_RESULTS * 2)
+        if not semantic:
+            return by_keyword
+        by_id = {r["id"]: r for r in records}
+        fused = reciprocal_rank_fusion([[r["id"] for r in by_keyword], semantic])
+        return [by_id[i] for i in fused if i in by_id]
 
     def get_medication_history(
         self, member: Optional[str] = None, medicine: Optional[str] = None
@@ -180,6 +195,35 @@ class RecordTools:
             ]
         }
 
+    def retrieve_document_context(self, query: str, member: Optional[str] = None) -> dict:
+        """Passages of the scanned documents themselves.
+
+        Values like a haemoglobin reading or a specific instruction live in the
+        document text and were never extracted into a column, so the other tools
+        cannot see them. Scoped to the same authorized records as everything else.
+        """
+        ids = self._resolve_member(member)
+        if ids is None:
+            return {"error": f"No family member matching '{member}'.", "passages": []}
+        records = self._fetch(ids)
+        if not records:
+            return {"passages": []}
+        by_id = {r["id"]: r for r in records}
+        found = relevant_passages([r["id"] for r in records], query)
+        return {
+            "passages": [
+                {
+                    "record_id": p["record_id"],
+                    "member": self._label(by_id[p["record_id"]]["profile_id"]),
+                    "date": by_id[p["record_id"]].get("document_date"),
+                    "doctor": by_id[p["record_id"]].get("doctor_name"),
+                    "text": p["text"],
+                }
+                for p in found
+                if p["record_id"] in by_id
+            ]
+        }
+
     def get_record_details(self, record_id: str) -> dict:
         """Full detail for one record. A record outside this user's family is
         reported as not found — the id alone grants nothing."""
@@ -205,6 +249,7 @@ class RecordTools:
             "get_medication_history": self.get_medication_history,
             "get_test_history": self.get_test_history,
             "get_timeline": self.get_timeline,
+            "retrieve_document_context": self.retrieve_document_context,
             "get_record_details": self.get_record_details,
         }.get(name)
         if handler is None:
@@ -284,6 +329,29 @@ TOOL_SCHEMAS = [
             "name": "get_timeline",
             "description": "All visits in date order. Use for questions about medical history over a period.",
             "parameters": {"type": "object", "properties": {"member": _MEMBER_ARG}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "retrieve_document_context",
+            "description": (
+                "The exact wording of the scanned documents. Use this whenever the question "
+                "asks about something that would be written on the document rather than "
+                "summarised — a test value or reading, a specific instruction, wording the "
+                "doctor used. The other tools only return extracted fields."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "What to look for in the document text, e.g. 'haemoglobin' or 'physiotherapy'.",
+                    },
+                    "member": _MEMBER_ARG,
+                },
+                "required": ["query"],
+            },
         },
     },
     {

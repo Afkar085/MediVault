@@ -178,3 +178,68 @@ def test_family_members_are_listed_without_ids(tools):
         {"name": "Afkar", "relationship": "Self"},
         {"name": "Abdul", "relationship": "Father"},
     ]
+
+
+# --- retrieve_document_context: the text of the documents themselves ---------
+
+def test_document_passages_are_scoped_to_this_family(tools, monkeypatch):
+    seen = {}
+
+    def fake(record_ids, query, limit=6):
+        seen["record_ids"] = list(record_ids)
+        seen["query"] = query
+        return [{"record_id": "r-knee", "text": "Haemoglobin 9.2 g/dL", "score": 9.0}]
+
+    monkeypatch.setattr(agent_tools, "relevant_passages", fake)
+    result = tools.retrieve_document_context(query="haemoglobin")
+
+    # Only records belonging to this user's profiles are ever offered up.
+    assert set(seen["record_ids"]) <= {"r-knee", "r-blood"}
+    assert result["passages"][0]["text"] == "Haemoglobin 9.2 g/dL"
+    assert result["passages"][0]["member"] == "Abdul (Father)"
+
+
+def test_a_passage_for_a_record_outside_scope_is_dropped(tools, monkeypatch):
+    """Defence in depth: even a bad retrieval result cannot leak through."""
+    monkeypatch.setattr(
+        agent_tools, "relevant_passages",
+        lambda ids, q, limit=6: [{"record_id": "r-someone-elses", "text": "private", "score": 9.0}],
+    )
+    assert tools.retrieve_document_context(query="anything")["passages"] == []
+
+
+def test_document_context_for_an_unknown_member_widens_nothing(tools, monkeypatch):
+    monkeypatch.setattr(agent_tools, "relevant_passages", lambda *a, **k: [])
+    result = tools.retrieve_document_context(query="x", member="Nobody")
+    assert result["passages"] == []
+    assert "No family member" in result["error"]
+
+
+def test_the_document_tool_is_offered_to_the_model():
+    names = {t["function"]["name"] for t in agent_tools.TOOL_SCHEMAS}
+    assert "retrieve_document_context" in names
+    assert names == {
+        "list_family_members", "search_records", "get_medication_history",
+        "get_test_history", "get_timeline", "retrieve_document_context",
+        "get_record_details",
+    }
+
+
+def test_every_advertised_tool_is_actually_dispatchable(tools):
+    for schema in agent_tools.TOOL_SCHEMAS:
+        name = schema["function"]["name"]
+        assert "Unknown tool" not in str(tools.call(name, {"query": "x", "record_id": "r-knee"}))
+
+
+# --- semantic ranking is now used by the agent too ---------------------------
+
+def test_search_fuses_semantic_ranking_when_it_is_available(tools, monkeypatch):
+    monkeypatch.setattr(agent_tools, "vector_search", lambda ids, q, limit=None: ["r-blood", "r-knee"])
+    ids = [r["record_id"] for r in tools.search_records(query="knee")["records"]]
+    assert set(ids) == {"r-knee", "r-blood"}  # semantic hits pulled in, not just keyword
+
+
+def test_search_falls_back_to_keyword_when_there_is_no_embedding_model(tools, monkeypatch):
+    monkeypatch.setattr(agent_tools, "vector_search", lambda ids, q, limit=None: None)
+    ids = [r["record_id"] for r in tools.search_records(query="knee")["records"]]
+    assert ids == ["r-knee"]
