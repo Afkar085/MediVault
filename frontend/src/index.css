@@ -414,7 +414,13 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 .confirm-text{font-size:13px;color:#64748b;margin-bottom:18px;line-height:1.5;}
 .confirm-btns{display:flex;gap:8px;justify-content:center;}
 .add-modal{background:#fff;border-radius:20px;padding:28px;width:100%;max-width:380px;margin:0 12px;}
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--on-surface);color:#fff;padding:12px 20px;border-radius:14px;font-size:13px;font-weight:600;z-index:500;animation:toastIn 0.3s ease;white-space:nowrap;max-width:90vw;}
+/* No nowrap: a rejected-upload message names the file and what to do about it,
+   and that does not fit on one line on a phone. */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);display:flex;align-items:flex-start;gap:10px;background:var(--on-surface);color:#fff;padding:12px 12px 12px 18px;border-radius:14px;font-size:13px;font-weight:600;line-height:1.45;z-index:500;animation:toastIn 0.3s ease;width:max-content;max-width:min(90vw,420px);box-shadow:0 8px 28px rgba(0,0,0,0.22);}
+.toast-msg{flex:1;min-width:0;}
+.toast-x{flex-shrink:0;width:24px;height:24px;min-width:24px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.16);border:none;border-radius:8px;color:inherit;font-size:15px;line-height:1;cursor:pointer;padding:0;}
+.toast-x:hover{background:rgba(255,255,255,0.28);}
+.toast-x:focus-visible{outline:2px solid #fff;outline-offset:2px;}
 .toast.error{background:var(--error);}
 .empty{text-align:center;padding:48px 20px;}
 .empty-icon{width:64px;height:64px;background:var(--cat-other-bg);border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--primary-light);}
