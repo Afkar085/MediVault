@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, BackgroundTasks
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services.ocr import extract_text_from_bytes
 from app.services.storage import signed_url
+from app.limiter import limiter
 from app.logger import logger
 from typing import List
 from datetime import datetime, timedelta
@@ -170,8 +171,12 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
         }).eq("id", record_id).execute()
 
 
+# Each page costs a vision-model call plus an extraction call, so an unbounded
+# upload loop drains the Groq quota for every user of the deployment.
 @router.post("/upload/{profile_id}")
+@limiter.limit("20/minute")
 async def upload_file(
+    request: Request,
     profile_id: str,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),

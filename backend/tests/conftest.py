@@ -14,7 +14,7 @@ os.environ.setdefault(
     "SUPABASE_KEY",
     "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.dummy-signature-for-tests-only",
 )
-os.environ.setdefault("JWT_SECRET", "test-secret-for-ci-only")
+os.environ.setdefault("JWT_SECRET", "test-secret-for-ci-only-not-a-real-key-0123456789")
 os.environ.setdefault("JWT_EXPIRE_HOURS", "24")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("FRONTEND_ORIGINS", "*")

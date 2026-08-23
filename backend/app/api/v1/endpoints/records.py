@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from pydantic import BaseModel
 from app.schemas.record import RecordResponse, RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
@@ -6,6 +6,7 @@ from app.database import supabase
 from app.services.storage import signed_urls
 from app.services.retrieval import vector_search
 from app.services import rag
+from app.limiter import limiter
 from app.logger import logger
 from typing import List, Optional
 from groq import Groq
@@ -257,8 +258,10 @@ def get_bills(profile_id: str, user_id: str = Depends(get_current_user)):
     }
 
 
+# Both of these call the LLM on every request.
 @router.get("/{profile_id}/health-journey")
-def get_health_journey(profile_id: str, user_id: str = Depends(get_current_user)):
+@limiter.limit("10/minute")
+def get_health_journey(request: Request, profile_id: str, user_id: str = Depends(get_current_user)):
     _assert_profile_owned(profile_id, user_id)
 
     profile_result = supabase.table("profiles").select("name, relationship").eq("id", profile_id).execute()
@@ -325,7 +328,8 @@ Return ONLY the bullet points, no intro or outro."""
 
 
 @router.post("/{profile_id}/ask")
-def ask_records(profile_id: str, body: AskRequest, user_id: str = Depends(get_current_user)):
+@limiter.limit("15/minute")
+def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: str = Depends(get_current_user)):
     """Answer a natural-language question grounded in this profile's records (RAG).
 
     Retrieves the most semantically relevant records via vector search, then asks
