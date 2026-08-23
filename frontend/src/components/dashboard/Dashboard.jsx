@@ -141,9 +141,9 @@ function DoctorsPreview({ docGroups, docNameMap, sortedDocs, navigate }) {
 
 export default function Dashboard() {
   const {
-    sel, profiles, records, loading,
+    sel, profiles, records, loading, loadError,
     docGroups, docNameMap, sortedDocs,
-    navigate, openRecord,
+    navigate, openRecord, refreshRecords,
   } = useContext(AppContext);
 
   const processing = records.filter(r => r.status === 'processing' || r.status === 'extracting').length;
@@ -162,6 +162,18 @@ export default function Dashboard() {
         <div className="empty-icon"><Icon name="health_and_safety" size={30} /></div>
         <div className="empty-title">Welcome to MediVault</div>
         <div className="empty-sub">Add a family member to start managing medical records.</div>
+        <button className="btn-s" style={{ marginTop: 16 }} onClick={() => navigate('family')}>Add a family member</button>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="empty">
+        <div className="empty-icon"><Icon name="cloud_off" size={30} /></div>
+        <div className="empty-title">Couldn't load these records</div>
+        <div className="empty-sub">Check your connection — your records are safe and nothing was lost.</div>
+        <button className="btn-s" style={{ marginTop: 16 }} onClick={refreshRecords}>Try again</button>
       </div>
     );
   }

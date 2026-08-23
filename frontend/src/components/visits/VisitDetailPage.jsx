@@ -1,7 +1,7 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import Gallery from '../common/Gallery';
-import { fmt, drN, cur, fmtMo, getRecordFiles, getRecordDate } from '../../utils/format';
+import { fmt, drN, cur, getRecordFiles, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
 import API from '../../api';
 

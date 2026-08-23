@@ -19,7 +19,6 @@ export default function DoctorsPage() {
 
   const openDoctor = (key) => {
     const visits = docGroups[key] || [];
-    const last = visits[0];
     const specialty = visits.find(v => v.specialty)?.specialty || '';
     const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
     navigate('doctor-detail', {

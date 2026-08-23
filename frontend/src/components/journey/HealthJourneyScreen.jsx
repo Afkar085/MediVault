@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
-import { fmt, fmtRel, drN, getRecordDate } from '../../utils/format';
+import { drN, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
 
 const CAT_META = {
@@ -16,7 +16,6 @@ const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT
 
 export default function HealthJourneyScreen() {
   const { sel, records, navigate, goBack, docGroups, openRecord } = useContext(AppContext);
-  const [summary, setSummary] = useState('');
   const [sumLines, setSumLines] = useState([]);
   const [ld, setLd] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);

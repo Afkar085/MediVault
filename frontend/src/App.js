@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
 import './index.css';
 import API from './api';
 import { buildDocGroups } from './utils/format';
@@ -30,7 +30,6 @@ function MainApp({ onLogout }) {
   const [loading, setLoading] = useState(true);
   const [nav, setNav] = useState({ page: 'home' });
   const [selRec, setSelRec] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
   const [toast, setToast] = useState(null);
   const [upFiles, setUpFiles] = useState(null);
   const [upDocType, setUpDocType] = useState('prescription');
@@ -39,7 +38,11 @@ function MainApp({ onLogout }) {
   const [uploading, setUploading] = useState(false);
   const [visitUploading, setVisitUploading] = useState(false);
   const [showUploadSheet, setShowUploadSheet] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const pollRef = useRef(null);
+  // The profile whose records the UI is currently showing. Used to discard
+  // replies from a previous member's request.
+  const activeProfileRef = useRef(null);
   const visitDateEnforcements = useRef({}); // recordId → visitDate, applied after OCR finishes
 
   const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
@@ -86,15 +89,25 @@ function MainApp({ onLogout }) {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  // Switching members fires a new request while the previous one may still be
+  // in flight. Every reply is checked against the member selected *now*, so a
+  // late response can never paint one person's records under another's name.
   const loadRecs = useCallback((pid) =>
     API.get('/profiles/' + pid + '/records')
       .then(r => {
-        const sorted = r.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        if (activeProfileRef.current !== pid) return [];
+        const sorted = [...r.data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setRecords(sorted);
+        setLoadError(false);
         setLoading(false);
         return sorted;
       })
-      .catch(() => { setLoading(false); return []; }),
+      .catch(() => {
+        if (activeProfileRef.current !== pid) return [];
+        setLoadError(true);
+        setLoading(false);
+        return [];
+      }),
     []
   );
 
@@ -105,11 +118,19 @@ function MainApp({ onLogout }) {
         if (r.data.length > 0) setSel(r.data[0]);
         else setLoading(false);
       })
-      .catch(() => { showToast('Failed to load profiles', 'error'); setLoading(false); });
+      .catch(() => { setLoadError(true); showToast('Could not load your family members', 'error'); setLoading(false); });
   }, [showToast]);
 
   useEffect(() => {
-    if (!sel) { setLoading(false); return; }
+    if (!sel) {
+      activeProfileRef.current = null;
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+    activeProfileRef.current = sel.id;
+    setRecords([]);  // never leave the previous member's records on screen
+    setLoadError(false);
     setLoading(true);
     loadRecs(sel.id);
   }, [sel, loadRecs]);
@@ -265,6 +286,7 @@ function MainApp({ onLogout }) {
     records,
     setRecords,
     loading,
+    loadError,
     refreshRecords: () => sel && loadRecs(sel.id),
     docGroups,
     docNameMap,

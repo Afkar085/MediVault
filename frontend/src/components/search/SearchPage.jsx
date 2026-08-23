@@ -5,12 +5,6 @@ import Icon from '../common/Icon';
 
 const FILTERS = ['All', 'Prescriptions', 'Lab Reports', 'Bills', 'Medicines'];
 
-const CAT_MAP = {
-  'Prescriptions': 'prescription',
-  'Lab Reports': 'lab_report',
-  'Bills': 'bill',
-};
-
 const EMPTY_MSGS = {
   'Prescriptions': { icon: 'description', title: 'No Prescriptions Found', sub: 'Upload a prescription to see it here.' },
   'Lab Reports': { icon: 'science', title: 'No Lab Reports Found', sub: 'Upload lab reports to see them here.' },

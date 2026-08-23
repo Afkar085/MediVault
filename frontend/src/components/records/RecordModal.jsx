@@ -402,6 +402,10 @@ export default function RecordModal({ record, onClose }) {
       recommendations: record.recommendations || '',
       bill_amount: record.bill_amount != null ? String(record.bill_amount) : '',
     });
+    // Deliberately keyed on record.id only: this resets the edit form when a
+    // different record is opened. Re-running it on every field change would
+    // discard whatever the user is currently typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record.id]);
 
   useEffect(() => {
