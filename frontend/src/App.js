@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
 import './index.css';
-import API from './api';
+import API, { setSessionExpiredHandler } from './api';
 import { buildDocGroups } from './utils/format';
 import { validateFiles, describeRejections } from './utils/uploads';
 
@@ -412,7 +412,21 @@ function MainApp({ onLogout }) {
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
-  return loggedIn
-    ? <MainApp onLogout={() => setLoggedIn(false)} />
-    : <AuthScreen onLogin={() => setLoggedIn(true)} />;
+  const [expired, setExpired] = useState(false);
+
+  // A token lasts a day. When it runs out, drop to the sign-in screen and say
+  // why, rather than reloading the page and leaving the user to guess.
+  useEffect(() => {
+    setSessionExpiredHandler(() => { setExpired(true); setLoggedIn(false); });
+    return () => setSessionExpiredHandler(() => {});
+  }, []);
+
+  if (loggedIn) return <MainApp onLogout={() => setLoggedIn(false)} />;
+
+  return (
+    <AuthScreen
+      notice={expired ? 'Your session ended. Please sign in again — your records are safe.' : ''}
+      onLogin={() => { setExpired(false); setLoggedIn(true); }}
+    />
+  );
 }

@@ -24,7 +24,7 @@ function errorMessage(e, mode) {
   return 'Something went wrong. Please try again.';
 }
 
-export default function AuthScreen({ onLogin }) {
+export default function AuthScreen({ onLogin, notice = '' }) {
   const [mode, setMode] = useState('login');
   const [showHelp, setShowHelp] = useState(false);
   const [email, setEmail] = useState('');
@@ -98,6 +98,7 @@ export default function AuthScreen({ onLogin }) {
             >Sign up</button>
           </div>
 
+          {notice && !err && <div className="auth-info" role="status">{notice}</div>}
           {err && <div className="auth-err" role="alert">{err}</div>}
 
           {/* A real form so phone keyboards show "Go" and password managers can

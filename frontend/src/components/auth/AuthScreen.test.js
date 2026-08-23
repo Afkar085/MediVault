@@ -4,6 +4,7 @@ import API from '../../api';
 
 jest.mock('../../api', () => ({
   __esModule: true,
+  setSessionExpiredHandler: jest.fn(),
   default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
 
