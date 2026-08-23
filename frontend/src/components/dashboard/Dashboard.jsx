@@ -60,15 +60,15 @@ function RecentActivity({ records, openRecord }) {
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <div className="sec-hdr" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={toggle}>
-        <div className="sec-title">Recent Activity</div>
-        <button className="activity-toggle" style={{ color: '#94a3b8' }}>
+      <button className="sec-hdr sec-hdr-btn" onClick={toggle} aria-expanded={open}>
+        <span className="sec-title">Recent Activity</span>
+        <span className="activity-toggle" aria-hidden="true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
             style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
             <polyline points="6 9 12 15 18 9" />
           </svg>
-        </button>
-      </div>
+        </span>
+      </button>
       {open && recent.map(r => {
         const label = getActivityLabel(r);
         const sub = r.doctor_name ? drN(r.doctor_name) : r.hospital_name || '';

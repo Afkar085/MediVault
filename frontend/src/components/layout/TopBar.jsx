@@ -6,7 +6,8 @@ export default function TopBar() {
   const { sel, navigate } = useContext(AppContext);
 
   return (
-    <div className="topbar">
+    <header className="topbar">
+      <div className="topbar-inner">
       <div className="tb-left">
         <Logo size={24} color="#9fb2ff" />
         <span className="tb-logo">Medi<span>Vault</span></span>
@@ -26,6 +27,7 @@ export default function TopBar() {
           </svg>
         </button>
       )}
-    </div>
+      </div>
+    </header>
   );
 }

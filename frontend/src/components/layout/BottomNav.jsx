@@ -9,7 +9,8 @@ export default function BottomNav() {
   const page = TOP_PAGES.includes(nav.page) ? nav.page : 'home';
 
   return (
-    <nav className="bnav">
+    <nav className="bnav" aria-label="Main">
+      <div className="bnav-inner">
       <button className={'bnav-i' + (page === 'home' ? ' active' : '')} onClick={() => navigate('home')}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
@@ -50,6 +51,7 @@ export default function BottomNav() {
         </svg>
         <span>Profile</span>
       </button>
+      </div>
     </nav>
   );
 }

@@ -100,22 +100,20 @@ export default function HealthJourneyScreen() {
 
       {(ld || sumLines.length > 0) && (
         <div className="journey-ai-card">
-          <div
+          <button
+            type="button"
             className="journey-ai-hdr"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
             onClick={() => setAiOpen(o => !o)}
+            aria-expanded={aiOpen}
           >
             <span className="journey-ai-badge"><Icon name="auto_awesome" size={14} /> AI Summary</span>
-            <button
-              aria-label={aiOpen ? 'Collapse AI summary' : 'Expand AI summary'}
-              style={{ background: 'none', border: 'none', padding: 4, display: 'flex', color: 'rgba(255,255,255,0.85)', cursor: 'pointer' }}
-            >
+            <span aria-hidden="true" style={{ display: 'flex', color: 'rgba(255,255,255,0.85)' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                 style={{ transform: aiOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                 <polyline points="6 9 12 15 18 9" />
               </svg>
-            </button>
-          </div>
+            </span>
+          </button>
           {aiOpen && ld && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
               <div className="spinner" style={{ width: 20, height: 20, margin: 0, borderWidth: 2 }} />
