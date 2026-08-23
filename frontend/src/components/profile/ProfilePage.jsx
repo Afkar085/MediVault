@@ -1,6 +1,7 @@
 import { useContext, useState } from 'react';
 import { AppContext } from '../../App';
 import Icon from '../common/Icon';
+import Modal from '../common/Modal';
 
 export default function ProfilePage() {
   const { onLogout, sel, profiles, deleteAccount, showToast } = useContext(AppContext);
@@ -63,8 +64,11 @@ export default function ProfilePage() {
       </button>
 
       {confirmDel && (
-        <div className="overlay" onClick={() => !deleting && setConfirmDel(false)}>
-          <div className="confirm-box" onClick={e => e.stopPropagation()}>
+        <Modal
+          onClose={() => !deleting && setConfirmDel(false)}
+          boxClassName="confirm-box"
+          label="Delete your account?"
+        >
             <div className="confirm-title">Delete your account?</div>
             <div className="confirm-text">
               This permanently deletes your account, every family member profile, and all uploaded documents, prescriptions, lab reports, and bills. This cannot be undone.
@@ -73,8 +77,7 @@ export default function ProfilePage() {
               <button className="btn-c" onClick={() => setConfirmDel(false)} disabled={deleting}>Cancel</button>
               <button className="btn-d" onClick={handleDeleteAccount} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete everything'}</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

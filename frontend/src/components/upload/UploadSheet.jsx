@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import Icon from '../common/Icon';
+import Modal from '../common/Modal';
 import { ACCEPT_ATTR } from '../../utils/uploads';
 
 const TYPES = [
@@ -27,8 +28,12 @@ export default function UploadSheet({ onSelect, onClose }) {
   };
 
   return (
-    <div className="upload-sheet-over" onClick={onClose}>
-      <div className="upload-sheet" onClick={e => e.stopPropagation()}>
+    <Modal
+      onClose={onClose}
+      className="upload-sheet-over"
+      boxClassName="upload-sheet"
+      label="Upload a medical record"
+    >
         <div className="us-handle" />
         <div className="us-title">Upload Medical Record</div>
         <div className="us-sub">Choose the type of document</div>
@@ -56,7 +61,6 @@ export default function UploadSheet({ onSelect, onClose }) {
           ))}
         </div>
         <button className="us-cancel" onClick={onClose}>Cancel</button>
-      </div>
-    </div>
+    </Modal>
   );
 }

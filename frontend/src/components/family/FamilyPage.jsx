@@ -2,6 +2,7 @@ import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
 import { clickable } from '../../utils/interaction';
+import Modal from '../common/Modal';
 
 const RELATIONSHIPS = ['Self', 'Father', 'Mother', 'Spouse', 'Son', 'Daughter', 'Brother', 'Sister', 'Other'];
 
@@ -82,8 +83,7 @@ export default function FamilyPage() {
       <button className="family-add-btn" onClick={openAdd}>+ Add Family Member</button>
 
       {modal && !confirmDel && (
-        <div className="overlay" onClick={closeModal}>
-          <div className="add-modal" onClick={e => e.stopPropagation()}>
+        <Modal onClose={closeModal} boxClassName="add-modal" label={editing ? 'Edit family member' : 'Add family member'}>
             <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 20, color: '#0f172a', marginBottom: 18 }}>
               {editing ? 'Edit Family Member' : 'Add Family Member'}
             </div>
@@ -105,21 +105,18 @@ export default function FamilyPage() {
               <button className="btn-c" style={{ flex: 1 }} onClick={closeModal}>Cancel</button>
               <button className="btn-s" style={{ flex: 1 }} onClick={handleSave} disabled={ld}>{ld ? 'Saving...' : 'Save'}</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {modal && confirmDel && (
-        <div className="overlay" onClick={() => setConfirmDel(false)}>
-          <div className="confirm-box" onClick={e => e.stopPropagation()}>
+        <Modal onClose={() => setConfirmDel(false)} boxClassName="confirm-box" label={'Delete ' + modal.name + '?'}>
             <div className="confirm-title">Delete {modal.name}?</div>
             <div className="confirm-text">This will permanently delete this family member and all of their medical records, documents, and bills.</div>
             <div className="confirm-btns">
               <button className="btn-c" onClick={() => setConfirmDel(false)}>Cancel</button>
               <button className="btn-d" onClick={handleDelete} disabled={ld}>{ld ? 'Deleting...' : 'Delete'}</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import Icon from '../common/Icon';
+import Modal from '../common/Modal';
 import { ACCEPT_ATTR, formatBytes, isPdf } from '../../utils/uploads';
 
 const TYPE_LABEL = { prescription: 'Prescription', lab_report: 'Lab Report', bill: 'Bill' };
@@ -39,8 +40,12 @@ export default function UploadPreview({
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
 
   return (
-    <div className="uprev" onClick={() => !uploading && onCancel()}>
-      <div className="uprev-box" onClick={e => e.stopPropagation()} role="dialog" aria-label="Review and upload">
+    <Modal
+      onClose={() => !uploading && onCancel()}
+      className="uprev"
+      boxClassName="uprev-box"
+      label="Review and upload"
+    >
         <div className="uprev-title">Review &amp; upload</div>
         <div className="uprev-meta">
           {files.length} {files.length === 1 ? 'file' : 'files'} · {formatBytes(totalBytes)}
@@ -94,7 +99,6 @@ export default function UploadPreview({
         </div>
 
         <button className="uprev-cancel" onClick={onCancel} disabled={uploading}>Cancel</button>
-      </div>
-    </div>
+    </Modal>
   );
 }

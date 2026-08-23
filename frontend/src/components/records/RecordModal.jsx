@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
 import Gallery from '../common/Gallery';
+import Modal from '../common/Modal';
 import { fmt, fmtRel, fmtDt, dateVal, drN, getRecordFiles, hasStoredDocument } from '../../utils/format';
 import MedsTab from './MedsTab';
 import { DetailsForm, DetailsView } from './DetailsTab';
@@ -138,13 +139,12 @@ export default function RecordModal({ record, onClose }) {
   const medCount = (record.medicines || []).length;
 
   return (
-    <div className="mover" onClick={onClose}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={'Record: ' + (record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical record')}
-        onClick={e => e.stopPropagation()}
+    <>
+      <Modal
+        onClose={onClose}
+        className="mover"
+        boxClassName="modal"
+        label={'Record: ' + (record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical record')}
       >
         <div className="m-handle" />
         <div className="m-hdr">
@@ -253,21 +253,19 @@ export default function RecordModal({ record, onClose }) {
             </>
           )}
         </div>
-      </div>
+      </Modal>
 
       {del && (
-        <div className="overlay" onClick={() => setDel(false)}>
-          <div className="confirm-box" onClick={e => e.stopPropagation()}>
-            <div className="confirm-title">Delete record?</div>
-            <div className="confirm-text">This will permanently delete the record and its files.</div>
-            <div className="confirm-btns">
-              <button className="btn-c" onClick={() => setDel(false)}>Cancel</button>
-              <button className="btn-d" onClick={doDel}>Delete</button>
-            </div>
+        <Modal onClose={() => setDel(false)} boxClassName="confirm-box" label="Delete record?">
+          <div className="confirm-title">Delete record?</div>
+          <div className="confirm-text">This will permanently delete the record and its files.</div>
+          <div className="confirm-btns">
+            <button className="btn-c" onClick={() => setDel(false)}>Cancel</button>
+            <button className="btn-d" onClick={doDel}>Delete</button>
           </div>
-        </div>
+        </Modal>
       )}
       {gal !== null && <Gallery files={files} startIdx={gal} onClose={() => setGal(null)} />}
-    </div>
+    </>
   );
 }

@@ -285,7 +285,9 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 
 /* ── Gallery ── */
 .gal{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:400;display:flex;align-items:center;justify-content:center;}
+.gal-box{display:flex;align-items:center;justify-content:center;outline:none;}
 .gal img{max-width:92vw;max-height:85vh;object-fit:contain;border-radius:8px;}
+.gal-close:focus-visible,.gal-nav:focus-visible{outline:2px solid #fff;outline-offset:2px;}
 .gal-close{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;z-index:401;}
 .gal-nav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;z-index:401;}
 .gal-prev{left:12px;}

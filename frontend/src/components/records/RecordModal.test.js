@@ -209,3 +209,52 @@ test('a record belonging to another member is edited against its own profile', a
   await waitFor(() => expect(API.put).toHaveBeenCalled());
   expect(API.put.mock.calls.at(-1)[0]).toBe('/profiles/p-dad/records/r-presc');
 });
+
+// --- dialog behaviour --------------------------------------------------------
+
+test('Escape closes the record', async () => {
+  await openRecord(PRESCRIPTION);
+  fireEvent.keyDown(modal(), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('opening a record moves focus into it', async () => {
+  await openRecord(PRESCRIPTION);
+  expect(modal().contains(document.activeElement)).toBe(true);
+});
+
+test('closing a record returns focus to the row it was opened from', async () => {
+  // A real click focuses the element; jsdom fireEvent does not, so do it here.
+  API.get.mockImplementation((url) => {
+    if (url === '/profiles') return Promise.resolve({ data: [ALICE] });
+    if (url === '/profiles/p-alice/records') return Promise.resolve({ data: [PRESCRIPTION] });
+    return Promise.resolve({ data: PRESCRIPTION });
+  });
+  render(<App />);
+  await act(async () => { await Promise.resolve(); });
+
+  const opener = await screen.findByRole('button', { name: /prescription uploaded/i });
+  opener.focus();
+  fireEvent.click(opener);
+
+  await screen.findByRole('dialog');
+  fireEvent.keyDown(modal(), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: /prescription uploaded/i }));
+});
+
+test('Tab cannot walk out of the dialog into the page behind it', async () => {
+  await openRecord(PRESCRIPTION);
+  const dialog = modal();
+  const focusable = [...dialog.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')];
+  focusable[focusable.length - 1].focus();
+  fireEvent.keyDown(dialog, { key: 'Tab' });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+});
+
+test('the delete confirmation is its own dialog', async () => {
+  await openRecord(PRESCRIPTION);
+  fireEvent.click(within(modal()).getByRole('button', { name: /^delete$/i }));
+  expect(screen.getByRole('dialog', { name: /delete record/i })).toBeInTheDocument();
+});
