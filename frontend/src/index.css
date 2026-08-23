@@ -89,8 +89,9 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 
 /* ── Page Header (back navigation) ── */
 .ph{display:flex;align-items:center;gap:10px;margin-bottom:20px;padding-top:4px;}
-.ph-back{width:36px;height:36px;border-radius:12px;background:#fff;border:1.5px solid var(--outline);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;color:var(--on-surface);}
+.ph-back{width:40px;height:40px;border-radius:12px;background:#fff;border:1.5px solid var(--outline);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;color:var(--on-surface);}
 .ph-back:hover{border-color:var(--primary);color:var(--primary);}
+.ph-back:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
 .ph-title{font-size:18px;font-weight:700;color:var(--on-surface);letter-spacing:-0.02em;}
 
 /* ── Section Header ── */
@@ -499,7 +500,7 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 /* ── Search: scope toggle, suggestions, status ── */
 .sscope{display:inline-flex;gap:2px;background:#eef1f8;border-radius:12px;padding:3px;margin-bottom:14px;max-width:100%;overflow-x:auto;scrollbar-width:none;}
 .sscope::-webkit-scrollbar{display:none;}
-.sscope-btn{padding:7px 14px;border:none;border-radius:9px;background:transparent;color:#64748b;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.2s,color 0.2s;min-height:34px;}
+.sscope-btn{padding:7px 14px;border:none;border-radius:9px;background:transparent;color:#64748b;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.2s,color 0.2s;min-height:38px;}
 .sscope-btn.active{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(0,35,111,0.12);}
 .sscope-btn:focus-visible{outline:2px solid var(--primary);outline-offset:1px;}
 
