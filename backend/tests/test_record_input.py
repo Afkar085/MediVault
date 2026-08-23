@@ -74,3 +74,53 @@ def test_fields_the_client_must_not_set_are_ignored():
     assert not hasattr(body, "profile_id")
     assert "profile_id" not in body.model_dump(exclude_none=True)
     assert "status" not in body.model_dump(exclude_none=True)
+
+
+# --- family member details ---------------------------------------------------
+
+from datetime import date, timedelta  # noqa: E402
+
+from app.schemas.profile import NAME_MAX, ProfileCreate, ProfileUpdate  # noqa: E402
+
+
+def test_a_family_member_is_created_from_normal_details():
+    profile = ProfileCreate(name="Abdul Rahman", relationship="Father")
+    assert profile.name == "Abdul Rahman"
+
+
+def test_surrounding_whitespace_is_trimmed():
+    """Otherwise " Mom" and "Mom" become two different people in the switcher."""
+    assert ProfileCreate(name="  Mom  ", relationship=" Mother ").name == "Mom"
+
+
+def test_a_name_longer_than_the_column_is_refused_here():
+    """Postgres would reject it too, but as a 500 with no useful message."""
+    with pytest.raises(ValidationError):
+        ProfileCreate(name="x" * (NAME_MAX + 1), relationship="Father")
+
+
+def test_a_blank_name_is_refused():
+    with pytest.raises(ValidationError):
+        ProfileCreate(name="   ", relationship="Father")
+
+
+def test_a_birth_date_in_the_future_is_refused():
+    with pytest.raises(ValidationError):
+        ProfileCreate(
+            name="A", relationship="Father",
+            date_of_birth=date.today() + timedelta(days=1),
+        )
+
+
+def test_todays_date_is_a_valid_birth_date():
+    assert ProfileCreate(name="A", relationship="Son", date_of_birth=date.today())
+
+
+def test_an_update_can_change_one_field_alone():
+    assert ProfileUpdate(name="Mom").model_dump(exclude_none=True) == {"name": "Mom"}
+
+
+def test_an_update_cannot_reassign_the_profile_to_another_account():
+    body = ProfileUpdate(name="Mom", user_id="someone-elses", id="other")
+    assert "user_id" not in body.model_dump(exclude_none=True)
+    assert "id" not in body.model_dump(exclude_none=True)
