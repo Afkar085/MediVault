@@ -41,7 +41,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
                 <div className="binfo" onClick={() => openRecord(b)} style={{ cursor: 'pointer', flex: 1 }}>
                   <div className="bdoc">{billTitle}</div>
                   {b.bill_category && (
-                    <div style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, color: 'var(--cat-bill-fg)', background: 'var(--cat-bill-bg)', borderRadius: 6, padding: '1px 7px', marginBottom: 3 }}>
+                    <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: 'var(--cat-bill-fg)', background: 'var(--cat-bill-bg)', borderRadius: 6, padding: '1px 7px', marginBottom: 3 }}>
                       {b.bill_category}
                     </div>
                   )}
@@ -54,7 +54,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
                       {bf.slice(0, 2).map((f, i) => (
                         <img key={i} src={f.file_url} alt="" style={{ width: 40, height: 30, borderRadius: 6, objectFit: 'cover', border: '1px solid #e2e8f0' }} onError={e => e.target.style.display = 'none'} />
                       ))}
-                      {bf.length > 2 && <span style={{ fontSize: 10, color: '#94a3b8', alignSelf: 'center' }}>+{bf.length - 2}</span>}
+                      {bf.length > 2 && <span style={{ fontSize: 11, color: '#94a3b8', alignSelf: 'center' }}>+{bf.length - 2}</span>}
                     </div>
                   )}
                 </div>
@@ -68,7 +68,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
                       className={'toggle' + (b.insurance_claimed ? ' on' : '')}
                       onClick={e => { e.stopPropagation(); togIns(b.id); }}
                     />
-                    <span style={{ fontSize: 9, fontWeight: 600, color: b.insurance_claimed ? 'var(--success)' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: b.insurance_claimed ? 'var(--success)' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {b.insurance_claimed ? 'Claimed' : 'Insurance'}
                     </span>
                   </div>
@@ -151,7 +151,7 @@ export default function VisitDetailPage() {
       {visitDiagnosis && (
         <div className="visit-info-card">
           <div className="vi-label">Diagnosis</div>
-          <div className="vi-value" style={{ fontWeight: 600, fontSize: 16 }}>{visitDiagnosis}</div>
+          <div className="vi-value" style={{ fontWeight: 600, fontSize: 15 }}>{visitDiagnosis}</div>
         </div>
       )}
 

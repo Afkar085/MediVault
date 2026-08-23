@@ -59,7 +59,7 @@ export default function FamilyPage() {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em' }}>Family Members</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em' }}>Family Members</div>
         <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Tap a member to switch their records</div>
       </div>
 

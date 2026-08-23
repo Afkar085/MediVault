@@ -153,7 +153,7 @@ export default function RecordModal({ record, onClose }) {
             <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '3px 10px', borderRadius: 14, fontSize: 11, fontWeight: 700 }}>
               {record.document_category || record.document_type}
             </span>
-            <span style={{ padding: '3px 8px', borderRadius: 14, fontSize: 10, fontWeight: 700, background: record.status === 'done' ? 'rgba(16,185,129,0.2)' : record.status === 'failed' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)', color: '#fff' }}>
+            <span style={{ padding: '3px 8px', borderRadius: 14, fontSize: 11, fontWeight: 700, background: record.status === 'done' ? 'rgba(16,185,129,0.2)' : record.status === 'failed' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)', color: '#fff' }}>
               {STATUS_TEXT[record.status] || record.status}
             </span>
           </div>
