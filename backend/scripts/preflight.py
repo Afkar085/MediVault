@@ -12,6 +12,7 @@ Never prints a key, a token or a password. Where something must be identified
 import base64
 import json
 import os
+import re
 import sys
 from urllib.parse import urlparse
 
@@ -71,6 +72,12 @@ def main():
     if missing:
         report(RED, "Required variables missing", ", ".join(missing))
         return summarise()
+    placeholders = [n for n in REQUIRED
+                    if re.search(r"your_|placeholder|changeme|<.*>", os.getenv(n, ""), re.I)]
+    if placeholders:
+        report(RED, "Still on template placeholders", ", ".join(placeholders) +
+               "\n         Open backend/.env and paste the real values in.")
+        return summarise()
     report(GREEN, "All required variables are set", ", ".join(REQUIRED))
     present_optional = [n for n in OPTIONAL if os.getenv(n)]
     report(INFO, "Optional variables set", ", ".join(present_optional) or "(none)")
@@ -89,8 +96,14 @@ def main():
         report(RED, "SUPABASE_KEY is the ANON key",
                "The app works today only because RLS is off. Applying 002 while on this key\n"
                "         will make every query return empty and the live app will go blank.")
+    elif os.getenv("SUPABASE_KEY", "").startswith(("sb_secret_", "sb_publishable_")):
+        report(RED, "That is Supabase's new-format API key",
+               "supabase-py 2.10.0 requires the older JWT-shaped key: it regex-checks for\n"
+               "         dots before making any request. In the dashboard look for a\n"
+               "         'Legacy API keys' section and take service_role from there.")
     else:
-        report(YELLOW, "Could not determine the key's role", "Not a Supabase-issued JWT?")
+        report(YELLOW, "Could not determine the key's role",
+               "Not a Supabase-issued JWT. Check it was copied whole, with no line break.")
 
     if ref_from_key and ref_from_url != "?" and ref_from_key != ref_from_url:
         report(RED, "Key and URL belong to different projects",
