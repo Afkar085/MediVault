@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
 import './index.css';
-import API, { setSessionExpiredHandler } from './api';
+import API, { setSessionExpiredHandler, setServerWakingHandler } from './api';
 import { buildDocGroups } from './utils/format';
 import { validateFiles, describeRejections } from './utils/uploads';
 
@@ -54,6 +54,7 @@ function MainApp({ onLogout }) {
   const [visitUploading, setVisitUploading] = useState(false);
   const [showUploadSheet, setShowUploadSheet] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [waking, setWaking] = useState(false);
   const pollRef = useRef(null);
   const pollCountRef = useRef(0);
   // The profile whose records the UI is currently showing. Used to discard
@@ -115,6 +116,7 @@ function MainApp({ onLogout }) {
         const sorted = [...r.data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setRecords(sorted);
         setLoadError(false);
+        setWaking(false);
         setLoading(false);
         return sorted;
       })
@@ -127,9 +129,17 @@ function MainApp({ onLogout }) {
     []
   );
 
+  // The backend sleeps when idle on a free tier and takes up to a minute to
+  // wake. Say that, instead of letting it look like the app is broken.
+  useEffect(() => {
+    setServerWakingHandler(() => setWaking(true));
+    return () => setServerWakingHandler(() => {});
+  }, []);
+
   useEffect(() => {
     API.get('/profiles')
       .then(r => {
+        setWaking(false);
         setProfiles(r.data);
         if (r.data.length > 0) setSel(r.data[0]);
         else setLoading(false);
@@ -330,6 +340,7 @@ function MainApp({ onLogout }) {
     setRecords,
     loading,
     loadError,
+    waking,
     refreshRecords: () => sel && loadRecs(sel.id),
     docGroups,
     docNameMap,
@@ -364,6 +375,12 @@ function MainApp({ onLogout }) {
     <AppContext.Provider value={ctx}>
       <div className="app">
         <TopBar />
+        {waking && (
+          <div className="waking-banner" role="status">
+            <span className="spinner spinner-sm" />
+            Waking the server up — the first visit after a quiet spell can take a minute.
+          </div>
+        )}
         <main className="page">{renderPage()}</main>
         <BottomNav />
 

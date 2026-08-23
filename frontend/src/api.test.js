@@ -59,3 +59,59 @@ test('the original error still reaches the caller', async () => {
   const error = await respond(401, '/profiles');
   expect(error.response.status).toBe(401);
 });
+
+// --- a sleeping free-tier backend -------------------------------------------
+
+import { setServerWakingHandler } from './api';
+
+const timeoutError = (url, method = 'get') => ({
+  config: { url, method },
+  code: 'ECONNABORTED',
+  message: 'timeout of 30000ms exceeded',
+});
+
+test('a read that times out is retried patiently instead of failing', async () => {
+  const onWaking = jest.fn();
+  setServerWakingHandler(onWaking);
+  const error = timeoutError('/profiles');
+
+  // The retry re-issues the request; with no adapter it will reject again,
+  // but the config must have been marked and given a longer timeout first.
+  await rejectionHandler(error).catch(() => {});
+
+  expect(onWaking).toHaveBeenCalledTimes(1);
+  expect(error.config._retriedAfterColdStart).toBe(true);
+  expect(error.config.timeout).toBeGreaterThan(30000);
+});
+
+test('a read is only retried once, so a dead server still reports failure', async () => {
+  const onWaking = jest.fn();
+  setServerWakingHandler(onWaking);
+  const error = timeoutError('/profiles');
+  error.config._retriedAfterColdStart = true;
+
+  const result = await rejectionHandler(error).catch((e) => e);
+
+  expect(onWaking).not.toHaveBeenCalled();
+  expect(result).toBe(error);
+});
+
+test('a write is never retried, so an upload cannot be sent twice', async () => {
+  const onWaking = jest.fn();
+  setServerWakingHandler(onWaking);
+  const error = timeoutError('/upload/p1', 'post');
+
+  const result = await rejectionHandler(error).catch((e) => e);
+
+  expect(onWaking).not.toHaveBeenCalled();
+  expect(result).toBe(error);
+});
+
+test('a real server error is not mistaken for a cold start', async () => {
+  const onWaking = jest.fn();
+  setServerWakingHandler(onWaking);
+
+  await respond(500, '/profiles');
+
+  expect(onWaking).not.toHaveBeenCalled();
+});
