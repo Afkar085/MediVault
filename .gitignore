@@ -221,3 +221,6 @@ __marimo__/
 
 # Claude Code session files
 .claude/
+
+# Integration run results — per-run output, not source
+backend/scripts/integration-*.json
