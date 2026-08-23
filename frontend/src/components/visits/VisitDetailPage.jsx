@@ -4,6 +4,7 @@ import Gallery from '../common/Gallery';
 import { fmt, drN, cur, getRecordFiles, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
 import API from '../../api';
+import { ACCEPT_ATTR } from '../../utils/uploads';
 
 function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFiles }) {
   const total = bills.reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
@@ -79,7 +80,7 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
       )}
       <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
         + Add Bill
-        <input type="file" hidden multiple accept="image/*,.pdf" onChange={onAddFiles} />
+        <input type="file" hidden multiple accept={ACCEPT_ATTR} onChange={onAddFiles} />
       </label>
     </div>
   );
@@ -227,7 +228,7 @@ export default function VisitDetailPage() {
           )}
           <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
             + Add Prescription
-            <input type="file" hidden multiple accept="image/*,.pdf" onChange={e => handleAddFiles(e, 'prescription')} />
+            <input type="file" hidden multiple accept={ACCEPT_ATTR} onChange={e => handleAddFiles(e, 'prescription')} />
           </label>
         </div>
       )}
@@ -263,7 +264,7 @@ export default function VisitDetailPage() {
           )}
           <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
             + Add Lab Report
-            <input type="file" hidden multiple accept="image/*,.pdf" onChange={e => handleAddFiles(e, 'lab_report')} />
+            <input type="file" hidden multiple accept={ACCEPT_ATTR} onChange={e => handleAddFiles(e, 'lab_report')} />
           </label>
         </div>
       )}

@@ -250,13 +250,16 @@ function MainApp({ onLogout }) {
   // Direct upload from inside a visit — bypasses UploadPreview, forces visit date
   const uploadToVisit = useCallback(async (files, type, doctorName, visitDate) => {
     if (!files.length || !sel) return;
+    const accepted = acceptFiles(files);
+    if (!accepted.length) return;
+
     setVisitUploading(true);
     const fd = new FormData();
-    files.forEach(f => fd.append('files', f));
+    accepted.forEach(f => fd.append('files', f));
     try {
       const res = await API.post('/upload/' + sel.id, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 60000,
+        timeout: 120000,
       });
       const rid = res.data.record_id;
       if (rid) {
@@ -274,7 +277,7 @@ function MainApp({ onLogout }) {
     } catch (e) {
       showToast(uploadErrorMessage(e), 'error');
     } finally { setVisitUploading(false); }
-  }, [sel, loadRecs, showToast]);
+  }, [sel, loadRecs, showToast, acceptFiles]);
 
   const onAddMore = (e) => {
     const picked = Array.from(e.target.files || []);
