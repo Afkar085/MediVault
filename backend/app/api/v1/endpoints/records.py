@@ -65,6 +65,61 @@ def _expire_stuck_processing(profile_id: str) -> None:
         logger.warning("Could not expire stuck records for profile %s: %s", profile_id, e)
 
 
+_MEDICINE_FIELDS = ("dosage", "frequency", "duration")
+
+
+def _replace_medicines(record_id: str, medicines_data: list) -> None:
+    """Swap a record's medicines for a new set, without a window where it has none.
+
+    There is no transaction available through the REST client, so the delete and
+    the insert are separate calls. If the insert failed the delete had already
+    committed and the prescription was simply gone, with nothing to recover it.
+    We snapshot first and put the old rows back if the new ones do not land.
+    """
+    new_rows = []
+    for medicine in medicines_data:
+        name = (medicine.get("name") or "").strip()
+        if not name:
+            continue
+        new_rows.append({
+            "record_id": record_id,
+            "name": name,
+            **{field: medicine.get(field) or None for field in _MEDICINE_FIELDS},
+        })
+
+    previous = (
+        supabase.table("medicines")
+        .select("name, dosage, frequency, duration")
+        .eq("record_id", record_id)
+        .execute()
+        .data
+        or []
+    )
+
+    supabase.table("medicines").delete().eq("record_id", record_id).execute()
+    if not new_rows:
+        return
+
+    try:
+        supabase.table("medicines").insert(new_rows).execute()
+    except Exception as e:
+        logger.error("Saving medicines failed for record %s: %s", record_id, e)
+        if previous:
+            try:
+                supabase.table("medicines").insert(
+                    [{**row, "record_id": record_id} for row in previous]
+                ).execute()
+                logger.info("Restored %d medicine(s) for record %s", len(previous), record_id)
+            except Exception as restore_error:
+                logger.error(
+                    "Could not restore medicines for record %s: %s", record_id, restore_error
+                )
+        raise HTTPException(
+            status_code=502,
+            detail="Could not save the medicines. Nothing was changed — please try again.",
+        ) from e
+
+
 def _assert_profile_owned(profile_id: str, user_id: str):
     profile = supabase.table("profiles").select("id").eq("id", profile_id).eq("user_id", user_id).execute()
     if not profile.data:
@@ -148,24 +203,8 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
         except Exception:
             pass
 
-    # Save medicines: delete old, insert new
     if medicines_data is not None:
-        supabase.table("medicines").delete().eq("record_id", record_id).execute()
-        if medicines_data:
-            insert_rows = []
-            for m in medicines_data:
-                name = (m.get("name") or "").strip()
-                if not name:
-                    continue
-                insert_rows.append({
-                    "record_id": record_id,
-                    "name": name,
-                    "dosage": m.get("dosage") or None,
-                    "frequency": m.get("frequency") or None,
-                    "duration": m.get("duration") or None,
-                })
-            if insert_rows:
-                supabase.table("medicines").insert(insert_rows).execute()
+        _replace_medicines(record_id, medicines_data)
 
     records = attach_medicines(result.data)
     records = attach_files(records)
