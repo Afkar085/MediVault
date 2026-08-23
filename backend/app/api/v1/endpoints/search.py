@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, Query
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.record_assembly import attach_files
 from app.services.retrieval import vector_search, reciprocal_rank_fusion
 from typing import Optional
 import re
-from datetime import datetime
 
 router = APIRouter()
 
@@ -175,4 +175,6 @@ def search_records(
         r["medicines"] = medicines_map.get(r["id"], [])
         r.pop("raw_ocr_text", None)  # scored against above; never shipped in a list
 
-    return records
+    # Results open the same record view as the rest of the app, so they need
+    # their pages with signed URLs too.
+    return attach_files(records)

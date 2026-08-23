@@ -188,7 +188,7 @@ async def upload_file(
     file_entries = []
     content_types = []
 
-    for i, file in enumerate(files):
+    for file in files:
         if file.content_type not in ALLOWED_TYPES:
             raise HTTPException(
                 status_code=400,

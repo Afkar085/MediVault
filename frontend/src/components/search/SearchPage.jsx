@@ -1,23 +1,47 @@
-import { useState, useMemo, useContext, useEffect } from 'react';
+import { useState, useMemo, useContext, useEffect, useRef, useCallback } from 'react';
 import { AppContext } from '../../App';
+import API from '../../api';
 import { drN, fmtRel, cur, catIcon } from '../../utils/format';
 import Icon from '../common/Icon';
 
 const FILTERS = ['All', 'Prescriptions', 'Lab Reports', 'Bills', 'Medicines'];
 
+const FILTER_CATEGORY = {
+  'Prescriptions': 'prescription',
+  'Lab Reports': 'lab_report',
+  'Bills': 'bill',
+};
+
 const EMPTY_MSGS = {
-  'Prescriptions': { icon: 'description', title: 'No Prescriptions Found', sub: 'Upload a prescription to see it here.' },
-  'Lab Reports': { icon: 'science', title: 'No Lab Reports Found', sub: 'Upload lab reports to see them here.' },
-  'Bills': { icon: 'receipt_long', title: 'No Bills Found', sub: 'Upload bills to see them here.' },
-  'Medicines': { icon: 'medication', title: 'No Medicines Found', sub: 'Medicines are extracted from prescriptions automatically.' },
+  'Prescriptions': { icon: 'description', title: 'No prescriptions yet', sub: 'Upload a prescription to see it here.' },
+  'Lab Reports': { icon: 'science', title: 'No lab reports yet', sub: 'Upload lab reports to see them here.' },
+  'Bills': { icon: 'receipt_long', title: 'No bills yet', sub: 'Upload bills to see them here.' },
+  'Medicines': { icon: 'medication', title: 'No medicines yet', sub: 'Medicines are read from prescriptions automatically.' },
+};
+
+const SUGGESTIONS = ['Blood test', 'Paracetamol', 'Orthopedic', '2026'];
+
+const DEBOUNCE_MS = 300;
+
+// Narrows whichever result set is on screen. The server ranks by relevance, so
+// this only removes rows, never re-orders them.
+const applyFilter = (rows, filter) => {
+  if (filter === 'Medicines') return rows.filter(r => (r.medicines || []).length > 0);
+  const category = FILTER_CATEGORY[filter];
+  return category ? rows.filter(r => r.document_category === category) : rows;
 };
 
 export default function SearchPage() {
-  const { records, nav, openRecord } = useContext(AppContext);
+  const { records, sel, nav, openRecord } = useContext(AppContext);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('All');
+  const [wholeFamily, setWholeFamily] = useState(false);
+  const [results, setResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // Guards against an earlier, slower response overwriting a later one.
+  const requestRef = useRef(0);
 
-  // Read initialFilter from nav on mount / when nav changes
   const initialFilter = nav?.initialFilter;
   useEffect(() => {
     if (initialFilter && FILTERS.includes(initialFilter)) {
@@ -26,37 +50,53 @@ export default function SearchPage() {
     }
   }, [initialFilter]);
 
-  const filteredRecords = useMemo(() => {
-    let data = (records || []).filter(r => r.status === 'done');
+  const runSearch = useCallback((term, familyWide) => {
+    const id = ++requestRef.current;
+    setSearching(true);
+    setFailed(false);
+    const params = { q: term };
+    if (!familyWide && sel?.id) params.profile_id = sel.id;
+    API.get('/search', { params })
+      .then(r => {
+        if (requestRef.current !== id) return;
+        setResults(r.data.filter(x => x.status === 'done'));
+        setSearching(false);
+      })
+      .catch(() => {
+        if (requestRef.current !== id) return;
+        setFailed(true);
+        setSearching(false);
+      });
+  }, [sel]);
 
-    if (filter === 'Prescriptions') data = data.filter(r => r.document_category === 'prescription');
-    else if (filter === 'Lab Reports') data = data.filter(r => r.document_category === 'lab_report');
-    else if (filter === 'Bills') data = data.filter(r => r.document_category === 'bill');
-    else if (filter === 'Medicines') data = data.filter(r => (r.medicines || []).length > 0);
-
-    const ql = q.trim().toLowerCase();
-    if (ql) {
-      data = data.filter(r =>
-        (r.doctor_name || '').toLowerCase().includes(ql) ||
-        (r.hospital_name || '').toLowerCase().includes(ql) ||
-        (r.diagnosis || '').toLowerCase().includes(ql) ||
-        (r.specialty || '').toLowerCase().includes(ql) ||
-        (r.recommendations || '').toLowerCase().includes(ql) ||
-        (r.medicines || []).some(m => (m.name || '').toLowerCase().includes(ql))
-      );
+  const term = q.trim();
+  useEffect(() => {
+    if (!term) {
+      requestRef.current += 1;  // abandon anything still in flight
+      setResults(null);
+      setSearching(false);
+      setFailed(false);
+      return undefined;
     }
+    const timer = setTimeout(() => runSearch(term, wholeFamily), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [term, wholeFamily, runSearch]);
 
-    return data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [records, filter, q]);
+  // With no query there is nothing to rank, so the records already in memory
+  // answer the category chips instantly and without a round-trip.
+  const localRecords = useMemo(
+    () => applyFilter((records || []).filter(r => r.status === 'done'), filter),
+    [records, filter],
+  );
 
-  const showResults = filter !== 'All' || q.trim() !== '';
-
-  const handleClear = () => setQ('');
+  const isSearching = Boolean(term);
+  const shown = isSearching ? applyFilter(results || [], filter) : localRecords;
+  const showResults = filter !== 'All' || isSearching;
 
   const emptyMsg = EMPTY_MSGS[filter] || {
     icon: 'search_off',
-    title: q ? `No results for "${q}"` : 'No records found',
-    sub: 'Try a different search term.',
+    title: 'Nothing matched “' + term + '”',
+    sub: 'Try a doctor, medicine, hospital or a year.',
   };
 
   return (
@@ -67,37 +107,79 @@ export default function SearchPage() {
         </svg>
         <input
           className="sinput"
-          placeholder="Search doctors, medicines, diagnosis..."
+          placeholder="Doctor, medicine, diagnosis, year&hellip;"
           value={q}
           onChange={e => setQ(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+          aria-label="Search medical records"
           autoFocus
           style={{ flex: 1 }}
         />
         {q && (
-          <button onClick={handleClear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}>×</button>
+          <button
+            onClick={() => setQ('')}
+            aria-label="Clear search"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}
+          >&times;</button>
         )}
       </div>
 
-      <div className="scats">
+      <div className="scats" role="tablist" aria-label="Filter by document type">
         {FILTERS.map(f => (
           <button
             key={f}
+            role="tab"
+            aria-selected={filter === f}
             className={'scat' + (filter === f ? ' active' : '')}
             onClick={() => setFilter(f)}
           >{f}</button>
         ))}
       </div>
 
-      {showResults && (
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
-          {filteredRecords.length} result{filteredRecords.length !== 1 ? 's' : ''}
-          {filter !== 'All' ? ` in ${filter}` : ''}
+      {isSearching && (
+        <div className="sscope" role="group" aria-label="Whose records to search">
+          <button
+            className={'sscope-btn' + (!wholeFamily ? ' active' : '')}
+            aria-pressed={!wholeFamily}
+            onClick={() => setWholeFamily(false)}
+          >{sel?.name || 'This member'}</button>
+          <button
+            className={'sscope-btn' + (wholeFamily ? ' active' : '')}
+            aria-pressed={wholeFamily}
+            onClick={() => setWholeFamily(true)}
+          >Everyone</button>
         </div>
       )}
 
-      {showResults && filteredRecords.map(r => (
-        <div key={r.id} className="rcard" onClick={() => openRecord(r)}>
+      <div aria-live="polite">
+        {searching && (
+          <div className="srow-status"><span className="spinner spinner-sm" /> Searching&hellip;</div>
+        )}
+
+        {failed && !searching && (
+          <div className="notice notice-error" style={{ marginBottom: 12 }}>
+            Search is unavailable right now.{' '}
+            <button className="linkish" onClick={() => runSearch(term, wholeFamily)}>Try again</button>
+          </div>
+        )}
+
+        {showResults && !searching && !failed && (
+          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+            {shown.length} result{shown.length !== 1 ? 's' : ''}
+            {filter !== 'All' ? ' in ' + filter : ''}
+          </div>
+        )}
+      </div>
+
+      {showResults && !searching && !failed && shown.map(r => (
+        <div
+          key={r.id}
+          className="rcard"
+          role="button"
+          tabIndex={0}
+          onClick={() => openRecord(r)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRecord(r); } }}
+        >
           <div className={'ricon ' + (r.document_category || 'other')}>
             <Icon name={catIcon(r.document_category)} size={16} />
           </div>
@@ -107,6 +189,9 @@ export default function SearchPage() {
               {r.diagnosis || (r.document_category === 'bill' ? (r.bill_title || 'Bill' + (r.bill_amount != null ? ' · ' + cur(r.bill_amount) : '')) : r.document_category) || r.document_type}
               {r.specialty ? ' · ' + r.specialty : ''}
             </div>
+            {isSearching && wholeFamily && r.profiles?.name && (
+              <div className="rowner">{r.profiles.name}</div>
+            )}
             {filter === 'Medicines' && (r.medicines || []).length > 0 && (
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                 {(r.medicines || []).map(m => m.name).filter(Boolean).join(', ')}
@@ -117,11 +202,16 @@ export default function SearchPage() {
         </div>
       ))}
 
-      {showResults && !filteredRecords.length && (
+      {showResults && !searching && !failed && !shown.length && (
         <div className="empty">
           <div className="empty-icon"><Icon name={emptyMsg.icon} size={30} /></div>
           <div className="empty-title">{emptyMsg.title}</div>
           <div className="empty-sub">{emptyMsg.sub}</div>
+          {isSearching && !wholeFamily && (
+            <button className="btn-s" style={{ marginTop: 16 }} onClick={() => setWholeFamily(true)}>
+              Search the whole family
+            </button>
+          )}
         </div>
       )}
 
@@ -129,7 +219,12 @@ export default function SearchPage() {
         <div className="empty">
           <div className="empty-icon"><Icon name="search" size={30} /></div>
           <div className="empty-title">Search your records</div>
-          <div className="empty-sub">Find by doctor, medicine, diagnosis, or hospital. Or tap a filter above.</div>
+          <div className="empty-sub">Find by doctor, medicine, diagnosis, hospital or year.</div>
+          <div className="schips">
+            {SUGGESTIONS.map(sug => (
+              <button key={sug} className="schip" onClick={() => setQ(sug)}>{sug}</button>
+            ))}
+          </div>
         </div>
       )}
     </div>

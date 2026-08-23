@@ -1,0 +1,10 @@
+# Deliberately narrow: the point is to catch real defects (unused imports and
+# variables, undefined names, syntax errors), not to enforce a formatting style
+# and churn every file in the repo.
+[tool.ruff]
+line-length = 120
+exclude = [".venv", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["F", "E9", "B"]
+ignore = ["B008"]  # FastAPI's Depends()/File() in defaults is the documented idiom

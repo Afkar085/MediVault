@@ -48,4 +48,4 @@ except ValidationError as e:
     sys.stderr.write(
         "  Set them in your host's environment settings (see backend/.env.example).\n\n"
     )
-    raise SystemExit(1)
+    raise SystemExit(1) from e

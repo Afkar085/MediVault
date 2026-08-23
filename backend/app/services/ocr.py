@@ -1,6 +1,5 @@
 import base64
 import io
-import json
 from groq import Groq
 from app.config import settings
 

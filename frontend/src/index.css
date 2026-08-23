@@ -484,3 +484,21 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 /* ── Inline notice (non-blocking explanation inside a panel) ── */
 .notice{background:#fffbeb;border:1.5px solid #fde68a;color:#92400e;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.5;}
 .notice-error{background:var(--error-container);border-color:#fecaca;color:#b91c1c;}
+
+/* ── Search: scope toggle, suggestions, status ── */
+.sscope{display:inline-flex;gap:2px;background:#eef1f8;border-radius:12px;padding:3px;margin-bottom:14px;max-width:100%;overflow-x:auto;scrollbar-width:none;}
+.sscope::-webkit-scrollbar{display:none;}
+.sscope-btn{padding:7px 14px;border:none;border-radius:9px;background:transparent;color:#64748b;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;transition:background 0.2s,color 0.2s;min-height:34px;}
+.sscope-btn.active{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(0,35,111,0.12);}
+.sscope-btn:focus-visible{outline:2px solid var(--primary);outline-offset:1px;}
+
+.schips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;}
+.schip{padding:8px 14px;border-radius:20px;border:1.5px solid var(--outline);background:#fff;color:var(--primary);font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color 0.2s,background 0.2s;min-height:36px;}
+.schip:hover{border-color:var(--primary);background:#f5f7ff;}
+
+.srow-status{display:flex;align-items:center;gap:9px;font-size:13px;color:#64748b;margin-bottom:12px;}
+.spinner-sm{display:inline-block;width:15px;height:15px;border-width:2px;margin:0;flex-shrink:0;}
+
+.rowner{display:inline-block;margin-top:4px;font-size:10.5px;font-weight:700;color:var(--secondary);background:var(--secondary-container);padding:2px 8px;border-radius:8px;}
+
+.linkish{background:none;border:none;padding:0;font:inherit;font-weight:700;color:inherit;text-decoration:underline;cursor:pointer;}

@@ -373,7 +373,9 @@ const STATUS_TEXT = {
 
 export default function RecordModal({ record, onClose }) {
   const { sel, setRecords, showToast, openRecord } = useContext(AppContext);
-  const profileId = sel?.id;
+  // A family-wide search result can belong to a member other than the selected
+  // one, so trust the record rather than the current selection.
+  const profileId = record.profile_id || sel?.id;
 
   const cat = record.document_category || 'prescription';
   const isBill = cat === 'bill';

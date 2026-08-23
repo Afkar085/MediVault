@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from pydantic import BaseModel
-from app.schemas.record import RecordResponse, RecordUpdate, RecordEditResponse
+from app.schemas.record import RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
-from app.services.storage import signed_urls
+from app.services.record_assembly import attach_files, attach_medicines
 from app.services.retrieval import vector_search
 from app.services import rag
 from app.limiter import limiter
@@ -29,50 +29,6 @@ _DETAIL_COLUMNS = _LIST_COLUMNS + ", raw_ocr_text"
 
 class AskRequest(BaseModel):
     question: str
-
-
-def _attach_medicines(records: list) -> list:
-    if not records:
-        return records
-    record_ids = [r["id"] for r in records]
-    meds_result = supabase.table("medicines").select("*").in_("record_id", record_ids).execute()
-    meds_by_record: dict = {}
-    for m in meds_result.data:
-        meds_by_record.setdefault(m["record_id"], []).append(m)
-    for r in records:
-        r["medicines"] = meds_by_record.get(r["id"], [])
-    return records
-
-
-def _attach_files(records: list) -> list:
-    """Attach each record's files with freshly signed, short-lived URLs.
-
-    Every path is signed in a single batch request; signing them one at a time
-    cost one HTTPS round-trip per page and dominated list latency.
-    """
-    if not records:
-        return records
-    record_ids = [r["id"] for r in records]
-    files_result = (
-        supabase.table("record_files")
-        .select("id, record_id, file_path, page_number, created_at")
-        .in_("record_id", record_ids)
-        .order("page_number")
-        .execute()
-    )
-
-    paths = [f["file_path"] for f in files_result.data if f.get("file_path")]
-    paths += [r["file_path"] for r in records if r.get("file_path")]
-    url_by_path = signed_urls(paths)
-
-    files_by_record: dict = {}
-    for f in files_result.data:
-        f["file_url"] = url_by_path.get(f.get("file_path"))
-        files_by_record.setdefault(f["record_id"], []).append(f)
-    for r in records:
-        r["files"] = files_by_record.get(r["id"], [])
-        r["file_url"] = url_by_path.get(r.get("file_path"))
-    return records
 
 
 # OCR runs as a background task, so a worker restart, redeploy or hung upstream
@@ -123,8 +79,8 @@ def get_records(
     if document_category:
         query = query.eq("document_category", document_category)
     result = query.execute()
-    records = _attach_medicines(result.data)
-    records = _attach_files(records)
+    records = attach_medicines(result.data)
+    records = attach_files(records)
     return records
 
 
@@ -134,8 +90,8 @@ def get_record(profile_id: str, record_id: str, user_id: str = Depends(get_curre
     result = supabase.table("records").select(_DETAIL_COLUMNS).eq("id", record_id).eq("profile_id", profile_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Record not found")
-    records = _attach_medicines(result.data)
-    records = _attach_files(records)
+    records = attach_medicines(result.data)
+    records = attach_files(records)
     return records[0]
 
 
@@ -207,8 +163,8 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
             if insert_rows:
                 supabase.table("medicines").insert(insert_rows).execute()
 
-    records = _attach_medicines(result.data)
-    records = _attach_files(records)
+    records = attach_medicines(result.data)
+    records = attach_files(records)
     return records[0]
 
 
@@ -262,7 +218,7 @@ def get_bills(profile_id: str, user_id: str = Depends(get_current_user)):
         .order("document_date", desc=True)
         .execute()
     )
-    records = _attach_files(result.data)
+    records = attach_files(result.data)
 
     months = {}
     total_spent = 0
@@ -300,7 +256,7 @@ def get_health_journey(request: Request, profile_id: str, user_id: str = Depends
     profile = profile_result.data[0] if profile_result.data else {"name": "Patient", "relationship": "Self"}
 
     records_result = supabase.table("records").select(_LIST_COLUMNS).eq("profile_id", profile_id).eq("status", "done").order("created_at", desc=False).execute()
-    records = _attach_medicines(records_result.data)
+    records = attach_medicines(records_result.data)
 
     if not records:
         return {"summary": "No medical records yet. Upload prescriptions to build your health journey."}
@@ -402,7 +358,7 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
         )
         records = rows.data
 
-    records = _attach_medicines(records)
+    records = attach_medicines(records)
     return rag.answer_question(question, records, profile)
 
 
