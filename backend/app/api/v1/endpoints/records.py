@@ -355,7 +355,7 @@ Return ONLY the bullet points, no intro or outro."""
             # bullet-point summary isn't truncated by internal reasoning.
             max_tokens=2000,
         )
-        summary = response.choices[0].message.content.strip()
+        summary = (response.choices[0].message.content or "").strip()
         if summary:
             summary_cache.put(profile_id, records_fingerprint, summary)
         else:

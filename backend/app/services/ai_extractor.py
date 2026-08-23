@@ -62,7 +62,10 @@ Return only the JSON, no explanation.
         response_format={"type": "json_object"},
     )
 
-    raw = response.choices[0].message.content.strip()
+    raw = (response.choices[0].message.content or "").strip()
+    if not raw:
+        logger.warning("Extraction returned an empty response; keeping the document text only")
+        return {}
 
     try:
         if "```" in raw:

@@ -140,7 +140,7 @@ def answer_question(question: str, records: List[dict], profile: dict) -> dict:
             # answer isn't truncated by internal reasoning.
             max_tokens=1500,
         )
-        answer = response.choices[0].message.content.strip()
+        answer = (response.choices[0].message.content or "").strip()
     except Exception as e:
         logger.error("RAG answer generation failed: %s", e)
         return {"answer": "Sorry, I couldn't generate an answer right now.", "sources": sources}

@@ -37,3 +37,23 @@ def test_bad_json_returns_empty_dict_and_logs(mocker, caplog):
     result = ai.extract_medical_data("ocr")
     assert result == {}
     assert "Failed to parse extraction JSON" in caplog.text
+
+
+# --- an empty completion must not condemn the whole document -----------------
+
+def test_an_empty_response_yields_no_fields_rather_than_raising(mocker):
+    """A reasoning model can return an empty content channel. That means we got
+    no structured fields — not that the document is unreadable."""
+    mocker.patch.object(
+        ai.client.chat.completions, "create",
+        return_value=_fake_response(""),
+    )
+    assert ai.extract_medical_data("Dr Kumar, Paracetamol 650mg") == {}
+
+
+def test_a_null_content_channel_is_handled(mocker):
+    mocker.patch.object(
+        ai.client.chat.completions, "create",
+        return_value=_fake_response(None),
+    )
+    assert ai.extract_medical_data("some text") == {}
