@@ -7,14 +7,21 @@ import API from '../../api';
 import { ACCEPT_ATTR } from '../../utils/uploads';
 
 function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFiles }) {
+  const [pendingBill, setPendingBill] = useState(null);
   const total = bills.reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
   const claimed = bills.filter(b => b.insurance_claimed).reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
 
   const togIns = async (rid) => {
+    if (pendingBill) return;
+    setPendingBill(rid);
     try {
       const r = await API.put('/profiles/' + profileId + '/records/' + rid + '/insurance');
       setRecords(prev => prev.map(x => x.id === rid ? { ...x, insurance_claimed: r.data.insurance_claimed } : x));
-    } catch (e) { showToast('Failed', 'error'); }
+    } catch (e) {
+      showToast('Could not update the insurance status. Please try again.', 'error');
+    } finally {
+      setPendingBill(null);
+    }
   };
 
   return (
@@ -67,6 +74,10 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
                     <button
                       className={'toggle' + (b.insurance_claimed ? ' on' : '')}
                       onClick={e => { e.stopPropagation(); togIns(b.id); }}
+                      disabled={pendingBill === b.id}
+                      role="switch"
+                      aria-checked={Boolean(b.insurance_claimed)}
+                      aria-label={'Insurance claimed for ' + billTitle}
                     />
                     <span style={{ fontSize: 11, fontWeight: 600, color: b.insurance_claimed ? 'var(--success)' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {b.insurance_claimed ? 'Claimed' : 'Insurance'}

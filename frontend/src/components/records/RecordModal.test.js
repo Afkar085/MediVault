@@ -259,3 +259,37 @@ test('the delete confirmation is its own dialog', async () => {
   fireEvent.click(within(modal()).getByRole('button', { name: /^delete$/i }));
   expect(screen.getByRole('dialog', { name: /delete record/i })).toBeInTheDocument();
 });
+
+test('deleting shows progress and cannot be triggered twice', async () => {
+  let resolveDelete;
+  API.delete.mockReturnValue(new Promise((r) => { resolveDelete = r; }));
+  await openRecord(PRESCRIPTION);
+
+  fireEvent.click(within(modal()).getByRole('button', { name: /^delete$/i }));
+  const confirm = screen.getByRole('dialog', { name: /delete record/i });
+  const deleteButton = within(confirm).getByRole('button', { name: /^delete$/i });
+
+  fireEvent.click(deleteButton);
+  await waitFor(() =>
+    expect(within(confirm).getByRole('button', { name: /deleting/i })).toBeDisabled(),
+  );
+
+  fireEvent.click(within(confirm).getByRole('button', { name: /deleting/i }));
+  expect(API.delete).toHaveBeenCalledTimes(1);
+
+  resolveDelete({ data: {} });
+});
+
+test('a failed delete explains itself and lets you try again', async () => {
+  API.delete.mockRejectedValue(new Error('offline'));
+  await openRecord(PRESCRIPTION);
+
+  fireEvent.click(within(modal()).getByRole('button', { name: /^delete$/i }));
+  const confirm = screen.getByRole('dialog', { name: /delete record/i });
+  fireEvent.click(within(confirm).getByRole('button', { name: /^delete$/i }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(/could not delete this record/i);
+  await waitFor(() =>
+    expect(within(confirm).getByRole('button', { name: /^delete$/i })).not.toBeDisabled(),
+  );
+});

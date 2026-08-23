@@ -40,6 +40,7 @@ export default function RecordModal({ record, onClose }) {
   const [hld, setHld] = useState(false);
   const [saving, setSaving] = useState(false);
   const [del, setDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [gal, setGal] = useState(null);
   const [form, setForm] = useState({});
   // Raw OCR text is large and only shown on the Documents tab, so the list
@@ -114,12 +115,16 @@ export default function RecordModal({ record, onClose }) {
   };
 
   const doDel = async () => {
+    setDeleting(true);
     try {
       await API.delete('/profiles/' + profileId + '/records/' + record.id);
       setRecords(prev => prev.filter(x => x.id !== record.id));
-      showToast('Deleted');
+      showToast('Record deleted');
       onClose();
-    } catch (e) { showToast('Delete failed', 'error'); }
+    } catch (e) {
+      showToast('Could not delete this record. Please try again.', 'error');
+      setDeleting(false);
+    }
   };
 
   // Single-field edits made straight from the details view, without entering
@@ -256,12 +261,14 @@ export default function RecordModal({ record, onClose }) {
       </Modal>
 
       {del && (
-        <Modal onClose={() => setDel(false)} boxClassName="confirm-box" label="Delete record?">
+        <Modal onClose={() => !deleting && setDel(false)} boxClassName="confirm-box" label="Delete record?">
           <div className="confirm-title">Delete record?</div>
           <div className="confirm-text">This will permanently delete the record and its files.</div>
           <div className="confirm-btns">
-            <button className="btn-c" onClick={() => setDel(false)}>Cancel</button>
-            <button className="btn-d" onClick={doDel}>Delete</button>
+            <button className="btn-c" onClick={() => setDel(false)} disabled={deleting}>Cancel</button>
+            <button className="btn-d" onClick={doDel} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
           </div>
         </Modal>
       )}
