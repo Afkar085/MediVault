@@ -2,362 +2,12 @@ import { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
 import Gallery from '../common/Gallery';
-import { fmt, fmtRel, fmtDt, dateVal, cur, drN, getRecordFiles, hasStoredDocument } from '../../utils/format';
-import Icon from '../common/Icon';
+import { fmt, fmtRel, fmtDt, dateVal, drN, getRecordFiles, hasStoredDocument } from '../../utils/format';
+import MedsTab from './MedsTab';
+import { DetailsForm, DetailsView } from './DetailsTab';
 
 
-const BILL_CATS = [
-  'Consultation Fee', 'Pharmacy', 'Lab Test', 'Hospital Admission',
-  'Surgery', 'Scan/Imaging', 'Emergency', 'Physiotherapy',
-  'Dental', 'Eye Care', 'Vaccination', 'Insurance', 'Other',
-];
 
-const MED_TYPES = [
-  { value: 'tablet', label: 'Tablet' },
-  { value: 'capsule', label: 'Capsule' },
-  { value: 'syrup', label: 'Syrup' },
-  { value: 'injection', label: 'Injection' },
-  { value: 'cream', label: 'Cream' },
-  { value: 'gel', label: 'Gel' },
-  { value: 'ointment', label: 'Ointment' },
-  { value: 'lotion', label: 'Lotion' },
-  { value: 'drops', label: 'Drops' },
-  { value: 'spray', label: 'Spray' },
-  { value: 'sachet', label: 'Sachet' },
-  { value: 'powder', label: 'Powder' },
-  { value: 'inhaler', label: 'Inhaler' },
-  { value: 'patch', label: 'Patch' },
-  { value: 'other', label: 'Other' },
-];
-
-const MED_ICONS = {
-  tablet: 'medication', capsule: 'medication', syrup: 'water_full', injection: 'syringe',
-  cream: 'colorize', gel: 'colorize', ointment: 'colorize', lotion: 'colorize',
-  drops: 'water_drop', spray: 'air', sachet: 'grain', powder: 'grain',
-  inhaler: 'air', patch: 'healing', other: 'medication',
-};
-
-function getMedIcon(type) {
-  return MED_ICONS[type] || 'medication';
-}
-
-function getMedSchedule(med) {
-  if (med.sos) return 'SOS — take only when needed';
-  const t = med.type || '';
-  if (['tablet', 'capsule'].includes(t)) {
-    const m = med.morning ?? 0, a = med.afternoon ?? 0, n = med.night ?? 0;
-    const sched = `${m}-${a}-${n}`;
-    if (sched !== '0-0-0') {
-      const food = med.food && med.food !== 'anytime' ? ` · ${med.food} food` : '';
-      return sched + food;
-    }
-  }
-  if (t === 'syrup') {
-    const parts = [med.morning_ml, med.afternoon_ml, med.night_ml].filter(Boolean);
-    if (parts.length) return parts.join(' – ');
-  }
-  if (['cream', 'gel', 'ointment', 'lotion'].includes(t)) {
-    return [med.body_part, med.frequency].filter(Boolean).join(' · ');
-  }
-  if (t === 'injection') return [med.dose, med.route, med.frequency].filter(Boolean).join(' · ');
-  if (t === 'drops') {
-    const loc = med.drop_location ? med.drop_location.charAt(0).toUpperCase() + med.drop_location.slice(1) : '';
-    return [loc, med.drops_count && `${med.drops_count} drops`, med.frequency].filter(Boolean).join(' · ');
-  }
-  if (t === 'inhaler') return [med.puffs && `${med.puffs} puffs`, med.frequency].filter(Boolean).join(' · ');
-  return [med.dosage || med.dose, med.frequency].filter(Boolean).join(' · ');
-}
-
-function blankMed() {
-  return {
-    name: '', type: 'tablet', strength: '', duration: '', instructions: '',
-    food: 'anytime', sos: false, sos_reason: '', sos_max: '',
-    morning: '', afternoon: '', night: '',
-    morning_ml: '', afternoon_ml: '', night_ml: '',
-    body_part: '', frequency: '', dose: '', route: 'IM',
-    drop_location: 'eye', drops_count: '', puffs: '',
-  };
-}
-
-function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
-  const [f, setF] = useState(() => ({ ...blankMed(), ...(initial || {}) }));
-  const set = (key, val) => setF(p => ({ ...p, [key]: val }));
-  const t = f.type || 'tablet';
-  const isTabCap = ['tablet', 'capsule'].includes(t);
-  const isSyrup = t === 'syrup';
-  const isCream = ['cream', 'gel', 'ointment', 'lotion'].includes(t);
-  const isInj = t === 'injection';
-  const isDrops = t === 'drops';
-  const isInhaler = t === 'inhaler';
-  const showSched = !f.sos;
-
-  const inp = (key, label, attrs = {}) => (
-    <div className="med-ff">
-      <label className="edit-lbl">{label}</label>
-      <input className="edit-inp" value={f[key] || ''} onChange={e => set(key, e.target.value)} {...attrs} />
-    </div>
-  );
-
-  return (
-    <div className="med-form">
-      <div className="med-ff">
-        <label className="edit-lbl">Medicine Name</label>
-        <input className="edit-inp" value={f.name} onChange={e => set('name', e.target.value)}
-          placeholder="e.g. Amoxicillin" autoFocus />
-      </div>
-
-      <div className="med-form-row">
-        <div className="med-ff">
-          <label className="edit-lbl">Type</label>
-          <select className="edit-inp" value={t} onChange={e => set('type', e.target.value)}>
-            {MED_TYPES.map(mt => <option key={mt.value} value={mt.value}>{mt.label}</option>)}
-          </select>
-        </div>
-        <div className="med-ff">
-          <label className="edit-lbl">Strength</label>
-          <input className="edit-inp" value={f.strength || ''} onChange={e => set('strength', e.target.value)} placeholder="e.g. 500mg" />
-        </div>
-      </div>
-
-      <label className="med-sos-label">
-        <input type="checkbox" checked={!!f.sos} onChange={e => set('sos', e.target.checked)} />
-        SOS — Take only when required
-      </label>
-
-      {showSched && isTabCap && (
-        <div className="med-sched-box">
-          <div className="edit-lbl" style={{ marginBottom: 8 }}>Schedule (tablets per dose)</div>
-          <div className="med-time-row">
-            {[['morning', 'Morning'], ['afternoon', 'Afternoon'], ['night', 'Night']].map(([k, lbl]) => (
-              <div key={k} className="med-time-cell">
-                <div className="med-time-lbl">{lbl}</div>
-                <input className="edit-inp med-num" type="number" min="0" step="0.5"
-                  value={f[k] || ''} onChange={e => set(k, e.target.value)} placeholder="0" />
-              </div>
-            ))}
-          </div>
-          <div className="med-ff" style={{ marginTop: 10 }}>
-            <label className="edit-lbl">Food Timing</label>
-            <select className="edit-inp" value={f.food || 'anytime'} onChange={e => set('food', e.target.value)}>
-              <option value="before">Before Food</option>
-              <option value="after">After Food</option>
-              <option value="anytime">Anytime</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {showSched && isSyrup && (
-        <div className="med-sched-box">
-          <div className="edit-lbl" style={{ marginBottom: 8 }}>Schedule (ml per dose)</div>
-          <div className="med-time-row">
-            {[['morning_ml', 'Morning'], ['afternoon_ml', 'Afternoon'], ['night_ml', 'Night']].map(([k, lbl]) => (
-              <div key={k} className="med-time-cell">
-                <div className="med-time-lbl">{lbl}</div>
-                <input className="edit-inp" value={f[k] || ''} onChange={e => set(k, e.target.value)} placeholder="ml" />
-              </div>
-            ))}
-          </div>
-          <div className="med-ff" style={{ marginTop: 10 }}>
-            <label className="edit-lbl">Food Timing</label>
-            <select className="edit-inp" value={f.food || 'anytime'} onChange={e => set('food', e.target.value)}>
-              <option value="before">Before Food</option>
-              <option value="after">After Food</option>
-              <option value="anytime">Anytime</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {showSched && isCream && (
-        <div className="med-form-row">
-          {inp('body_part', 'Body Part', { placeholder: 'e.g. Lower Back' })}
-          {inp('frequency', 'Frequency', { placeholder: 'e.g. 3x daily' })}
-        </div>
-      )}
-
-      {showSched && isInj && (
-        <>
-          <div className="med-form-row">
-            {inp('dose', 'Dose', { placeholder: 'e.g. 10ml' })}
-            <div className="med-ff">
-              <label className="edit-lbl">Route</label>
-              <select className="edit-inp" value={f.route || 'IM'} onChange={e => set('route', e.target.value)}>
-                {['IV', 'IM', 'SC', 'Other'].map(r => <option key={r}>{r}</option>)}
-              </select>
-            </div>
-          </div>
-          {inp('frequency', 'Frequency', { placeholder: 'e.g. Once daily' })}
-        </>
-      )}
-
-      {showSched && isDrops && (
-        <>
-          <div className="med-form-row">
-            <div className="med-ff">
-              <label className="edit-lbl">Location</label>
-              <select className="edit-inp" value={f.drop_location || 'eye'} onChange={e => set('drop_location', e.target.value)}>
-                {['eye', 'ear', 'nose'].map(l => <option key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
-              </select>
-            </div>
-            {inp('drops_count', 'Drops', { type: 'number', min: '1', placeholder: '2' })}
-          </div>
-          {inp('frequency', 'Frequency', { placeholder: 'e.g. 3x daily' })}
-        </>
-      )}
-
-      {showSched && isInhaler && (
-        <div className="med-form-row">
-          {inp('puffs', 'Puffs', { type: 'number', min: '1', placeholder: '2' })}
-          {inp('frequency', 'Frequency', { placeholder: 'e.g. Twice daily' })}
-        </div>
-      )}
-
-      {showSched && !isTabCap && !isSyrup && !isCream && !isInj && !isDrops && !isInhaler && (
-        <div className="med-form-row">
-          {inp('dose', 'Dose', { placeholder: 'e.g. 1 sachet' })}
-          {inp('frequency', 'Frequency', { placeholder: 'e.g. Once weekly' })}
-        </div>
-      )}
-
-      {f.sos && (
-        <>
-          {inp('sos_reason', 'When to Take', { placeholder: 'e.g. Only if pain is severe' })}
-          {inp('sos_max', 'Max Daily Limit', { placeholder: 'e.g. Max 3 per day' })}
-        </>
-      )}
-
-      {inp('duration', 'Duration', { placeholder: 'e.g. 7 days' })}
-
-      <div className="med-ff">
-        <label className="edit-lbl">Instructions / Notes</label>
-        <textarea className="edit-inp" rows={2} value={f.instructions || ''}
-          onChange={e => set('instructions', e.target.value)}
-          placeholder="e.g. Drink plenty of water" style={{ resize: 'vertical' }} />
-      </div>
-
-      <div className="med-form-actions">
-        {onDelete && <button className="btn-d" style={{ marginRight: 'auto' }} onClick={onDelete}>Delete</button>}
-        <button className="btn-c" onClick={onCancel}>Cancel</button>
-        <button className="btn-s" onClick={() => onSave(f)} disabled={!f.name.trim()}>Save</button>
-      </div>
-    </div>
-  );
-}
-
-function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
-  const [editIdx, setEditIdx] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const meds = record.medicines || [];
-
-  const persistMeds = async (newMeds) => {
-    setSaving(true);
-    try {
-      // Map rich frontend fields → 4 DB columns (name, dosage, frequency, duration)
-      const backendMeds = newMeds.map(m => ({
-        name: m.name,
-        dosage: m.strength || m.dosage || '',
-        frequency: getMedSchedule(m) || m.frequency || '',
-        duration: m.duration || '',
-      }));
-      const res = await API.put('/profiles/' + profileId + '/records/' + record.id, { medicines: backendMeds });
-      // Merge local rich medicine data back — backend only stores 4 fields
-      const merged = { ...res.data, medicines: newMeds };
-      setRecords(prev => prev.map(x => x.id === res.data.id ? merged : x));
-      openRecord(merged);
-      setEditIdx(null);
-      showToast('Medicines updated');
-    } catch (e) {
-      showToast('Save failed', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSave = (data) => {
-    const updated = [...meds];
-    if (editIdx === 'new') {
-      updated.push({ ...data, id: String(Date.now()) });
-    } else {
-      updated[editIdx] = { ...meds[editIdx], ...data };
-    }
-    persistMeds(updated);
-  };
-
-  const handleDelete = (idx) => {
-    persistMeds(meds.filter((_, i) => i !== idx));
-  };
-
-  if (editIdx !== null) {
-    return (
-      <MedicineFormPanel
-        initial={editIdx === 'new' ? null : meds[editIdx]}
-        onSave={handleSave}
-        onCancel={() => setEditIdx(null)}
-        onDelete={editIdx !== 'new' ? () => handleDelete(editIdx) : null}
-      />
-    );
-  }
-
-  return (
-    <div>
-      {saving && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 12px', color: '#64748b', fontSize: 13 }}>
-          <div className="spinner" style={{ width: 16, height: 16, margin: 0, borderWidth: 2 }} />
-          Saving…
-        </div>
-      )}
-
-      {meds.length === 0 && !saving && (
-        <div style={{ textAlign: 'center', padding: '24px 0 16px', color: '#94a3b8', fontSize: 13 }}>
-          No medicines yet.<br />
-          <span style={{ fontSize: 12 }}>AI will extract them from the prescription, or add manually below.</span>
-        </div>
-      )}
-
-      {meds.map((med, i) => {
-        const sched = getMedSchedule(med);
-        const typeLabel = med.type ? med.type.charAt(0).toUpperCase() + med.type.slice(1) : '';
-        return (
-          <div key={med.id || i} className="med-item">
-            <div className="med-item-icon"><Icon name={getMedIcon(med.type)} size={20} /></div>
-            <div className="med-item-body">
-              <div className="med-item-name">{med.name}</div>
-              {(typeLabel || med.strength) && (
-                <div className="med-item-meta">
-                  {[typeLabel, med.strength].filter(Boolean).join(' · ')}
-                </div>
-              )}
-              {sched && <div className="med-item-sched">{sched}</div>}
-              {med.duration && <div className="med-item-dur"><Icon name="schedule" size={11} style={{ marginRight: 3 }} />{med.duration}</div>}
-              {med.instructions && <div className="med-item-notes">{med.instructions}</div>}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <button className="med-edit-btn" onClick={() => setEditIdx(i)}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Edit
-              </button>
-              <button className="med-edit-btn" style={{ background: 'var(--success-container)', color: 'var(--success)', borderColor: '#a7e8cf' }}
-                onClick={() => persistMeds([...meds.slice(0, i + 1), { ...med, id: String(Date.now()) }, ...meds.slice(i + 1)])}>
-                Dup
-              </button>
-            </div>
-          </div>
-        );
-      })}
-
-      <button className="med-add-btn" onClick={() => setEditIdx('new')}>
-        + Add Medicine
-      </button>
-    </div>
-  );
-}
-
-// Users should never have to interpret a pipeline status. Say what happened
-// and what to do about it.
 const STATUS_NOTE = {
   processing: 'Reading this document… details will fill in automatically.',
   extracting: 'Pulling out the doctor, date and medicines…',
@@ -471,13 +121,17 @@ export default function RecordModal({ record, onClose }) {
     } catch (e) { showToast('Delete failed', 'error'); }
   };
 
-  const quickDate = async (val) => {
-    if (!val) return;
+  // Single-field edits made straight from the details view, without entering
+  // the full edit form. Previously one of these was an async call inlined in JSX.
+  const saveField = async (patch) => {
+    if (!Object.values(patch).every(Boolean)) return;
     try {
-      const r = await API.put('/profiles/' + profileId + '/records/' + record.id, { document_date: val });
+      const r = await API.put('/profiles/' + profileId + '/records/' + record.id, patch);
       setRecords(prev => prev.map(x => x.id === r.data.id ? r.data : x));
       openRecord(r.data);
-    } catch (e) {}
+    } catch (e) {
+      showToast('Could not save that change', 'error');
+    }
   };
 
   const files = getRecordFiles(record);
@@ -485,7 +139,13 @@ export default function RecordModal({ record, onClose }) {
 
   return (
     <div className="mover" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={'Record: ' + (record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical record')}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="m-handle" />
         <div className="m-hdr">
           <button className="m-x" onClick={onClose}>&#x2715;</button>
@@ -518,156 +178,17 @@ export default function RecordModal({ record, onClose }) {
           </div>
 
           {tab === 'details' && !editing && (
-            <div>
-              <div className="drow">
-                <div className="drow-icon" style={{ background: 'var(--primary-container)', color: 'var(--primary)' }}><Icon name="calendar_month" size={16} /></div>
-                <div style={{ flex: 1 }}>
-                  <div className="drow-key">Date</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {record.document_date && fmt(record.document_date) && (
-                      <span className="drow-val">{fmt(record.document_date)}</span>
-                    )}
-                    <input key={record.id} type="date" className="edit-inp" style={{ maxWidth: 160, padding: '5px 8px', fontSize: 11 }}
-                      defaultValue={dateVal(record.document_date)}
-                      onChange={e => quickDate(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-              {isBill && (
-                <>
-                  {record.bill_title && (
-                    <div className="drow">
-                      <div className="drow-icon" style={{ background: 'var(--cat-bill-bg)', color: 'var(--cat-bill-fg)' }}><Icon name="sell" size={16} /></div>
-                      <div><div className="drow-key">Bill Title</div><div className="drow-val">{record.bill_title}</div></div>
-                    </div>
-                  )}
-                  {record.bill_category && (
-                    <div className="drow">
-                      <div className="drow-icon" style={{ background: 'var(--cat-bill-bg)', color: 'var(--cat-bill-fg)' }}><Icon name="folder" size={16} /></div>
-                      <div><div className="drow-key">Category</div><div className="drow-val">{record.bill_category}</div></div>
-                    </div>
-                  )}
-                  {record.bill_number && (
-                    <div className="drow">
-                      <div className="drow-icon" style={{ background: 'var(--cat-other-bg)', color: 'var(--cat-other-fg)' }}><Icon name="tag" size={16} /></div>
-                      <div><div className="drow-key">Bill No.</div><div className="drow-val">{record.bill_number}</div></div>
-                    </div>
-                  )}
-                  <div className="drow">
-                    <div className="drow-icon" style={{ background: 'var(--error-container)', color: 'var(--error)' }}><Icon name="payments" size={16} /></div>
-                    <div style={{ flex: 1 }}>
-                      <div className="drow-key">Amount</div>
-                      {record.bill_amount != null
-                        ? <div className="drow-val">{cur(record.bill_amount)}</div>
-                        : <div style={{ color: '#94a3b8', fontSize: 13 }}>Not recorded — tap Edit Details to add</div>}
-                    </div>
-                  </div>
-                </>
-              )}
-              {!record.doctor_name && !isBill && (
-                <div className="drow">
-                  <div className="drow-icon" style={{ background: 'var(--cat-prescription-bg)', color: 'var(--cat-prescription-fg)' }}><Icon name="stethoscope" size={16} /></div>
-                  <div style={{ flex: 1 }}>
-                    <div className="drow-key">Doctor</div>
-                    <input className="edit-inp" style={{ padding: '6px 10px', fontSize: 12 }} placeholder="Enter doctor name and press Enter"
-                      onKeyDown={async e => {
-                        if (e.key === 'Enter' && e.target.value.trim()) {
-                          try {
-                            const r = await API.put('/profiles/' + profileId + '/records/' + record.id, { doctor_name: e.target.value.trim() });
-                            setRecords(prev => prev.map(x => x.id === r.data.id ? r.data : x));
-                            openRecord(r.data);
-                          } catch (ex) {}
-                        }
-                      }} />
-                  </div>
-                </div>
-              )}
-              {[
-                { bg: 'var(--cat-prescription-bg)', fg: 'var(--cat-prescription-fg)', icon: 'stethoscope', lbl: 'Doctor', val: record.doctor_name },
-                { bg: 'var(--primary-container)', fg: 'var(--primary)', icon: 'local_hospital', lbl: isBill ? 'Hospital / Pharmacy' : 'Hospital', val: record.hospital_name },
-                { bg: 'var(--cat-bill-bg)', fg: 'var(--cat-bill-fg)', icon: 'stethoscope', lbl: 'Specialty', val: record.specialty },
-                { bg: 'var(--cat-lab-bg)', fg: 'var(--cat-lab-fg)', icon: 'clinical_notes', lbl: isLab ? 'Findings / Results' : 'Diagnosis', val: record.diagnosis },
-                { bg: 'var(--cat-discharge-bg)', fg: 'var(--cat-discharge-fg)', icon: isLab ? 'biotech' : 'medication', lbl: isLab ? 'Interpretation / Follow-up' : isBill ? 'Notes' : 'Recommendations', val: record.recommendations },
-              ].filter(f => f.val).map(f => (
-                <div key={f.lbl} className="drow">
-                  <div className="drow-icon" style={{ background: f.bg, color: f.fg }}><Icon name={f.icon} size={16} /></div>
-                  <div><div className="drow-key">{f.lbl}</div><div className="drow-val" style={{ whiteSpace: 'pre-wrap' }}>{f.val}</div></div>
-                </div>
-              ))}
-              {!record.doctor_name && !record.diagnosis && !record.hospital_name && !isBill && (
-                <div style={{ color: '#94a3b8', fontSize: 13, padding: '10px 0' }}>No data extracted yet.</div>
-              )}
-            </div>
+            <DetailsView
+              record={record}
+              isBill={isBill}
+              isLab={isLab}
+              onQuickDate={value => saveField({ document_date: value })}
+              onSetDoctor={value => saveField({ doctor_name: value })}
+            />
           )}
 
           {tab === 'details' && editing && (
-            <div className="edit-grid">
-              <div>
-                <label className="edit-lbl">Category</label>
-                <select className="edit-inp" value={form.document_category} onChange={e => setForm({ ...form, document_category: e.target.value })}>
-                  <option value="prescription">Prescription</option>
-                  <option value="lab_report">Lab Report</option>
-                  <option value="bill">Bill</option>
-                  <option value="discharge_summary">Discharge Summary</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="edit-lbl">Date</label>
-                <input className="edit-inp" type="date" value={dateVal(form.document_date)} onChange={e => setForm({ ...form, document_date: e.target.value })} />
-              </div>
-              {formIsBill && (
-                <div className="full">
-                  <label className="edit-lbl">Bill Title</label>
-                  <input className="edit-inp" value={form.bill_title || ''} onChange={e => setForm({ ...form, bill_title: e.target.value })} placeholder="e.g. Apollo Pharmacy, CBC Blood Test, MRI Scan" />
-                </div>
-              )}
-              {formIsBill && (
-                <div>
-                  <label className="edit-lbl">Bill Category</label>
-                  <select className="edit-inp" value={form.bill_category || ''} onChange={e => setForm({ ...form, bill_category: e.target.value })}>
-                    <option value="">Select category</option>
-                    {BILL_CATS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              )}
-              {formIsBill && (
-                <div>
-                  <label className="edit-lbl">Bill No.</label>
-                  <input className="edit-inp" value={form.bill_number || ''} onChange={e => setForm({ ...form, bill_number: e.target.value })} placeholder="e.g. INV-2024-001" />
-                </div>
-              )}
-              <div>
-                <label className="edit-lbl">Doctor</label>
-                <input className="edit-inp" value={form.doctor_name} onChange={e => setForm({ ...form, doctor_name: e.target.value })} placeholder="Dr. Name" />
-              </div>
-              <div>
-                <label className="edit-lbl">{formIsBill ? 'Hospital / Pharmacy' : 'Hospital'}</label>
-                <input className="edit-inp" value={form.hospital_name} onChange={e => setForm({ ...form, hospital_name: e.target.value })} />
-              </div>
-              {!formIsBill && (
-                <div>
-                  <label className="edit-lbl">Specialty</label>
-                  <input className="edit-inp" value={form.specialty} onChange={e => setForm({ ...form, specialty: e.target.value })} />
-                </div>
-              )}
-              {!formIsBill && (
-                <div className="full">
-                  <label className="edit-lbl">{formIsLab ? 'Findings / Results' : 'Diagnosis'}</label>
-                  <textarea className="edit-inp" rows={2} value={form.diagnosis} onChange={e => setForm({ ...form, diagnosis: e.target.value })} style={{ resize: 'vertical', lineHeight: 1.5 }} />
-                </div>
-              )}
-              <div className="full">
-                <label className="edit-lbl">{formIsLab ? 'Interpretation / Follow-up' : formIsBill ? 'Notes' : 'Recommendations'}</label>
-                <textarea className="edit-inp" rows={2} value={form.recommendations} onChange={e => setForm({ ...form, recommendations: e.target.value })} style={{ resize: 'vertical', lineHeight: 1.5 }} />
-              </div>
-              {(formIsBill || record.bill_amount != null) && (
-                <div>
-                  <label className="edit-lbl">Amount (₹)</label>
-                  <input className="edit-inp" type="number" value={form.bill_amount} onChange={e => setForm({ ...form, bill_amount: e.target.value })} placeholder="e.g. 2400" />
-                </div>
-              )}
-            </div>
+            <DetailsForm record={record} form={form} setForm={setForm} formIsBill={formIsBill} formIsLab={formIsLab} />
           )}
 
           {tab === 'medicines' && (
