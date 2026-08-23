@@ -112,7 +112,9 @@ export default function VisitDetailPage() {
 
   // Derive from the live docGroups (not a frozen nav snapshot) so edits made on this
   // screen — insurance toggle, adding a document — show up immediately.
-  const visitRecords = (docGroups[doctorKey] || nav.visitRecords || []).filter(r => getRecordDate(r) === visitDate);
+  // Derived from live state, so an edit made inside this visit is reflected
+  // immediately rather than showing whatever was captured on navigation.
+  const visitRecords = (docGroups[doctorKey] || []).filter(r => getRecordDate(r) === visitDate);
 
   // Merge across every document in the visit — a lab report's diagnosis and a
   // prescription's medicines are separate records but belong to one summary.

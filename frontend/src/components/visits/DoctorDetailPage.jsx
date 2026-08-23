@@ -25,10 +25,8 @@ export default function DoctorDetailPage() {
   const lastVisit = visits[0];
 
   const openVisit = (date) => {
-    const recs = visitGroups[date] || [];
     navigate('visit-detail', {
       visitDate: date,
-      visitRecords: recs,
       doctorKey,
       doctorName,
       specialty,

@@ -69,6 +69,8 @@ function MainApp({ onLogout }) {
   // on its own) correctly steps back through screens instead of falling
   // through to whatever was in browser history before the app loaded.
   const navigate = useCallback((page, params = {}) => {
+    // Whatever goes in here is serialised into browser history state, so it
+    // must stay small and must never carry record data.
     const state = { kind: 'page', page, params };
     setNav({ page, ...params });
     window.history.pushState(state, '');

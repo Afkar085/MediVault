@@ -65,7 +65,6 @@ export default function HealthJourneyScreen() {
     if (key && docGroups[key]) {
       navigate('visit-detail', {
         visitDate: date,
-        visitRecords: docGroups[key].filter(x => getRecordDate(x) === date),
         doctorKey: key,
         doctorName: r.doctor_name || 'Unassigned',
         specialty,
