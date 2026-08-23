@@ -4,7 +4,7 @@ from app.schemas.record import RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services.record_assembly import attach_files, attach_medicines
-from app.services.retrieval import vector_search
+from app.services.retrieval import keyword_rank, vector_search
 from app.services import rag
 from app.limiter import limiter
 from app.logger import logger
@@ -29,6 +29,16 @@ _DETAIL_COLUMNS = _LIST_COLUMNS + ", raw_ocr_text"
 
 class AskRequest(BaseModel):
     question: str
+
+
+# How many records to put in front of the model. Enough to answer a question
+# that spans a few visits, small enough to stay grounded and cheap.
+CONTEXT_RECORD_LIMIT = 6
+
+NO_MATCH_ANSWER = (
+    "I couldn't find anything about that in the uploaded records. "
+    "Try naming a doctor, a medicine or a condition that appears in them."
+)
 
 
 # OCR runs as a background task, so a worker restart, redeploy or hung upstream
@@ -318,11 +328,11 @@ Return ONLY the bullet points, no intro or outro."""
 @router.post("/{profile_id}/ask")
 @limiter.limit("15/minute")
 def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: str = Depends(get_current_user)):
-    """Answer a natural-language question grounded in this profile's records (RAG).
+    """Answer a question about this profile's records, grounded in them (RAG).
 
-    Retrieves the most semantically relevant records via vector search, then asks
-    the LLM to answer using only those records, with citations. If semantic search
-    is unavailable, falls back to the most recent records as context.
+    Retrieval is semantic when the embedding model is available, and term-based
+    otherwise. The old fallback was "the six most recent records", which quietly
+    answered a question about last year from last week's documents.
     """
     _assert_profile_owned(profile_id, user_id)
 
@@ -333,12 +343,12 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
     profile_result = supabase.table("profiles").select("name, relationship").eq("id", profile_id).execute()
     profile = profile_result.data[0] if profile_result.data else {"name": "Patient", "relationship": "Self"}
 
-    matched_ids = vector_search([profile_id], question, limit=6)
+    matched_ids = vector_search([profile_id], question, limit=CONTEXT_RECORD_LIMIT)
 
     if matched_ids:
         rows = (
             supabase.table("records")
-            .select(_LIST_COLUMNS)
+            .select(_DETAIL_COLUMNS)
             .eq("profile_id", profile_id)
             .in_("id", matched_ids)
             .execute()
@@ -346,17 +356,19 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
         by_id = {r["id"]: r for r in rows.data}
         records = [by_id[i] for i in matched_ids if i in by_id]  # preserve relevance order
     else:
-        # Fallback: no semantic layer -> use most recent records as context.
         rows = (
             supabase.table("records")
-            .select(_LIST_COLUMNS)
+            .select(_DETAIL_COLUMNS)
             .eq("profile_id", profile_id)
             .eq("status", "done")
             .order("created_at", desc=True)
-            .limit(6)
             .execute()
         )
-        records = rows.data
+        candidates = attach_medicines(rows.data)
+        records = keyword_rank(candidates, question, limit=CONTEXT_RECORD_LIMIT)
+        if not records:
+            # Nothing matched. Say so rather than answering from unrelated records.
+            return {"answer": NO_MATCH_ANSWER, "sources": []}
 
     records = attach_medicines(records)
     return rag.answer_question(question, records, profile)

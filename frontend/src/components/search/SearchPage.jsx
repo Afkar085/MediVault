@@ -3,6 +3,7 @@ import { AppContext } from '../../App';
 import API from '../../api';
 import { drN, fmtRel, cur, catIcon } from '../../utils/format';
 import Icon from '../common/Icon';
+import AskPanel from '../ask/AskPanel';
 
 const FILTERS = ['All', 'Prescriptions', 'Lab Reports', 'Bills', 'Medicines'];
 
@@ -33,6 +34,9 @@ const applyFilter = (rows, filter) => {
 
 export default function SearchPage() {
   const { records, sel, nav, openRecord } = useContext(AppContext);
+  // Two ways to look things up, because they are good at different things:
+  // 'find' filters and ranks structurally, 'ask' answers a question in words.
+  const [mode, setMode] = useState('find');
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('All');
   const [wholeFamily, setWholeFamily] = useState(false);
@@ -101,6 +105,24 @@ export default function SearchPage() {
 
   return (
     <div>
+      <div className="smode" role="tablist" aria-label="How to look things up">
+        <button
+          role="tab"
+          aria-selected={mode === 'find'}
+          className={'smode-btn' + (mode === 'find' ? ' active' : '')}
+          onClick={() => setMode('find')}
+        ><Icon name="search" size={16} /> Find</button>
+        <button
+          role="tab"
+          aria-selected={mode === 'ask'}
+          className={'smode-btn' + (mode === 'ask' ? ' active' : '')}
+          onClick={() => setMode('ask')}
+        ><Icon name="auto_awesome" size={16} /> Ask</button>
+      </div>
+
+      {mode === 'ask' && <AskPanel />}
+
+      {mode === 'find' && (<>
       <div className="swrap" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <svg className="sico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -225,8 +247,12 @@ export default function SearchPage() {
               <button key={sug} className="schip" onClick={() => setQ(sug)}>{sug}</button>
             ))}
           </div>
+          <button className="linkish ask-switch" onClick={() => setMode('ask')}>
+            Or ask a question in your own words
+          </button>
         </div>
       )}
+      </>)}
     </div>
   );
 }
