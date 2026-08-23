@@ -66,5 +66,7 @@ $$;
 alter table public.document_passages enable row level security;
 revoke all on public.document_passages from anon, authenticated;
 
--- Existing records have no passages until they are re-processed. New uploads are
--- indexed automatically. To backfill, re-upload or run the OCR pipeline again.
+-- Existing records have no passages until they are re-processed, and that is fine:
+-- retrieval checks which records are indexed and scans the stored OCR text on the
+-- fly for the ones that are not, so nothing becomes unsearchable when this runs.
+-- New uploads are indexed automatically.

@@ -20,6 +20,7 @@ Callers pass record ids they have *already* authorized; nothing here widens
 scope on its own.
 """
 import logging
+from itertools import zip_longest
 from typing import Dict, List, Optional
 
 from app.database import supabase
@@ -33,6 +34,45 @@ DEFAULT_LIMIT = 6
 # Never put more of one document in front of the model than this, so a single
 # long discharge summary cannot crowd out every other record.
 MAX_PER_RECORD = 3
+
+
+def _indexed_records(record_ids: List[str]) -> set:
+    """Which of these records have passages stored.
+
+    Needed because the two backends must cover different records rather than
+    compete: after migration 004 is applied, everything uploaded before it has
+    no stored passages, and those records must still be searched on the fly.
+    """
+    try:
+        rows = (
+            supabase.table("document_passages")
+            .select("record_id")
+            .in_("record_id", record_ids)
+            .execute()
+            .data
+            or []
+        )
+        return {row["record_id"] for row in rows}
+    except Exception:
+        return set()  # table not created yet
+
+
+def _interleave(primary: List[dict], secondary: List[dict], limit: int) -> List[dict]:
+    """Merge two ranked lists whose scores are not comparable.
+
+    Cosine similarity and term-overlap counts live on different scales, so they
+    are merged by rank — best of each, then second of each — rather than by
+    pretending one number means the same as the other.
+    """
+    merged: List[dict] = []
+    for a, b in zip_longest(primary, secondary):
+        if a is not None:
+            merged.append(a)
+        if b is not None:
+            merged.append(b)
+        if len(merged) >= limit * 2:
+            break
+    return merged
 
 
 def _from_stored_chunks(record_ids: List[str], query: str, limit: int) -> Optional[List[dict]]:
@@ -115,5 +155,14 @@ def relevant_passages(
     """
     if not record_ids or not query.strip():
         return []
-    found = _from_stored_chunks(record_ids, query, limit) or _from_ocr_text(record_ids, query)
-    return _cap_per_record(found, limit)
+
+    indexed = _indexed_records(record_ids)
+    unindexed = [rid for rid in record_ids if rid not in indexed]
+
+    semantic = _from_stored_chunks(sorted(indexed), query, limit) if indexed else None
+    if semantic is None:
+        # No index, no embedding model, or nothing matched: scan everything.
+        return _cap_per_record(_from_ocr_text(record_ids, query), limit)
+
+    scanned = _from_ocr_text(unindexed, query) if unindexed else []
+    return _cap_per_record(_interleave(semantic, scanned, limit), limit)

@@ -132,27 +132,65 @@ def test_the_limit_is_respected(db):
 
 # --- the pgvector path -------------------------------------------------------
 
-def test_stored_passages_are_preferred_when_the_index_exists(monkeypatch):
-    monkeypatch.setattr(passages, "embed_text", lambda _t: [0.0] * 384)
+def _indexed_db(monkeypatch, indexed, rpc_rows):
+    """A database where `indexed` records have stored passages."""
     calls = {}
 
     def rpc(name, args):
         calls["name"] = name
         calls["record_ids"] = args["p_record_ids"]
-        return type("Q", (), {"execute": lambda self: type("R", (), {"data": [
-            {"record_id": "r-blood", "content": "Haemoglobin 9.2 g/dL", "similarity": 0.81},
-        ]})()})()
+        return type("Q", (), {"execute": lambda self: type("R", (), {"data": rpc_rows})()})()
 
+    class _Passages:
+        def select(self, *_): return self
+        def in_(self, _c, values):
+            calls["indexed_lookup"] = list(values)
+            return self
+        def execute(self):
+            return type("R", (), {"data": [{"record_id": r} for r in indexed]})()
+
+    store = {}
+
+    def table(name):
+        return _Passages() if name == "document_passages" else _Table(store)
+
+    monkeypatch.setattr(passages, "embed_text", lambda _t: [0.0] * 384)
     monkeypatch.setattr(
         passages, "supabase",
-        type("S", (), {"rpc": staticmethod(rpc), "table": staticmethod(lambda n: None)})(),
+        type("S", (), {"rpc": staticmethod(rpc), "table": staticmethod(table)})(),
+    )
+    store["scoped_to"] = None
+    return calls, store
+
+
+def test_stored_passages_are_used_when_the_index_exists(monkeypatch):
+    calls, _ = _indexed_db(
+        monkeypatch,
+        indexed=["r-knee", "r-blood"],
+        rpc_rows=[{"record_id": "r-blood", "content": "Haemoglobin 9.2 g/dL", "similarity": 0.81}],
     )
 
     found = passages.relevant_passages(["r-knee", "r-blood"], "sugar levels")
 
     assert calls["name"] == "match_chunks"
-    assert calls["record_ids"] == ["r-knee", "r-blood"]  # scope is passed through
+    assert calls["record_ids"] == ["r-blood", "r-knee"]  # scope is passed through
     assert found[0]["text"] == "Haemoglobin 9.2 g/dL"
+
+
+def test_records_indexed_before_the_migration_are_still_searched(monkeypatch):
+    """The dangerous case: one indexed record must not hide all the others."""
+    calls, _ = _indexed_db(
+        monkeypatch,
+        indexed=["r-knee"],  # r-blood predates migration 004
+        rpc_rows=[{"record_id": "r-knee", "content": "knee passage", "similarity": 0.7}],
+    )
+
+    found = passages.relevant_passages(["r-knee", "r-blood"], "haemoglobin")
+
+    # Only the indexed record went to the vector search...
+    assert calls["record_ids"] == ["r-knee"]
+    # ...and the unindexed one was still scanned, so its value is found.
+    assert any("9.2 g/dL" in p["text"] for p in found)
 
 
 def test_a_missing_chunk_index_falls_back_instead_of_failing(db, monkeypatch):
