@@ -111,3 +111,49 @@ test('with no records, it says so instead of offering questions it cannot answer
   expect(screen.queryByRole('button', { name: /when was my last blood test/i })).not.toBeInTheDocument();
   expect(API.post).not.toHaveBeenCalled();
 });
+
+test('a family-wide question goes to the assistant that can resolve "Dad"', async () => {
+  API.post.mockResolvedValue({
+    data: {
+      answer: 'Paracetamol 650mg for his knee [Record 1].',
+      sources: [{ ref: 1, record_id: 'r-dad', date: '2026-06-14', doctor_name: 'Kumar', member: 'Abdul (Father)' }],
+    },
+  });
+  await openAsk();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Everyone' }));
+  fireEvent.click(await screen.findByRole('button', { name: /what medicines was dad prescribed/i }));
+
+  expect(API.post).toHaveBeenCalledWith('/ask', {
+    question: 'What medicines was Dad prescribed for his knee?',
+  });
+  expect(await screen.findByText(/paracetamol 650mg for his knee/i)).toBeInTheDocument();
+});
+
+test('a family-wide citation says whose record it is', async () => {
+  API.post.mockResolvedValue({
+    data: {
+      answer: 'On 14 June 2026.',
+      sources: [{ ref: 1, record_id: 'r-dad', date: '2026-06-14', doctor_name: 'Kumar', member: 'Abdul (Father)' }],
+    },
+  });
+  await openAsk();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Everyone' }));
+  fireEvent.click(await screen.findByRole('button', { name: /who in the family has seen an orthopedic/i }));
+
+  expect(await screen.findByText(/Dr\. Kumar · Abdul \(Father\)/)).toBeInTheDocument();
+});
+
+test('switching back to one member stops asking the family endpoint', async () => {
+  API.post.mockResolvedValue({ data: ANSWER });
+  await openAsk();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Everyone' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Alice$/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /when was my last blood test/i }));
+
+  expect(API.post).toHaveBeenCalledWith('/profiles/p-alice/ask', {
+    question: 'When was my last blood test?',
+  });
+});

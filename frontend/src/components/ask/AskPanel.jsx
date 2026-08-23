@@ -5,15 +5,24 @@ import { fmt, drN } from '../../utils/format';
 import { clickable } from '../../utils/interaction';
 import Icon from '../common/Icon';
 
-const SUGGESTIONS = [
+const MEMBER_SUGGESTIONS = [
   'What medicines was I prescribed recently?',
   'When was my last blood test?',
   'Which doctors have treated me?',
-  'What did the doctor recommend for my knee?',
+  'Summarise my medical history this year.',
+];
+
+// Family-wide questions are the ones worth naming a person in.
+const FAMILY_SUGGESTIONS = [
+  'What medicines was Dad prescribed for his knee?',
+  'When was Mum’s last blood test?',
+  'Who in the family has seen an orthopedic doctor?',
+  'Show everyone’s prescriptions from this year.',
 ];
 
 export default function AskPanel() {
-  const { sel, records, openRecord } = useContext(AppContext);
+  const { sel, profiles, records, openRecord } = useContext(AppContext);
+  const [wholeFamily, setWholeFamily] = useState(false);
   const [question, setQuestion] = useState('');
   const [asked, setAsked] = useState('');
   const [answer, setAnswer] = useState(null);
@@ -22,9 +31,10 @@ export default function AskPanel() {
   const [error, setError] = useState('');
   const requestRef = useRef(0);
 
-  const hasRecords = records.some(r => r.status === 'done');
+  const suggestions = wholeFamily ? FAMILY_SUGGESTIONS : MEMBER_SUGGESTIONS;
+  const hasRecords = wholeFamily ? profiles.length > 0 : records.some(r => r.status === 'done');
 
-  const ask = (text) => {
+  const ask = (text, familyWide = wholeFamily) => {
     const q = (text ?? question).trim();
     if (!q || !sel) return;
     const id = ++requestRef.current;
@@ -35,7 +45,10 @@ export default function AskPanel() {
     setAnswer(null);
     setSources([]);
 
-    API.post('/profiles/' + sel.id + '/ask', { question: q })
+    // The family-wide endpoint resolves who "Dad" is and can sort across
+    // members; the per-profile one stays scoped to the selected member.
+    const path = familyWide ? '/ask' : '/profiles/' + sel.id + '/ask';
+    API.post(path, { question: q })
       .then(r => {
         if (requestRef.current !== id) return;
         setAnswer(r.data.answer || '');
@@ -67,6 +80,19 @@ export default function AskPanel() {
 
   return (
     <div>
+      <div className="sscope" role="group" aria-label="Whose records to ask about">
+        <button
+          className={'sscope-btn' + (!wholeFamily ? ' active' : '')}
+          aria-pressed={!wholeFamily}
+          onClick={() => setWholeFamily(false)}
+        >{sel?.name || 'This member'}</button>
+        <button
+          className={'sscope-btn' + (wholeFamily ? ' active' : '')}
+          aria-pressed={wholeFamily}
+          onClick={() => setWholeFamily(true)}
+        >Everyone</button>
+      </div>
+
       <form
         className="ask-form"
         onSubmit={e => { e.preventDefault(); ask(); }}
@@ -75,8 +101,8 @@ export default function AskPanel() {
           className="sinput ask-input"
           value={question}
           onChange={e => setQuestion(e.target.value)}
-          placeholder={'Ask about ' + (sel?.name || 'these') + '’s records…'}
-          aria-label={'Ask a question about ' + (sel?.name || 'these') + '’s records'}
+          placeholder={wholeFamily ? 'Ask about the family’s records…' : 'Ask about ' + (sel?.name || 'these') + '’s records…'}
+          aria-label={wholeFamily ? 'Ask a question about the family’s records' : 'Ask a question about ' + (sel?.name || 'these') + '’s records'}
         />
         <button className="btn-s ask-send" type="submit" disabled={thinking || !question.trim()}>
           {thinking ? 'Reading…' : 'Ask'}
@@ -84,14 +110,14 @@ export default function AskPanel() {
       </form>
 
       <p className="ask-note">
-        Answers come only from {sel?.name || 'this member'}&rsquo;s uploaded documents. This is not medical advice.
+        Answers come only from {wholeFamily ? 'your family’s' : (sel?.name || 'this member') + '’s'} uploaded documents. This is not medical advice.
       </p>
 
       <div aria-live="polite">
         {thinking && (
           <div className="ask-card ask-card-thinking">
             <span className="spinner spinner-sm" />
-            <span>Reading through {sel?.name || 'the'}&rsquo;s records&hellip;</span>
+            <span>Reading through {wholeFamily ? 'the family’s' : (sel?.name || 'the') + '’s'} records&hellip;</span>
           </div>
         )}
 
@@ -115,12 +141,13 @@ export default function AskPanel() {
                   const title = src.doctor_name
                     ? drN(src.doctor_name)
                     : record?.hospital_name || 'Record';
+                  const owner = src.member || '';
                   const when = fmt(src.date) || '';
                   if (!record) {
                     return (
                       <div key={src.ref} className="ask-src is-static">
                         <span className="ask-src-ref">{src.ref}</span>
-                        <span className="ask-src-title">{title}</span>
+                        <span className="ask-src-title">{title}{owner ? ' · ' + owner : ''}</span>
                         {when && <span className="ask-src-date">{when}</span>}
                       </div>
                     );
@@ -132,7 +159,7 @@ export default function AskPanel() {
                       {...clickable(() => openRecord(record), 'Open source record: ' + title + (when ? ', ' + when : ''))}
                     >
                       <span className="ask-src-ref">{src.ref}</span>
-                      <span className="ask-src-title">{title}</span>
+                      <span className="ask-src-title">{title}{owner ? ' · ' + owner : ''}</span>
                       {when && <span className="ask-src-date">{when}</span>}
                     </div>
                   );
@@ -145,7 +172,7 @@ export default function AskPanel() {
         {!answer && !thinking && !error && (
           <div className="ask-suggest">
             <div className="ask-suggest-hdr">Try asking</div>
-            {SUGGESTIONS.map(s => (
+            {suggestions.map(s => (
               <button key={s} className="ask-suggest-btn" onClick={() => ask(s)}>
                 <Icon name="chat_bubble" size={15} />
                 <span>{s}</span>

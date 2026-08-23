@@ -4,7 +4,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.limiter import limiter
-from app.api.v1.endpoints import auth, profile, upload, records, search
+from app.api.v1.endpoints import assistant, auth, profile, records, search, upload
 
 app = FastAPI(
     title="MediVault API",
@@ -48,6 +48,7 @@ app.include_router(profile.router, prefix="/api/v1/profiles", tags=["profiles"])
 app.include_router(upload.router,  prefix="/api/v1",          tags=["upload"])
 app.include_router(records.router, prefix="/api/v1/profiles", tags=["records"])
 app.include_router(search.router,  prefix="/api/v1",          tags=["search"])
+app.include_router(assistant.router, prefix="/api/v1",        tags=["assistant"])
 
 
 @app.get("/")
