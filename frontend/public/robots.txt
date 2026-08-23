@@ -1,3 +1,8 @@
-# https://www.robotstxt.org/robotstxt.html
+# Everything past the sign-in screen is somebody's medical record, and it is
+# only ever rendered client-side after authentication — a crawler cannot reach
+# it. This is belt-and-braces: index the landing page, nothing else.
 User-agent: *
-Disallow:
+Allow: /$
+Disallow: /
+
+Sitemap: https://medi-vault-silk-five.vercel.app/sitemap.xml

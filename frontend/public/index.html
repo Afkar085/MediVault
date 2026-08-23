@@ -3,18 +3,57 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <meta name="theme-color" content="#1a1a2e" />
-    <meta name="description" content="MediVault — AI-powered family medical records" />
+
+    <!-- No maximum-scale / user-scalable=no: people need to pinch-zoom into a
+         photographed prescription to read the small print, and blocking that is
+         a WCAG 1.4.4 failure. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <meta name="theme-color" content="#001845" />
+    <title>MediVault — your family's medical records in one place</title>
+    <meta
+      name="description"
+      content="Keep your family's prescriptions, lab reports and hospital bills in one place. Photograph a document and MediVault reads the doctor, date, diagnosis and medicines for you, then lets you search or ask about them in plain language."
+    />
+
+    <!-- Update this if you deploy somewhere else; it drives the canonical URL
+         and the link preview. -->
+    <link rel="canonical" href="https://medi-vault-silk-five.vercel.app/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MediVault" />
+    <meta property="og:url" content="https://medi-vault-silk-five.vercel.app/" />
+    <meta property="og:title" content="MediVault — your family's medical records in one place" />
+    <meta
+      property="og:description"
+      content="Photograph a prescription or lab report and MediVault reads the details for you. Search your family's medical history, or just ask."
+    />
+    <meta property="og:image" content="https://medi-vault-silk-five.vercel.app/logo512.png" />
+    <meta property="og:image:alt" content="The MediVault logo" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="MediVault — your family's medical records in one place" />
+    <meta
+      name="twitter:description"
+      content="Photograph a prescription or lab report and MediVault reads the details for you."
+    />
+    <meta name="twitter:image" content="https://medi-vault-silk-five.vercel.app/logo512.png" />
+
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MediVault" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>MediVault</title>
+
+    <!-- The fonts are loaded from a stylesheet inside the bundle, so warm the
+         connections while the JS is still downloading. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>
+      MediVault needs JavaScript to show your records. Please enable it and reload the page.
+    </noscript>
     <div id="root"></div>
   </body>
 </html>
