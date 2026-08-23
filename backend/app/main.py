@@ -21,7 +21,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # CORS: allow_credentials must be True when sending Authorization headers
 # from a browser. allow_origins cannot be ["*"] when credentials=True,
 # so ALLOWED_ORIGINS must list the real frontend domain(s) explicitly.
-allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+def parse_origins(raw: str) -> list[str]:
+    """Split the comma-separated ALLOWED_ORIGINS setting into a clean list."""
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+allowed_origins = parse_origins(settings.ALLOWED_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,

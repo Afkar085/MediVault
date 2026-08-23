@@ -1,8 +1,23 @@
 # Optional dependencies to ENABLE the semantic-search / RAG layer.
 #
-# Kept separate from requirements.txt on purpose: fastembed pulls in onnxruntime
-# and loads a ~130MB embedding model into RAM, which does NOT fit on small hosts
-# like Render's 512MB free tier (it would OOM-crash during upload processing).
+# Kept separate from requirements.txt on purpose, but NOT for the reason this file
+# used to give. Measured on Python 3.11:
+#
+#     app at rest ..............  70 MB
+#     fastembed + model ........ 155 MB
+#     -------------------------------
+#     total .................... 225 MB   (Render free tier: 512 MB)
+#
+# So it fits, with roughly 290MB to spare. The old claim that this would OOM on a
+# 512MB host was wrong.
+#
+# The real cost is cold starts. The ~130MB model is fetched on first use, and on a
+# tier with an ephemeral filesystem that spins down when idle, that download repeats
+# every wake — adding ~15s on top of an already slow start. That, not memory, is the
+# reason to think twice on a free tier.
+#
+# Without this, semantic matching becomes literal matching: search and Ask still work,
+# passages are still retrieved from the document text, and nothing crashes.
 #
 # The app degrades gracefully without this: if fastembed isn't installed, semantic
 # search + "Ask Your Records" fall back to keyword search, and nothing crashes.
