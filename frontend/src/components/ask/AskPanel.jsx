@@ -30,8 +30,28 @@ export default function AskPanel() {
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
+  const [openingSource, setOpeningSource] = useState(null);
 
   const suggestions = wholeFamily ? FAMILY_SUGGESTIONS : MEMBER_SUGGESTIONS;
+
+  // A family-wide answer can cite a record belonging to another member, which
+  // is not in the loaded list. Fetch it so every citation opens.
+  const openSource = async (src) => {
+    const loaded = records.find(r => r.id === src.record_id);
+    if (loaded) { openRecord(loaded); return; }
+
+    const profileId = src.profile_id || sel?.id;
+    if (!profileId) return;
+    setOpeningSource(src.record_id);
+    try {
+      const r = await API.get('/profiles/' + profileId + '/records/' + src.record_id);
+      openRecord(r.data);
+    } catch (e) {
+      setError('That record could not be opened.');
+    } finally {
+      setOpeningSource(null);
+    }
+  };
   const hasRecords = wholeFamily ? profiles.length > 0 : records.some(r => r.status === 'done');
 
   const ask = (text, familyWide = wholeFamily) => {
@@ -143,23 +163,20 @@ export default function AskPanel() {
                     : record?.hospital_name || 'Record';
                   const owner = src.member || '';
                   const when = fmt(src.date) || '';
-                  if (!record) {
-                    return (
-                      <div key={src.ref} className="ask-src is-static">
-                        <span className="ask-src-ref">{src.ref}</span>
-                        <span className="ask-src-title">{title}{owner ? ' · ' + owner : ''}</span>
-                        {when && <span className="ask-src-date">{when}</span>}
-                      </div>
-                    );
-                  }
+                  const label = 'Open source record: ' + title + (owner ? ', ' + owner : '') + (when ? ', ' + when : '');
                   return (
                     <div
                       key={src.ref}
-                      className="ask-src"
-                      {...clickable(() => openRecord(record), 'Open source record: ' + title + (when ? ', ' + when : ''))}
+                      className={'ask-src' + (openingSource === src.record_id ? ' is-opening' : '')}
+                      {...clickable(() => openSource(src), label)}
                     >
                       <span className="ask-src-ref">{src.ref}</span>
-                      <span className="ask-src-title">{title}{owner ? ' · ' + owner : ''}</span>
+                      <span className="ask-src-body">
+                        <span className="ask-src-title">{title}{owner ? ' · ' + owner : ''}</span>
+                        {src.excerpt && (
+                          <span className="ask-src-quote">&ldquo;{src.excerpt}&rdquo;</span>
+                        )}
+                      </span>
                       {when && <span className="ask-src-date">{when}</span>}
                     </div>
                   );

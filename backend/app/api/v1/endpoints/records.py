@@ -7,6 +7,7 @@ from app.services import summary_cache
 from app.services.record_assembly import attach_files, attach_medicines
 from app.services.retrieval import keyword_rank, vector_search
 from app.services import rag
+from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS
 from app.limiter import limiter
 from app.logger import logger
 from datetime import datetime, timedelta, timezone
@@ -32,14 +33,6 @@ class AskRequest(BaseModel):
     question: str
 
 
-# How many records to put in front of the model. Enough to answer a question
-# that spans a few visits, small enough to stay grounded and cheap.
-CONTEXT_RECORD_LIMIT = 6
-
-NO_MATCH_ANSWER = (
-    "I couldn't find anything about that in the uploaded records. "
-    "Try naming a doctor, a medicine or a condition that appears in them."
-)
 
 
 # OCR runs as a background task, so a worker restart, redeploy or hung upstream
@@ -379,7 +372,7 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
         records = keyword_rank(candidates, question, limit=CONTEXT_RECORD_LIMIT)
         if not records:
             # Nothing matched. Say so rather than answering from unrelated records.
-            return {"answer": NO_MATCH_ANSWER, "sources": []}
+            return {"answer": NOT_IN_RECORDS, "sources": []}
 
     records = attach_medicines(records)
     return rag.answer_question(question, records, profile)

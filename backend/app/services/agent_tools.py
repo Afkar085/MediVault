@@ -97,6 +97,7 @@ class RecordTools:
     def _present(self, record: dict) -> dict:
         return {
             "record_id": record["id"],
+            "profile_id": record["profile_id"],
             "member": self._label(record["profile_id"]),
             "date": record.get("document_date") or (record.get("created_at") or "")[:10],
             "doctor": record.get("doctor_name"),
@@ -185,6 +186,7 @@ class RecordTools:
             "visits": [
                 {
                     "record_id": r["id"],
+                    "profile_id": r["profile_id"],
                     "member": self._label(r["profile_id"]),
                     "date": r.get("document_date") or (r.get("created_at") or "")[:10],
                     "doctor": r.get("doctor_name"),
@@ -214,6 +216,7 @@ class RecordTools:
             "passages": [
                 {
                     "record_id": p["record_id"],
+                    "profile_id": by_id[p["record_id"]]["profile_id"],
                     "member": self._label(by_id[p["record_id"]]["profile_id"]),
                     "date": by_id[p["record_id"]].get("document_date"),
                     "doctor": by_id[p["record_id"]].get("doctor_name"),

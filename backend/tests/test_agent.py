@@ -92,8 +92,8 @@ def test_records_the_tools_surfaced_become_citable_sources(fake):
 
     assert [s["record_id"] for s in sources] == ["r-knee"]
     assert sources[0] == {
-        "ref": 1, "record_id": "r-knee", "date": "2026-06-14",
-        "doctor_name": "Kumar", "member": "Abdul (Father)",
+        "ref": 1, "record_id": "r-knee", "profile_id": None, "date": "2026-06-14",
+        "doctor_name": "Kumar", "member": "Abdul (Father)", "excerpt": None,
     }
 
 
@@ -180,14 +180,16 @@ def test_a_passage_becomes_a_citable_source(fake):
         message(content="9.2 g/dL [Record 1]."),
     ])
     tools = _Tools({"passages": [
-        {"record_id": "r-blood", "date": "2026-05-02", "doctor": "Bhat", "text": "Haemoglobin 9.2"},
+        {"record_id": "r-blood", "profile_id": "p-me", "date": "2026-05-02",
+         "doctor": "Bhat", "text": "Haemoglobin 9.2"},
     ]})
 
     sources = agent.answer_with_tools("?", tools)["sources"]
 
     assert sources == [{
-        "ref": 1, "record_id": "r-blood", "date": "2026-05-02",
+        "ref": 1, "record_id": "r-blood", "profile_id": "p-me", "date": "2026-05-02",
         "doctor_name": "Bhat", "member": None,
+        "excerpt": "Haemoglobin 9.2",
     }]
 
 

@@ -536,12 +536,14 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 .ask-a{font-size:14.5px;line-height:1.65;color:var(--on-surface);white-space:pre-wrap;}
 
 .ask-src-hdr{margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;}
-.ask-src{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1.5px solid var(--outline);border-radius:12px;margin-bottom:7px;cursor:pointer;transition:border-color 0.2s,background 0.2s;min-height:44px;}
+.ask-src{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1.5px solid var(--outline);border-radius:12px;margin-bottom:7px;cursor:pointer;transition:border-color 0.2s,background 0.2s;min-height:44px;}
 .ask-src:hover{border-color:var(--primary-light);background:#f8faff;}
-.ask-src.is-static{cursor:default;opacity:0.7;}
+.ask-src.is-opening{opacity:0.6;}
+.ask-src-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.ask-src-quote{font-size:11.5px;line-height:1.5;color:#64748b;font-style:italic;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .ask-src-ref{flex-shrink:0;width:22px;height:22px;border-radius:7px;background:var(--primary-container);color:var(--primary);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
-.ask-src-title{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--on-surface);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.ask-src-date{flex-shrink:0;font-size:11px;color:#94a3b8;}
+.ask-src-title{min-width:0;font-size:13px;font-weight:600;color:var(--on-surface);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ask-src-date{flex-shrink:0;font-size:11px;color:#94a3b8;padding-top:2px;}
 
 .ask-suggest-hdr{font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:10px;}
 .ask-suggest-btn{display:flex;align-items:center;gap:10px;width:100%;text-align:left;min-height:48px;padding:13px 15px;margin-bottom:8px;background:#fff;border:1.5px solid var(--outline);border-radius:14px;color:var(--on-surface);font-size:13.5px;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color 0.2s,background 0.2s;}

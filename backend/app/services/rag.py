@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 # Someone is waiting on this response, so fail fast rather than hang the request.
 client = Groq(api_key=settings.GROQ_API_KEY, timeout=45.0, max_retries=1)
 
+# How many records to put in front of the model. Enough to answer a question
+# spanning a few visits, small enough to stay grounded and cheap.
+CONTEXT_RECORD_LIMIT = 6
+
 NOT_IN_RECORDS = (
     "I couldn't find that in the uploaded records. Try naming a doctor, "
     "a medicine or a condition that appears in them."
@@ -45,6 +49,16 @@ Records:
 Question: {question}
 
 Answer:"""
+
+
+# Long enough to recognise the sentence an answer came from, short enough not
+# to reproduce the document in the UI.
+EXCERPT_CHARS = 240
+
+
+def _excerpt(text: str) -> str:
+    cleaned = " ".join(text.split())
+    return cleaned if len(cleaned) <= EXCERPT_CHARS else cleaned[:EXCERPT_CHARS].rstrip() + "…"
 
 
 def build_context(
@@ -96,9 +110,10 @@ def build_context(
             {
                 "ref": i,
                 "record_id": r.get("id"),
+                "profile_id": r.get("profile_id"),
                 "date": date,
                 "doctor_name": r.get("doctor_name"),
-                "quoted": bool(quoted),
+                "excerpt": _excerpt(quoted[0]) if quoted else None,
             }
         )
     return "\n\n".join(lines), sources

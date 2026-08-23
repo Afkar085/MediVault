@@ -12,18 +12,12 @@ from app.database import supabase
 from app.limiter import limiter
 from app.logger import logger
 from app.services import agent, rag
+from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS
 from app.services.agent_tools import RecordTools
 from app.services.record_assembly import attach_medicines
 from app.services.retrieval import keyword_rank
 
 router = APIRouter()
-
-CONTEXT_RECORD_LIMIT = 6
-
-NO_MATCH_ANSWER = (
-    "I couldn't find anything about that in the uploaded records. "
-    "Try naming a doctor, a medicine or a condition that appears in them."
-)
 
 _FALLBACK_COLUMNS = (
     "id, profile_id, document_type, document_category, status, doctor_name, "
@@ -51,7 +45,7 @@ def _fallback(question: str, profiles: list) -> dict:
     candidates = attach_medicines(rows)
     records = keyword_rank(candidates, question, limit=CONTEXT_RECORD_LIMIT)
     if not records:
-        return {"answer": NO_MATCH_ANSWER, "sources": []}
+        return {"answer": NOT_IN_RECORDS, "sources": []}
 
     names = ", ".join(p.get("name", "") for p in profiles if p.get("name"))
     return rag.answer_question(question, records, {"name": names or "the family"})

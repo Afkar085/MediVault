@@ -58,7 +58,7 @@ def test_the_document_text_reaches_the_model(mocker):
     context, sources = rag.build_context(RECORDS, "what was my haemoglobin?")
     assert "From the document:" in context
     assert "9.2 g/dL" in context
-    assert sources[0]["quoted"] is True
+    assert sources[0]["excerpt"] == "Haemoglobin 9.2 g/dL (13.0 - 17.0)"
 
 
 def test_passages_are_attributed_to_the_record_they_came_from(mocker):
@@ -77,10 +77,21 @@ def test_passages_are_attributed_to_the_record_they_came_from(mocker):
     assert "belongs to the second record" in second
 
 
-def test_a_record_with_no_matching_passage_is_marked_as_unquoted(mocker):
+def test_a_record_with_no_matching_passage_carries_no_excerpt(mocker):
     mocker.patch.object(rag, "relevant_passages", return_value=[])
     _, sources = rag.build_context(RECORDS, "unrelated question")
-    assert sources[0]["quoted"] is False
+    assert sources[0]["excerpt"] is None
+
+
+def test_a_long_passage_is_trimmed_for_display(mocker):
+    """The excerpt is there to recognise the sentence, not to reprint the file."""
+    mocker.patch.object(
+        rag, "relevant_passages",
+        return_value=[{"record_id": "r-blood", "text": "value " * 200}],
+    )
+    _, sources = rag.build_context(RECORDS, "q")
+    assert len(sources[0]["excerpt"]) <= rag.EXCERPT_CHARS + 1
+    assert sources[0]["excerpt"].endswith("…")
 
 
 def test_retrieval_is_not_attempted_without_a_question(mocker):
@@ -95,7 +106,7 @@ def test_passage_retrieval_failing_degrades_to_the_extracted_fields(mocker):
     context, sources = rag.build_context(RECORDS, "what was my haemoglobin?")
     assert "Dr. Bhat" in context          # the fields still made it
     assert "From the document:" not in context
-    assert sources[0]["quoted"] is False
+    assert sources[0]["excerpt"] is None
 
 
 def test_a_broken_passage_index_still_yields_an_answer(mocker):

@@ -157,3 +157,62 @@ test('switching back to one member stops asking the family endpoint', async () =
     question: 'When was my last blood test?',
   });
 });
+
+test('a citation for another member is fetched and opened, not left dead', async () => {
+  API.post.mockResolvedValue({
+    data: {
+      answer: 'Telmisartan 40mg [Record 1].',
+      sources: [{
+        ref: 1, record_id: 'r-dad', profile_id: 'p-dad',
+        date: '2026-03-11', doctor_name: 'Shenoy', member: 'Abdul (Father)',
+      }],
+    },
+  });
+  await openAsk();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Everyone' }));
+  fireEvent.click(await screen.findByRole('button', { name: /what medicines was dad prescribed/i }));
+
+  const citation = await screen.findByRole('button', { name: /open source record: dr\. shenoy/i });
+
+  API.get.mockResolvedValue({
+    data: { ...RECORD, id: 'r-dad', profile_id: 'p-dad', doctor_name: 'Shenoy' },
+  });
+  fireEvent.click(citation);
+
+  await waitFor(() =>
+    expect(API.get).toHaveBeenCalledWith('/profiles/p-dad/records/r-dad'),
+  );
+  await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+});
+
+test('a citation already in the loaded records opens without a fetch', async () => {
+  API.post.mockResolvedValue({ data: ANSWER });
+  await openAsk();
+
+  fireEvent.click(screen.getByRole('button', { name: /which doctors have treated me/i }));
+  const citation = await screen.findByRole('button', { name: /open source record: dr\. kumar/i });
+
+  const before = API.get.mock.calls.length;
+  fireEvent.click(citation);
+
+  await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+  expect(API.get.mock.calls.length).toBe(before);
+});
+
+test('the passage the answer came from is shown so it can be checked', async () => {
+  API.post.mockResolvedValue({
+    data: {
+      answer: 'Your haemoglobin was 9.2 g/dL [Record 1].',
+      sources: [{
+        ref: 1, record_id: 'r-1', profile_id: 'p-alice', date: '2026-05-02',
+        doctor_name: 'Bhat', excerpt: 'Haemoglobin 9.2 g/dL (13.0 - 17.0)',
+      }],
+    },
+  });
+  await openAsk();
+
+  fireEvent.click(screen.getByRole('button', { name: /when was my last blood test/i }));
+
+  expect(await screen.findByText(/Haemoglobin 9\.2 g\/dL \(13\.0 - 17\.0\)/)).toBeInTheDocument();
+});

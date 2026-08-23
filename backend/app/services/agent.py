@@ -118,6 +118,18 @@ def answer_with_tools(question: str, tools: RecordTools) -> Optional[dict]:
     return None
 
 
+# Long enough to recognise the sentence an answer came from, short enough not
+# to reproduce the document in the UI.
+EXCERPT_CHARS = 240
+
+
+def _excerpt(text: Optional[str]) -> Optional[str]:
+    if not text:
+        return None
+    cleaned = " ".join(text.split())
+    return cleaned if len(cleaned) <= EXCERPT_CHARS else cleaned[:EXCERPT_CHARS].rstrip() + "…"
+
+
 def _sources(used: List[dict]) -> List[dict]:
     """The records the tools actually surfaced, so the answer can be checked."""
     sources: List[dict] = []
@@ -141,9 +153,13 @@ def _sources(used: List[dict]) -> List[dict]:
                 {
                     "ref": len(sources) + 1,
                     "record_id": record_id,
+                    "profile_id": row.get("profile_id"),
                     "date": row.get("date"),
                     "doctor_name": row.get("doctor"),
                     "member": row.get("member"),
+                    # Present when the answer came from the document text, so
+                    # the reader can check the wording without opening the file.
+                    "excerpt": _excerpt(row.get("text")),
                 }
             )
     return sources[:8]
