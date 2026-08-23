@@ -2,46 +2,66 @@ import { useState } from 'react';
 import API from '../../api';
 import Logo from '../common/Logo';
 
+// Mirrors backend/app/schemas/auth.py so the requirement is stated up front
+// rather than after a failed submit.
+const MIN_PASSWORD_LENGTH = 8;
+
+function errorMessage(e, mode) {
+  if (!e.response) return 'Can’t reach MediVault. Check your connection and try again.';
+  const status = e.response.status;
+  const detail = e.response.data?.detail;
+
+  if (status === 401) return 'That email and password don’t match. Try again.';
+  if (status === 429) return 'Too many attempts. Please wait a minute and try again.';
+  if (status === 422) {
+    return mode === 'register'
+      ? `Please use a valid email and a password of at least ${MIN_PASSWORD_LENGTH} characters.`
+      : 'Please check your email and password.';
+  }
+  if (typeof detail === 'string' && detail) {
+    return detail.includes('already') ? 'That email already has an account. Sign in instead.' : detail;
+  }
+  return 'Something went wrong. Please try again.';
+}
+
 export default function AuthScreen({ onLogin }) {
   const [mode, setMode] = useState('login');
-  const [forgot, setForgot] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
-  const [info, setInfo] = useState('');
   const [ld, setLd] = useState(false);
 
-  const go = async () => {
-    if (!email) { setErr('Email required.'); return; }
-    if (!forgot && !pw) { setErr('Password required.'); return; }
-    if (mode === 'register' && !name) { setErr('Name required.'); return; }
-    setLd(true); setErr(''); setInfo('');
+  const isRegister = mode === 'register';
+
+  const switchMode = (next) => { setMode(next); setErr(''); setShowHelp(false); };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!email.trim()) { setErr('Please enter your email.'); return; }
+    if (!pw) { setErr('Please enter your password.'); return; }
+    if (isRegister && !name.trim()) { setErr('Please enter your name.'); return; }
+    if (isRegister && pw.length < MIN_PASSWORD_LENGTH) {
+      setErr(`Please choose a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+
+    setLd(true);
+    setErr('');
     try {
-      if (forgot) {
-        setInfo('Reset link sent if account exists.');
-        setForgot(false); setLd(false); return;
-      }
-      if (mode === 'register') {
-        let c = null;
-        try { c = await API.post('/auth/check-email', { email }); } catch (e) {}
-        if (c?.data?.exists) { setErr('Account exists. Sign in.'); setLd(false); return; }
-      }
-      const r = await API.post('/auth/' + (mode === 'register' ? 'register' : 'login'), {
-        email, password: pw, ...(mode === 'register' && name ? { name } : {})
+      const r = await API.post('/auth/' + (isRegister ? 'register' : 'login'), {
+        email: email.trim(),
+        password: pw,
+        ...(isRegister ? { name: name.trim() } : {}),
       });
       localStorage.setItem('token', r.data.access_token);
       onLogin();
-    } catch (e) {
-      if (!e.response) setErr('Unable to connect.');
-      else {
-        const d = e?.response?.data?.detail || '';
-        if (mode === 'login' && (d.includes('Invalid') || e?.response?.status === 401))
-          setErr('Incorrect email or password.');
-        else if (d.includes('already')) setErr('Already registered. Sign in.');
-        else setErr(d || 'Something went wrong.');
-      }
-    } finally { setLd(false); }
+    } catch (e2) {
+      setErr(errorMessage(e2, mode));
+    } finally {
+      setLd(false);
+    }
   };
 
   return (
@@ -56,52 +76,105 @@ export default function AuthScreen({ onLogin }) {
         </div>
 
         <div className="auth-card">
-          {forgot ? (
-            <>
-              <div className="auth-heading">Reset password</div>
-              <div className="auth-sub">Enter your email for a reset link.</div>
-              {err && <div className="auth-err">{err}</div>}
-              {info && <div className="auth-info">{info}</div>}
+          <h1 className="auth-heading">{isRegister ? 'Create account' : 'Welcome back'}</h1>
+          <div className="auth-sub">
+            {isRegister ? 'Store your family’s health records securely' : 'Sign in to your MediVault'}
+          </div>
+
+          <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isRegister}
+              className={'auth-tab' + (!isRegister ? ' active' : '')}
+              onClick={() => switchMode('login')}
+            >Sign in</button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isRegister}
+              className={'auth-tab' + (isRegister ? ' active' : '')}
+              onClick={() => switchMode('register')}
+            >Sign up</button>
+          </div>
+
+          {err && <div className="auth-err" role="alert">{err}</div>}
+
+          {/* A real form so phone keyboards show "Go" and password managers can
+              offer to save and fill these credentials. */}
+          <form onSubmit={submit} noValidate>
+            {isRegister && (
               <div className="fg">
-                <label className="fl">Email</label>
-                <input className="fi" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+                <label className="fl" htmlFor="auth-name">Name</label>
+                <input
+                  className="fi"
+                  id="auth-name"
+                  name="name"
+                  autoComplete="name"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Full name"
+                />
               </div>
-              <button className="btn-auth" onClick={go} disabled={ld}>{ld ? 'Sending...' : 'Send Reset Link'}</button>
-              <button className="btn-c" style={{ width: '100%', marginTop: 8 }} onClick={() => { setForgot(false); setErr(''); setInfo(''); }}>Back</button>
-            </>
-          ) : (
-            <>
-              <div className="auth-heading">{mode === 'login' ? 'Welcome back' : 'Create account'}</div>
-              <div className="auth-sub">{mode === 'login' ? 'Sign in to your MediVault' : 'Store family health records securely'}</div>
-              <div className="auth-tabs">
-                <button className={'auth-tab' + (mode === 'login' ? ' active' : '')} onClick={() => { setMode('login'); setErr(''); setInfo(''); }}>Sign In</button>
-                <button className={'auth-tab' + (mode === 'register' ? ' active' : '')} onClick={() => { setMode('register'); setErr(''); setInfo(''); }}>Sign Up</button>
-              </div>
-              {err && <div className="auth-err">{err}</div>}
-              {info && <div className="auth-info">{info}</div>}
-              {mode === 'register' && (
-                <div className="fg">
-                  <label className="fl">Name</label>
-                  <input className="fi" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+            )}
+
+            <div className="fg">
+              <label className="fl" htmlFor="auth-email">Email</label>
+              <input
+                className="fi"
+                id="auth-email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck="false"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="fg">
+              <label className="fl" htmlFor="auth-password">Password</label>
+              <input
+                className="fi"
+                id="auth-password"
+                name="password"
+                type="password"
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                value={pw}
+                onChange={e => setPw(e.target.value)}
+                placeholder={isRegister ? `At least ${MIN_PASSWORD_LENGTH} characters` : 'Password'}
+                aria-describedby={isRegister ? 'auth-password-hint' : undefined}
+              />
+              {isRegister && (
+                <div className="fl-hint" id="auth-password-hint">
+                  At least {MIN_PASSWORD_LENGTH} characters. Longer is better than complicated.
                 </div>
               )}
-              <div className="fg">
-                <label className="fl">Email</label>
-                <input className="fi" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
-              </div>
-              <div className="fg">
-                <label className="fl">Password</label>
-                <input className="fi" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Password" onKeyDown={e => e.key === 'Enter' && go()} />
-              </div>
-              {mode === 'login' && (
-                <div className="forgot-link">
-                  <a href="/#" onClick={e => { e.preventDefault(); setForgot(true); setErr(''); setInfo(''); }}>Forgot password?</a>
-                </div>
-              )}
-              <button className="btn-auth" onClick={go} disabled={ld}>
-                {ld ? (mode === 'login' ? 'Signing in...' : 'Creating...') : (mode === 'login' ? 'Sign In' : 'Create Account')}
+            </div>
+
+            <button className="btn-auth" type="submit" disabled={ld}>
+              {ld
+                ? (isRegister ? 'Creating account…' : 'Signing in…')
+                : (isRegister ? 'Create account' : 'Sign in')}
+            </button>
+          </form>
+
+          {!isRegister && (
+            <div className="forgot-link">
+              <button type="button" className="linkish" onClick={() => setShowHelp(v => !v)}>
+                Forgot your password?
               </button>
-            </>
+            </div>
+          )}
+
+          {showHelp && !isRegister && (
+            <div className="notice" style={{ marginTop: 12 }}>
+              MediVault can’t reset passwords by email yet, so there is no reset link to send.
+              If you’re locked out, contact whoever runs this MediVault to have your account reset.
+            </div>
           )}
         </div>
       </div>

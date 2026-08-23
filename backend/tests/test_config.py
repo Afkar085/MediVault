@@ -29,3 +29,4 @@ def test_secret_one_character_short_is_rejected():
 
 def test_secret_of_minimum_length_is_accepted():
     assert _settings("x" * MIN_JWT_SECRET_LENGTH).JWT_SECRET
+

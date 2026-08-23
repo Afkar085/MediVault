@@ -4,20 +4,8 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.limiter import limiter
-from pydantic import BaseModel, EmailStr
 
 router = APIRouter()
-
-
-class CheckEmailRequest(BaseModel):
-    email: EmailStr
-
-
-@router.post("/check-email")
-@limiter.limit("10/minute")
-def check_email(request: Request, body: CheckEmailRequest):
-    existing = supabase.table("users").select("id").eq("email", body.email).execute()
-    return {"exists": bool(existing.data)}
 
 
 @router.post("/register", response_model=TokenResponse)
