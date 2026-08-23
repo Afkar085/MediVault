@@ -7,6 +7,7 @@ from app.services.storage import signed_url
 from app.limiter import limiter
 from app.logger import logger
 from typing import List
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import uuid
 import re
@@ -84,6 +85,37 @@ def _compute_visit_group(profile_id: str, doctor_name: str, doc_date_str: str) -
     return f"{slug}_{doc_date.isoformat()}"
 
 
+# Each page is an independent network round-trip plus a vision call, so reading
+# them one after another made a five-page upload take five times as long as it
+# needed to. Bounded, because the vision API is rate limited and one upload must
+# not be able to exhaust that for everyone.
+MAX_CONCURRENT_PAGES = 4
+
+
+def _read_page(entry: dict, content_type: str) -> str:
+    """OCR one page. Never raises: a page that fails must not lose the others."""
+    try:
+        file_bytes = supabase.storage.from_("medical-records").download(entry["file_path"])
+        return extract_text_from_bytes(file_bytes, content_type)
+    except Exception as e:
+        logger.warning("Could not read page %s: %s", entry.get("file_path"), e)
+        return ""
+
+
+def read_pages(file_entries: list, content_types: list) -> list:
+    """OCR every page, concurrently, in page order."""
+    pairs = [
+        (entry, content_types[i] if i < len(content_types) else "")
+        for i, entry in enumerate(file_entries)
+    ]
+    if len(pairs) <= 1:
+        return [_read_page(entry, ct) for entry, ct in pairs]
+
+    with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_PAGES, len(pairs))) as pool:
+        # map preserves input order, which is the page order.
+        return list(pool.map(lambda pair: _read_page(*pair), pairs))
+
+
 def index_passages(record_id: str, text: str) -> None:
     """Store the document split into retrievable passages.
 
@@ -122,13 +154,9 @@ def index_passages(record_id: str, text: str) -> None:
 
 def process_ocr(record_id: str, file_entries: list, content_types: list):
     try:
-        all_texts = []
-        for i, entry in enumerate(file_entries):
-            file_path = entry["file_path"]
-            ct = content_types[i] if i < len(content_types) else ""
-            file_bytes = supabase.storage.from_("medical-records").download(file_path)
-            text = extract_text_from_bytes(file_bytes, ct)
-            all_texts.append(text)
+        all_texts = read_pages(file_entries, content_types)
+        if not any(t.strip() for t in all_texts):
+            raise RuntimeError("no text could be read from any page")
 
         combined_text = "\n\n--- Page Break ---\n\n".join(all_texts)
 
