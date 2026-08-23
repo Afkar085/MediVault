@@ -72,14 +72,20 @@ function RecentActivity({ records, openRecord }) {
       {open && recent.map(r => {
         const label = getActivityLabel(r);
         const sub = r.doctor_name ? drN(r.doctor_name) : r.hospital_name || '';
+        const pending = r.status === 'processing' || r.status === 'extracting';
+        const failed = r.status === 'failed';
         return (
           <div key={r.id} className="activity-item" onClick={() => openRecord(r)}>
             <div className={'activity-icon ' + (r.document_category || 'other')}>
-              <Icon name={catIcon(r.document_category)} size={17} />
+              <Icon name={failed ? 'error' : catIcon(r.document_category)} size={17} />
             </div>
             <div className="activity-body">
-              <div className="activity-title">{label}</div>
-              {sub && <div className="activity-sub">{sub}</div>}
+              <div className="activity-title">{failed ? 'Couldn’t read this document' : label}</div>
+              {failed
+                ? <div className="activity-sub">Tap to remove it and try a clearer photo</div>
+                : pending
+                  ? <div className="activity-sub">Reading it now…</div>
+                  : sub && <div className="activity-sub">{sub}</div>}
             </div>
             <div className="activity-time">{fmtRel(r.created_at)}</div>
           </div>
@@ -147,6 +153,7 @@ export default function Dashboard() {
   } = useContext(AppContext);
 
   const processing = records.filter(r => r.status === 'processing' || r.status === 'extracting').length;
+  const unreadable = records.filter(r => r.status === 'failed').length;
 
   if (loading) {
     return (
@@ -183,9 +190,16 @@ export default function Dashboard() {
       <Greeting name={sel.name} />
 
       {processing > 0 && (
-        <div className="process-banner">
+        <div className="process-banner" role="status">
           <div className="process-spin" />
-          Processing {processing} document{processing > 1 ? 's' : ''}… AI is extracting info
+          Reading {processing} document{processing > 1 ? 's' : ''}… this usually takes under a minute
+        </div>
+      )}
+
+      {unreadable > 0 && (
+        <div className="process-banner error" role="status">
+          <Icon name="error" size={16} />
+          {unreadable} document{unreadable > 1 ? 's' : ''} couldn’t be read. Open it below to remove it and try a clearer photo.
         </div>
       )}
 

@@ -413,6 +413,7 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 .skeleton{height:14px;border-radius:8px;background:linear-gradient(90deg,var(--outline) 25%,#f1f5f9 50%,var(--outline) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;}
 .process-banner{background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#b45309;font-weight:500;display:flex;align-items:center;gap:8px;}
 .process-spin{width:14px;height:14px;border:2px solid #f59e0b;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;}
+.process-banner.error{background:var(--error-container);border-color:#fecaca;color:#b91c1c;align-items:flex-start;line-height:1.45;}
 .vd-compare{margin-top:10px;padding:12px;background:var(--cat-lab-bg);border-radius:12px;border:1px solid #e2d4fb;}
 .vd-compare-title{font-size:11px;font-weight:700;color:var(--cat-lab-fg);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;}
 .vd-cmed{display:inline-block;padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600;margin:2px 3px 2px 0;}
@@ -482,3 +483,4 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 
 /* ── Inline notice (non-blocking explanation inside a panel) ── */
 .notice{background:#fffbeb;border:1.5px solid #fde68a;color:#92400e;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.5;}
+.notice-error{background:var(--error-container);border-color:#fecaca;color:#b91c1c;}

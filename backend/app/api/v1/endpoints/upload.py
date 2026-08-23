@@ -165,10 +165,9 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
 
     except Exception as e:
         logger.error("OCR/extraction pipeline failed for record %s: %s", record_id, e)
-        supabase.table("records").update({
-            "status": "failed",
-            "raw_ocr_text": "Processing failed. Please try re-uploading this document."
-        }).eq("id", record_id).execute()
+        # Only the status changes: if OCR succeeded and extraction failed, the
+        # text we did get is still worth keeping.
+        supabase.table("records").update({"status": "failed"}).eq("id", record_id).execute()
 
 
 # Each page costs a vision-model call plus an extraction call, so an unbounded

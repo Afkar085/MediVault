@@ -8,6 +8,7 @@ from app.services.retrieval import vector_search
 from app.services import rag
 from app.limiter import limiter
 from app.logger import logger
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from groq import Groq
 from app.config import settings
@@ -74,6 +75,36 @@ def _attach_files(records: list) -> list:
     return records
 
 
+# OCR runs as a background task, so a worker restart, redeploy or hung upstream
+# call can leave a record on "processing" with nothing left to finish it. The
+# client would then poll forever. Anything older than this is declared failed so
+# the user gets a real error state and something to act on.
+PROCESSING_TIMEOUT = timedelta(minutes=10)
+_PENDING_STATUSES = ["processing", "extracting"]
+
+
+def _expire_stuck_processing(profile_id: str) -> None:
+    cutoff = (datetime.now(timezone.utc) - PROCESSING_TIMEOUT).isoformat()
+    try:
+        result = (
+            supabase.table("records")
+            .update({"status": "failed"})
+            .eq("profile_id", profile_id)
+            .in_("status", _PENDING_STATUSES)
+            .lt("created_at", cutoff)
+            .execute()
+        )
+        if result.data:
+            logger.warning(
+                "Marked %d stuck record(s) as failed for profile %s",
+                len(result.data),
+                profile_id,
+            )
+    except Exception as e:
+        # Never fail a read because the cleanup could not run.
+        logger.warning("Could not expire stuck records for profile %s: %s", profile_id, e)
+
+
 def _assert_profile_owned(profile_id: str, user_id: str):
     profile = supabase.table("profiles").select("id").eq("id", profile_id).eq("user_id", user_id).execute()
     if not profile.data:
@@ -87,6 +118,7 @@ def get_records(
     user_id: str = Depends(get_current_user),
 ):
     _assert_profile_owned(profile_id, user_id)
+    _expire_stuck_processing(profile_id)
     query = supabase.table("records").select(_LIST_COLUMNS).eq("profile_id", profile_id).order("created_at", desc=True)
     if document_category:
         query = query.eq("document_category", document_category)

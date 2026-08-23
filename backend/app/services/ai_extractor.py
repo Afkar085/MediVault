@@ -5,7 +5,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+client = Groq(api_key=settings.GROQ_API_KEY, timeout=90.0, max_retries=1)
 
 def extract_medical_data(ocr_text: str) -> dict:
     prompt = f"""

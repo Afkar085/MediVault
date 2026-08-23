@@ -4,7 +4,9 @@ import json
 from groq import Groq
 from app.config import settings
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+# A vision call on a large scan is slow but not unbounded. Without a timeout a
+# stalled request holds the background worker open indefinitely.
+client = Groq(api_key=settings.GROQ_API_KEY, timeout=90.0, max_retries=1)
 
 
 def extract_text_from_bytes(file_bytes: bytes, content_type: str = "") -> str:

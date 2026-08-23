@@ -22,6 +22,10 @@ import Toast from './components/common/Toast';
 export const AppContext = createContext(null);
 
 const POLL = 4000;
+// The backend gives a background OCR job 10 minutes before declaring it failed.
+// Polling past that just burns battery and requests, so we stop and let the
+// user refresh — the server will have settled the record's status by then.
+const POLL_LIMIT = Math.ceil((11 * 60 * 1000) / POLL);
 
 function MainApp({ onLogout }) {
   const [profiles, setProfiles] = useState([]);
@@ -40,6 +44,7 @@ function MainApp({ onLogout }) {
   const [showUploadSheet, setShowUploadSheet] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const pollRef = useRef(null);
+  const pollCountRef = useRef(0);
   // The profile whose records the UI is currently showing. Used to discard
   // replies from a previous member's request.
   const activeProfileRef = useRef(null);
@@ -135,12 +140,19 @@ function MainApp({ onLogout }) {
     loadRecs(sel.id);
   }, [sel, loadRecs]);
 
+  // Reset the polling budget whenever the member changes or a new upload starts.
+  useEffect(() => { pollCountRef.current = 0; }, [sel]);
+
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
-    const pending = records.filter(r => r.status === 'processing' || r.status === 'extracting');
-    if (pending.length > 0 && sel) {
-      pollRef.current = setInterval(() => loadRecs(sel.id), POLL);
-    }
+    const hasPending = records.some(r => r.status === 'processing' || r.status === 'extracting');
+    if (!hasPending || !sel || pollCountRef.current >= POLL_LIMIT) return undefined;
+
+    pollRef.current = setInterval(() => {
+      pollCountRef.current += 1;
+      if (pollCountRef.current >= POLL_LIMIT) clearInterval(pollRef.current);
+      loadRecs(sel.id);
+    }, POLL);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [records, sel, loadRecs]);
 
@@ -225,6 +237,7 @@ function MainApp({ onLogout }) {
         if (doctorName) update.doctor_name = doctorName;
         try { await API.put('/profiles/' + sel.id + '/records/' + rid, update); } catch (e) {}
       }
+      pollCountRef.current = 0;
       await loadRecs(sel.id);
       showToast('Uploaded — AI is extracting info');
     } catch (e) {
@@ -262,6 +275,7 @@ function MainApp({ onLogout }) {
         try { await API.put('/profiles/' + sel.id + '/records/' + rid, update); } catch (e) {}
       }
       setUpFiles(null);
+      pollCountRef.current = 0;
       await loadRecs(sel.id);
       showToast(upDrName ? 'Saved — AI is processing' : 'Uploaded — AI is extracting info');
     } catch (e) {

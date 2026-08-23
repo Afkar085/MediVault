@@ -356,6 +356,21 @@ function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
   );
 }
 
+// Users should never have to interpret a pipeline status. Say what happened
+// and what to do about it.
+const STATUS_NOTE = {
+  processing: 'Reading this document… details will fill in automatically.',
+  extracting: 'Pulling out the doctor, date and medicines…',
+  failed: 'We couldn’t read this document. Delete it and upload a clearer, well-lit photo of the whole page.',
+};
+
+const STATUS_TEXT = {
+  done: 'saved',
+  processing: 'reading…',
+  extracting: 'reading…',
+  failed: 'unreadable',
+};
+
 export default function RecordModal({ record, onClose }) {
   const { sel, setRecords, showToast, openRecord } = useContext(AppContext);
   const profileId = sel?.id;
@@ -477,7 +492,7 @@ export default function RecordModal({ record, onClose }) {
               {record.document_category || record.document_type}
             </span>
             <span style={{ padding: '3px 8px', borderRadius: 14, fontSize: 10, fontWeight: 700, background: record.status === 'done' ? 'rgba(16,185,129,0.2)' : record.status === 'failed' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)', color: '#fff' }}>
-              {record.status}
+              {STATUS_TEXT[record.status] || record.status}
             </span>
           </div>
           <div className="m-title">{(isBill && record.bill_title) ? record.bill_title : record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical Record'}</div>
@@ -485,6 +500,11 @@ export default function RecordModal({ record, onClose }) {
         </div>
 
         <div className="m-body">
+          {STATUS_NOTE[record.status] && (
+            <div className={record.status === 'failed' ? 'notice notice-error' : 'notice'} style={{ marginBottom: 14 }} role="status">
+              {STATUS_NOTE[record.status]}
+            </div>
+          )}
           <div className="m-tabs">
             {tabList.map(t => (
               <button key={t} className={'mtab' + (tab === t ? ' active' : '')} onClick={() => { setTab(t); setEditing(false); }}>

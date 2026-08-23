@@ -12,7 +12,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-client = Groq(api_key=settings.GROQ_API_KEY)
+# Someone is waiting on this response, so fail fast rather than hang the request.
+client = Groq(api_key=settings.GROQ_API_KEY, timeout=45.0, max_retries=1)
 
 
 def build_context(records: List[dict]) -> Tuple[str, List[dict]]:

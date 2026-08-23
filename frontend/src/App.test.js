@@ -78,3 +78,32 @@ test('a failed record load is reported instead of looking like an empty vault', 
   expect(await screen.findByText(/couldn't load these records/i)).toBeInTheDocument();
   expect(screen.queryByText(/no records yet/i)).not.toBeInTheDocument();
 });
+
+test('polling for a stuck upload stops instead of running for the whole session', async () => {
+  jest.useFakeTimers();
+  const stuck = { ...record('r-stuck', 'Some Doc'), status: 'processing' };
+
+  API.get.mockImplementation((url) => {
+    if (url === '/profiles') return Promise.resolve({ data: [ALICE] });
+    return Promise.resolve({ data: [stuck] });
+  });
+
+  render(<App />);
+  await act(async () => { await Promise.resolve(); });
+
+  const recordCalls = () =>
+    API.get.mock.calls.filter(([url]) => url === '/profiles/p-alice/records').length;
+
+  // It polls while the document is still being read.
+  const initial = recordCalls();
+  await act(async () => { jest.advanceTimersByTime(4000 * 5); });
+  expect(recordCalls()).toBeGreaterThan(initial);
+
+  // Well past the point where the server has given up on the job, polling stops.
+  await act(async () => { jest.advanceTimersByTime(15 * 60 * 1000); });
+  const settled = recordCalls();
+  await act(async () => { jest.advanceTimersByTime(10 * 60 * 1000); });
+  expect(recordCalls()).toBe(settled);
+
+  jest.useRealTimers();
+});
