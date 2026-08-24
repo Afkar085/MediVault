@@ -4,6 +4,7 @@ import API from '../../api';
 import { fmt, drN } from '../../utils/format';
 import { clickable } from '../../utils/interaction';
 import Icon from '../common/Icon';
+import AnswerText from './AnswerText';
 
 const MEMBER_SUGGESTIONS = [
   'What medicines was I prescribed recently?',
@@ -151,7 +152,7 @@ export default function AskPanel() {
         {answer && !thinking && (
           <div className="ask-card">
             <div className="ask-q">{asked}</div>
-            <div className="ask-a">{answer}</div>
+            <AnswerText text={answer} sources={sources} onOpenSource={openSource} />
 
             {sources.length > 0 && (
               <>

@@ -555,7 +555,26 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 .ask-card{background:#fff;border:1.5px solid var(--outline);border-radius:20px;padding:18px;box-shadow:var(--shadow-card);animation:slideUp 0.3s ease;}
 .ask-card-thinking{display:flex;align-items:center;gap:12px;font-size:13px;color:#64748b;}
 .ask-q{font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:9px;line-height:1.45;}
-.ask-a{font-size:14px;line-height:1.65;color:var(--on-surface);white-space:pre-wrap;}
+/* No white-space:pre-wrap: AnswerText parses the answer's line breaks into
+   real paragraphs and lists, so preserving them again would double the gaps. */
+.ask-a{font-size:14px;line-height:1.65;color:var(--on-surface);overflow-wrap:break-word;}
+.ask-p{margin:0 0 10px;}
+.ask-p:last-child{margin-bottom:0;}
+.ask-p-hdr{font-weight:700;color:var(--primary);}
+.ask-list{margin:0 0 10px;padding-left:18px;}
+.ask-list:last-child{margin-bottom:0;}
+.ask-list li{margin-bottom:6px;}
+.ask-list li:last-child{margin-bottom:0;}
+/* The entities worth scanning for — medicine, doctor, diagnosis, value.
+   Weight and the navy already carry it; no highlighter colours, this is a
+   medical record rather than a chat toy. */
+.ask-em{font-weight:700;color:var(--primary);}
+/* An inline [Record 1] citation, sized to match the numbered chip on the
+   source cards below the answer so the two read as the same thing. */
+.ask-cite{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin:0 1px;vertical-align:1px;border:none;border-radius:6px;background:var(--primary-container);color:var(--primary);font-family:'Inter',sans-serif;font-size:10px;font-weight:700;line-height:1;cursor:pointer;transition:background 0.2s;}
+.ask-cite:hover{background:var(--primary);color:#fff;}
+.ask-cite-flat{cursor:default;}
+.ask-cite-flat:hover{background:var(--primary-container);color:var(--primary);}
 
 .ask-src-hdr{margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;}
 .ask-src{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1.5px solid var(--outline);border-radius:12px;margin-bottom:7px;cursor:pointer;transition:border-color 0.2s,background 0.2s;min-height:44px;}

@@ -134,7 +134,6 @@ export default function SearchPage() {
           onChange={e => setQ(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && e.target.blur()}
           aria-label="Search medical records"
-          autoFocus
           style={{ flex: 1 }}
         />
         {q && (
