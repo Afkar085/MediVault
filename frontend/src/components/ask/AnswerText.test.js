@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import AnswerText from './AnswerText';
+import AnswerText, { InlineMarkdown } from './AnswerText';
 
 const SOURCES = [
   { ref: 1, record_id: 'r-1', doctor_name: 'Patel' },
@@ -91,4 +91,12 @@ test('an empty or missing answer renders nothing rather than crashing', () => {
 
   const { container: nullContainer } = render(<AnswerText text={null} />);
   expect(nullContainer.textContent).toBe('');
+});
+
+test('InlineMarkdown renders emphasis for reuse outside the answer card', () => {
+  const { container } = render(<InlineMarkdown text="Saw **Dr. Kumar** for knee pain" />);
+
+  expect(screen.getByText('Dr. Kumar').tagName).toBe('STRONG');
+  expect(container.textContent).toBe('Saw Dr. Kumar for knee pain');
+  expect(container.textContent).not.toMatch(/\*/);
 });

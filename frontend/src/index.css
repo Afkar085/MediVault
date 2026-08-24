@@ -215,6 +215,9 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 .journey-ai-line:last-child{border-bottom:none;}
 .journey-ai-dot{width:6px;height:6px;border-radius:50%;background:#9fb2ff;flex-shrink:0;margin-top:6px;}
 .journey-ai-text{font-size:13px;color:#fff;line-height:1.6;opacity:0.95;}
+/* This card is navy, so the emphasis colour used on white would vanish into
+   it. Weight and full-strength white carry it here instead. */
+.journey-ai-text .ask-em{color:#fff;font-weight:700;}
 
 .journey-timeline{position:relative;}
 .journey-year-section{margin-bottom:22px;}

@@ -72,6 +72,15 @@ function renderInline(text, keyBase, sourceFor, onOpenSource) {
   return out;
 }
 
+/**
+ * One line of model text with its emphasis rendered, and no block structure.
+ * The health-journey summary already splits its own lines and strips their
+ * bullets, so it needs the inline half of this and nothing else.
+ */
+export function InlineMarkdown({ text }) {
+  return <>{renderInline(String(text == null ? '' : text), 'inl', () => undefined, null)}</>;
+}
+
 export default function AnswerText({ text, sources = [], onOpenSource }) {
   const sourceFor = (ref) => sources.find((s) => Number(s.ref) === ref);
   const lines = String(text == null ? '' : text).split('\n');

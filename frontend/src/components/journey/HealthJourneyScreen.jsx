@@ -4,6 +4,7 @@ import API from '../../api';
 import { drN, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
 import { clickable } from '../../utils/interaction';
+import { InlineMarkdown } from '../ask/AnswerText';
 
 const CAT_META = {
   prescription:      { icon: 'description', label: 'Prescription',  cls: 'prescription' },
@@ -123,7 +124,7 @@ export default function HealthJourneyScreen() {
           {aiOpen && !ld && sumLines.length > 0 && sumLines.map((line, i) => (
             <div key={i} className="journey-ai-line">
               <div className="journey-ai-dot" />
-              <div className="journey-ai-text">{line}</div>
+              <div className="journey-ai-text"><InlineMarkdown text={line} /></div>
             </div>
           ))}
         </div>
