@@ -1,5 +1,5 @@
 """Tests for retrieval helpers (pure logic, no model/DB)."""
-from app.services.retrieval import keyword_rank, reciprocal_rank_fusion
+from app.services.retrieval import keyword_rank, reciprocal_rank_fusion, select_context_records
 
 
 def test_rrf_rewards_agreement():
@@ -96,3 +96,55 @@ def test_medicines_can_be_supplied_separately():
     records = [{"id": "knee", "diagnosis": "knee pain"}]
     ranked = keyword_rank(records, "hydrocortisone", {"knee": [{"name": "Hydrocortisone"}]})
     assert [r["id"] for r in ranked] == ["knee"]
+
+
+# The prescriptions a real user had on file when "what medicines do I have"
+# came back "I couldn't find that in the uploaded records".
+PRESCRIPTIONS = [
+    {
+        "id": "r1",
+        "doctor_name": "Dr Smith",
+        "document_category": "prescription",
+        "document_date": "2026-07-10",
+        "medicines": [{"name": "Paracetamol"}],
+    },
+    {
+        "id": "r2",
+        "doctor_name": "Dr Smith",
+        "document_category": "prescription",
+        "document_date": "2026-05-31",
+        "medicines": [{"name": "Paracetamol"}],
+    },
+]
+
+
+def test_a_question_naming_a_medicine_still_ranks_by_overlap():
+    ranked = select_context_records(PRESCRIPTIONS, "paracetamol", limit=6)
+    assert [r["id"] for r in ranked] == ["r1", "r2"]
+
+
+def test_asking_for_medicines_reaches_the_prescriptions_that_hold_them():
+    """The word "medicines" appears in no record; "Paracetamol" does.
+
+    Term overlap alone therefore scores every record zero, which used to mean
+    the user was told nothing was on file while two prescriptions sat there.
+    """
+    assert keyword_rank(PRESCRIPTIONS, "what medicines do i have", limit=6) == []
+    assert select_context_records(PRESCRIPTIONS, "what medicines do i have", limit=6) == PRESCRIPTIONS
+
+
+def test_a_question_in_another_language_still_reaches_the_records():
+    # Tokenising an English field set can never overlap these, so the old
+    # behaviour refused every non-English question outright.
+    assert select_context_records(PRESCRIPTIONS, "मेरी दवाइयाँ क्या हैं", limit=6) == PRESCRIPTIONS
+    assert select_context_records(PRESCRIPTIONS, "ನನ್ನ ಔಷಧಿಗಳು ಯಾವುವು", limit=6) == PRESCRIPTIONS
+
+
+def test_the_fallback_is_bounded_and_keeps_the_newest_first():
+    many = [{"id": f"r{i}", "doctor_name": "Dr Smith"} for i in range(20)]
+    selected = select_context_records(many, "unrelatedquestionword", limit=6)
+    assert [r["id"] for r in selected] == ["r0", "r1", "r2", "r3", "r4", "r5"]
+
+
+def test_no_records_at_all_still_yields_nothing_to_answer_from():
+    assert select_context_records([], "what medicines do i have", limit=6) == []

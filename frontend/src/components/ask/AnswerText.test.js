@@ -11,7 +11,7 @@ const SOURCES = [
 // syntax the model starts emitting has to be handled, not just rendered raw.
 const expectNoRawMarkup = (container) => {
   expect(container.textContent).not.toMatch(/\*/);
-  expect(container.textContent).not.toMatch(/\[Record/i);
+  expect(container.textContent).not.toMatch(/[[【〔]\s*Record/i);
 };
 
 test('emphasis renders as bold text, not asterisks', () => {
@@ -99,4 +99,22 @@ test('InlineMarkdown renders emphasis for reuse outside the answer card', () => 
   expect(screen.getByText('Dr. Kumar').tagName).toBe('STRONG');
   expect(container.textContent).toBe('Saw Dr. Kumar for knee pain');
   expect(container.textContent).not.toMatch(/\*/);
+});
+
+test('a citation in fullwidth brackets is still rendered as a citation', () => {
+  // Observed from the live model despite the prompt asking for plain brackets.
+  const onOpenSource = jest.fn();
+  const { container } = render(
+    <AnswerText
+      text={'- **Paracetamol** prescribed on **2026-07-10** by **Dr Smith**\u3010Record 1\u3011'}
+      sources={SOURCES}
+      onOpenSource={onOpenSource}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: /open source record 1/i }));
+  expect(onOpenSource).toHaveBeenCalledWith(SOURCES[0]);
+  expect(screen.getByText('Paracetamol').tagName).toBe('STRONG');
+  expect(container.textContent).not.toMatch(/[\u3010\u3011]/);
+  expectNoRawMarkup(container);
 });

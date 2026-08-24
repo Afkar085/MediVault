@@ -15,7 +15,7 @@ from app.services import agent, rag
 from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS
 from app.services.agent_tools import RecordTools
 from app.services.record_assembly import attach_medicines
-from app.services.retrieval import keyword_rank
+from app.services.retrieval import select_context_records
 
 router = APIRouter()
 
@@ -43,7 +43,7 @@ def _fallback(question: str, profiles: list) -> dict:
         or []
     )
     candidates = attach_medicines(rows)
-    records = keyword_rank(candidates, question, limit=CONTEXT_RECORD_LIMIT)
+    records = select_context_records(candidates, question, limit=CONTEXT_RECORD_LIMIT)
     if not records:
         return {"answer": NOT_IN_RECORDS, "sources": []}
 

@@ -17,7 +17,11 @@ const HEADING = /^\s*#{1,6}\s+/;
 
 // Ordered alternation: the ** branch is tried before the single-* one, so
 // bold is never mistaken for two italics.
-const INLINE = /\*\*(.+?)\*\*|__(.+?)__|\*([^*\n]+?)\*|\[Record\s*(\d+)\]/gi;
+// The bracket class is wider than the prompt asks for on purpose: the model
+// has been seen citing with fullwidth 【Record 1】 instead of the plain
+// brackets it was told to use, and a citation that renders as raw punctuation
+// is worse than one drawn from a bracket we did not expect.
+const INLINE = /\*\*(.+?)\*\*|__(.+?)__|\*([^*\n]+?)\*|[[【〔]\s*Record\s*(\d+)\s*[\]】〕]/gi;
 
 // Anything left over is unclosed/malformed markup. Strip it: a literal
 // asterisk on screen is the exact bug this component exists to prevent.

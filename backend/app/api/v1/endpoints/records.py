@@ -5,9 +5,9 @@ from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services import summary_cache
 from app.services.record_assembly import attach_files, attach_medicines
-from app.services.retrieval import keyword_rank, vector_search
+from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
-from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS
+from app.services.rag import CONTEXT_RECORD_LIMIT
 from app.limiter import limiter
 from app.logger import logger
 from datetime import datetime, timedelta, timezone
@@ -408,10 +408,7 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
             .execute()
         )
         candidates = attach_medicines(rows.data)
-        records = keyword_rank(candidates, question, limit=CONTEXT_RECORD_LIMIT)
-        if not records:
-            # Nothing matched. Say so rather than answering from unrelated records.
-            return {"answer": NOT_IN_RECORDS, "sources": []}
+        records = select_context_records(candidates, question, limit=CONTEXT_RECORD_LIMIT)
 
     records = attach_medicines(records)
     return rag.answer_question(question, records, profile)

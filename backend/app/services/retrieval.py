@@ -164,3 +164,30 @@ def reciprocal_rank_fusion(rankings: List[List[str]], k: int = 60) -> List[str]:
         for rank, item_id in enumerate(ranking):
             scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k + rank + 1)
     return [item_id for item_id, _ in sorted(scores.items(), key=lambda x: -x[1])]
+
+
+def select_context_records(
+    records: List[dict],
+    query: str,
+    limit: Optional[int] = None,
+) -> List[dict]:
+    """The records to put in front of the model for this question.
+
+    Term overlap decides the order, so a question naming a doctor or a medicine
+    is answered from those records first. When nothing overlaps at all the
+    caller still gets the most recent records rather than an empty list.
+
+    Refusing outright was wrong: a question can be perfectly answerable and
+    share no word with the documents. "What medicines am I on" has no term in
+    common with "Paracetamol", and a question asked in another language has
+    none in common with anything, yet both used to be answered "not in your
+    records" while the prescriptions sat right there. The prompt already tells
+    the model to say so when the answer genuinely is not in what it was given,
+    so letting it look is more useful and no less honest than not looking.
+
+    ``records`` is expected newest-first, which is the order the fallback keeps.
+    """
+    ranked = keyword_rank(records, query, limit=limit)
+    if ranked:
+        return ranked
+    return records[:limit] if limit else records

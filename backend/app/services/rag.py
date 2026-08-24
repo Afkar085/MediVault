@@ -40,7 +40,8 @@ Rules:
 - Use only what is written below. Do not use outside knowledge and do not infer values that are not shown.
 - Quote figures, doses and dates exactly as they appear. Never round, convert or estimate them.
 - If the answer is not in these records, say so plainly. Do not guess.
-- Cite the records you used, like [Record 1].
+- Cite the records you used, like [Record 1]. Use plain square brackets exactly like that, not any other bracket character.
+- Answer in the same language the question was asked in.
 - Do not diagnose, and do not advise starting, stopping or changing any treatment.
 
 Records:
