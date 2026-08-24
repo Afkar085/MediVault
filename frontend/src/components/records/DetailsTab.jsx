@@ -21,7 +21,7 @@ export function DetailsView({ record, isBill, isLab, onQuickDate, onSetDoctor })
                 {record.document_date && fmt(record.document_date) && (
                   <span className="drow-val">{fmt(record.document_date)}</span>
                 )}
-                <input key={record.id} type="date" className="edit-inp" style={{ maxWidth: 160, padding: '5px 8px', fontSize: 11 }}
+                <input key={record.id} type="date" className="edit-inp" style={{ maxWidth: 160, padding: '5px 8px', fontSize: 16 }}
                   defaultValue={dateVal(record.document_date)}
                   onChange={e => onQuickDate(e.target.value)} />
               </div>
@@ -63,7 +63,7 @@ export function DetailsView({ record, isBill, isLab, onQuickDate, onSetDoctor })
               <div className="drow-icon" style={{ background: 'var(--cat-prescription-bg)', color: 'var(--cat-prescription-fg)' }}><Icon name="stethoscope" size={16} /></div>
               <div style={{ flex: 1 }}>
                 <div className="drow-key">Doctor</div>
-                <input className="edit-inp" style={{ padding: '6px 10px', fontSize: 12 }} placeholder="Enter doctor name and press Enter"
+                <input className="edit-inp" style={{ padding: '6px 10px', fontSize: 16 }} placeholder="Enter doctor name and press Enter"
                   onKeyDown={e => {
                     if (e.key === 'Enter' && e.target.value.trim()) onSetDoctor(e.target.value.trim());
                   }} />
