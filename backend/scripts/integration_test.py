@@ -5,7 +5,7 @@ browser does, so what it proves is what a user would actually experience.
 
 Safety
 ------
-* Every account it creates is named medivault-itest+<run id>@example.invalid and
+* Every account it creates is named medivault-itest+<run id>@example.com and
   is deleted at the end, which cascades through profiles, records, medicines,
   passages and storage objects.
 * It never reads or writes any other account's data.
@@ -89,7 +89,7 @@ def api(method, path, token=None, **kw):
 
 
 def register(label):
-    email = f"medivault-itest+{RUN}-{label}@example.invalid"
+    email = f"medivault-itest+{RUN}-{label}@example.com"
     r = api("POST", "/auth/register", json={"email": email, "password": PASSWORD, "name": f"ITest {label}"})
     r.raise_for_status()
     token = r.json()["access_token"]
@@ -105,7 +105,7 @@ def register(label):
 def c1():
     r = httpx.get(API.rsplit("/api/", 1)[0] + "/health", timeout=30)
     assert r.status_code == 200, f"/health returned {r.status_code}"
-    probe = api("POST", "/auth/login", json={"email": f"nobody-{RUN}@example.invalid", "password": "x" * 12})
+    probe = api("POST", "/auth/login", json={"email": f"nobody-{RUN}@example.com", "password": "x" * 12})
     assert probe.status_code == 401, (
         f"expected 401 from a real credential lookup, got {probe.status_code}: {probe.text[:120]}"
     )
@@ -293,17 +293,23 @@ def c13(state):
 
 @check(14, "Fallback document retrieval works")
 def c14(state):
-    from app.services.passages import _from_ocr_text
     if state.get("synthetic"):
         term = TRUTH["text_only_term"]
     else:
         words = [w for w in state["ocr_text"].split() if len(w) > 4]
         assert words, "the document text has no word long enough to search for"
         term = words[0]
+    # Set before importing app.services.passages: that import pulls in
+    # app.database, whose create_client() raises synchronously on a bad key.
+    # A failed module import isn't cached, so if check 11 already tripped
+    # this once, Python retries the whole import here and this function
+    # never reaches its own body — which used to take known_term down with
+    # it and fail every later check that asks about it over plain HTTP.
+    state["known_term"] = term
+    from app.services.passages import _from_ocr_text
     hits = _from_ocr_text([state["record_id"]], term)
     assert hits, f"no passage matched {term!r}, a word taken from the document itself"
     assert term.lower() in hits[0]["text"].lower()
-    state["known_term"] = term
     return GREEN, f"Searching the real document for {term!r} returned {len(hits)} passage(s)"
 
 
