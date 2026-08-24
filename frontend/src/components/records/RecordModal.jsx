@@ -272,7 +272,14 @@ export default function RecordModal({ record, onClose }) {
           </div>
         </Modal>
       )}
-      {gal !== null && <Gallery files={files} startIdx={gal} onClose={() => setGal(null)} />}
+      {gal !== null && (
+        <Gallery
+          files={files}
+          startIdx={gal}
+          onClose={() => setGal(null)}
+          title={[cat, record.doctor_name ? drN(record.doctor_name) : record.hospital_name, fmt(record.document_date)].filter(Boolean).join('-')}
+        />
+      )}
     </>
   );
 }

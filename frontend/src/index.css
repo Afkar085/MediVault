@@ -286,13 +286,24 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 /* ── Gallery ── */
 .gal{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:400;display:flex;align-items:center;justify-content:center;}
 .gal-box{display:flex;align-items:center;justify-content:center;outline:none;}
-.gal img{max-width:92vw;max-height:85vh;object-fit:contain;border-radius:8px;}
-.gal-close:focus-visible,.gal-nav:focus-visible{outline:2px solid #fff;outline-offset:2px;}
-.gal-close{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;z-index:401;}
+/* Sized to the image's own max bounds, not the full screen, so the backdrop
+   around it stays click-to-close. The frame is what claims touch gestures:
+   touch-action:none stops the browser from treating a pinch here as a
+   page-zoom, so zooming a document only ever scales the image inside this
+   box, never the app around it. */
+.gal-frame{width:92vw;height:85vh;display:flex;align-items:center;justify-content:center;touch-action:none;overflow:hidden;}
+.gal-img{max-width:92vw;max-height:85vh;object-fit:contain;border-radius:8px;user-select:none;-webkit-user-drag:none;will-change:transform;}
+.gal-img:not(.dragging){transition:transform 0.15s ease-out;}
+.gal-icon-btn:focus-visible,.gal-nav:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+.gal-icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;}
+.gal-icon-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.gal-top{position:fixed;top:16px;right:16px;display:flex;gap:10px;z-index:401;}
 .gal-nav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;z-index:401;}
 .gal-prev{left:12px;}
 .gal-next{right:12px;}
 .gal-cnt{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.6);font-size:13px;font-weight:600;z-index:401;}
+.gal-zoom-ctrl{position:fixed;bottom:16px;right:16px;display:flex;gap:8px;z-index:401;}
+.gal-icon-btn.small{width:34px;height:34px;background:rgba(255,255,255,0.12);}
 
 /* ── Record Modal ── */
 .mover{position:fixed;inset:0;background:rgba(11,28,48,0.4);display:flex;align-items:flex-end;justify-content:center;z-index:300;backdrop-filter:blur(4px);}
