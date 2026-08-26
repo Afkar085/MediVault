@@ -3,7 +3,7 @@
 Every function here returns the document's text, or an empty string if it could
 not be read. It never returns an explanation as if it were the text: that string
 would be stored as raw_ocr_text, shown to the user as their prescription, and
-indexed as a retrievable passage — so the assistant could end up quoting an
+indexed as a retrievable passage, so the assistant could end up quoting an
 exception message back as if it came from a medical record.
 """
 import base64

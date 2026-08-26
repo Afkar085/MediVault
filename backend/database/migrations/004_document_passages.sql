@@ -4,14 +4,14 @@
 -- BACKGROUND
 -- Migration 001 embeds one vector per record, built from its first 2000
 -- characters. That answers "which visit was this?" but not "what was the
--- haemoglobin value?" — the number is further down the page, and the record
+-- haemoglobin value?": the number is further down the page, and the record
 -- vector is too coarse to point at it either way.
 --
 -- This adds one row per passage (~600 characters), so retrieval can return the
 -- specific piece of text a question is about, and the assistant can quote it.
 --
 -- OPTIONAL. Without this table the app chunks the stored OCR text on the fly and
--- ranks passages by term overlap, so document-grounded answers still work — just
+-- ranks passages by term overlap, so document-grounded answers still work, just
 -- without semantic matching ("sugar" will not find "glucose"). Applying it is
 -- only worthwhile on a host that can also run the embedding model
 -- (requirements-rag.txt); see the note at the end of 001.

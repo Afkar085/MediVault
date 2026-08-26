@@ -43,7 +43,7 @@ def test_bad_json_returns_empty_dict_and_logs(mocker, caplog):
 
 def test_an_empty_response_yields_no_fields_rather_than_raising(mocker):
     """A reasoning model can return an empty content channel. That means we got
-    no structured fields — not that the document is unreadable."""
+    no structured fields, not that the document is unreadable."""
     mocker.patch.object(
         ai.client.chat.completions, "create",
         return_value=_fake_response(""),

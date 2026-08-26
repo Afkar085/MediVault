@@ -8,7 +8,7 @@ itself and cite it.
 
 Two backends, in order:
 
-1. Stored chunks with embeddings (migration 004 + pgvector) — semantic, so
+1. Stored chunks with embeddings (migration 004 + pgvector): semantic, so
    "sugar" finds "glucose".
 2. Chunking the stored OCR text on the fly and ranking passages by term overlap.
 
@@ -61,7 +61,7 @@ def _interleave(primary: List[dict], secondary: List[dict], limit: int) -> List[
     """Merge two ranked lists whose scores are not comparable.
 
     Cosine similarity and term-overlap counts live on different scales, so they
-    are merged by rank — best of each, then second of each — rather than by
+    are merged by rank (best of each, then second of each) rather than by
     pretending one number means the same as the other.
     """
     merged: List[dict] = []
@@ -150,7 +150,7 @@ def relevant_passages(
 ) -> List[dict]:
     """Passages of the given records' document text most relevant to the query.
 
-    Returns [] when nothing in the text matches — which is the honest answer, and
+    Returns [] when nothing in the text matches, which is the honest answer and
     lets the caller say so instead of handing the model unrelated text.
     """
     if not record_ids or not query.strip():

@@ -4,7 +4,7 @@
 --   2 WARNINGS: "Function Search Path Mutable" on match_records + update_updated_at_column
 --   1 WARNING : "Extension in Public" on the vector extension (addressed in comments only)
 --
--- ARCHITECTURE NOTE — READ BEFORE RUNNING:
+-- ARCHITECTURE NOTE (READ BEFORE RUNNING):
 -- MediVault does NOT use Supabase Auth. Authentication is custom JWT (jose/bcrypt)
 -- and authorization is enforced in the FastAPI layer. That means auth.uid() is
 -- always NULL here, so classic per-row RLS policies keyed on auth.uid() would NOT
@@ -23,7 +23,7 @@
 -- returns empty and the app breaks. Switch the key first.
 
 -- ============================================================================
--- PART 1 — Enable Row Level Security (deny-all) on all application tables
+-- PART 1: Enable Row Level Security (deny-all) on all application tables
 -- ============================================================================
 -- No policies are created on purpose: with RLS enabled and no policy, every
 -- non-privileged role (anon, authenticated) is denied. service_role bypasses
@@ -46,7 +46,7 @@ REVOKE ALL ON public.record_edits FROM anon, authenticated;
 REVOKE ALL ON public.record_files FROM anon, authenticated;
 
 -- ============================================================================
--- PART 2 — Pin a fixed search_path on the flagged functions (fixes 2 warnings)
+-- PART 2: Pin a fixed search_path on the flagged functions (fixes 2 warnings)
 -- ============================================================================
 -- A mutable search_path lets a caller shadow objects the function references.
 -- We pin it to `public` (NOT an empty string): match_records references the
@@ -70,7 +70,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- PART 3 — "Extension in Public" (vector)  [OPTIONAL / LOW PRIORITY — NOT RUN]
+-- PART 3: "Extension in Public" (vector)  [OPTIONAL / LOW PRIORITY: NOT RUN]
 -- ============================================================================
 -- The advisor flags pgvector living in the public schema. Relocating it to a
 -- dedicated `extensions` schema is the textbook fix, BUT it is disruptive: the

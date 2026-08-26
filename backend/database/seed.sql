@@ -1,6 +1,6 @@
 -- LOCAL DEVELOPMENT ONLY. Do not run this file against a production database.
 -- The password hash below is a well-known, publicly-documented bcrypt example
--- hash (not a secret) — anyone can find the matching plaintext online. If this
+-- hash (not a secret); anyone can find the matching plaintext online. If this
 -- seed was ever run against your live Supabase project, check the `users`
 -- table for email 'test@medivault.dev' and delete that row immediately.
 

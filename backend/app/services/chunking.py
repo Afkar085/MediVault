@@ -2,7 +2,7 @@
 
 A record is embedded as a single vector built from its first 2000 characters,
 which is fine for "find the knee prescription" and useless for "what was the
-haemoglobin value" — the number is on page three and the model never sees the
+haemoglobin value": the number is on page three and the model never sees the
 text anyway. Passages fix both halves: they are small enough to embed
 meaningfully, and small enough to put in front of the model verbatim.
 

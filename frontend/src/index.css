@@ -568,7 +568,7 @@ code{font-family:source-code-pro,Menlo,Monaco,Consolas,'Courier New',monospace;}
 .ask-list:last-child{margin-bottom:0;}
 .ask-list li{margin-bottom:6px;}
 .ask-list li:last-child{margin-bottom:0;}
-/* The entities worth scanning for — medicine, doctor, diagnosis, value.
+/* The entities worth scanning for, medicine, doctor, diagnosis, value.
    Weight and the navy already carry it; no highlighter colours, this is a
    medical record rather than a chat toy. */
 .ask-em{font-weight:700;color:var(--primary);}

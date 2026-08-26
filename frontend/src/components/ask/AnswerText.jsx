@@ -1,8 +1,8 @@
 /**
  * Renders an AI answer's light markdown as real UI.
  *
- * The model writes prose but still marks up the things that matter — medicine
- * names, doctors, diagnoses, values — as **emphasis**, and cites its sources
+ * The model writes prose but still marks up the things that matter (medicine
+ * names, doctors, diagnoses, values) as **emphasis**, and cites its sources
  * as [Record 1]. The answer used to be dropped into the DOM as a raw string,
  * so those asterisks and brackets appeared on screen literally.
  *
@@ -14,6 +14,23 @@
 
 const LIST_MARKER = /^\s*(?:[-•*]\s+|\d+[.)]\s+)/;
 const HEADING = /^\s*#{1,6}\s+/;
+
+/**
+ * Put the model's dashes back into ordinary punctuation.
+ *
+ * The prompt asks it not to reach for an em dash and it does anyway, often
+ * several times in one answer, which is the surest sign in the whole app that
+ * a machine wrote the text. Ranges are converted first and separately: turning
+ * the dash in "5-10 mg" into a comma would change a dose, so that one becomes
+ * a hyphen and only dashes sitting between words become commas.
+ */
+const normalizeDashes = (s) =>
+  s
+    .replace(/(\d)[^\S\r\n]*[–—][^\S\r\n]*(\d)/g, '$1-$2')
+    // Horizontal whitespace only. Matching \s here would catch the newline
+    // before a line that opens with a dash and turn that bullet into a comma.
+    .replace(/[^\S\r\n]+[–—][^\S\r\n]+/g, ', ')
+    .replace(/[–—]/g, '-');
 
 // Ordered alternation: the ** branch is tried before the single-* one, so
 // bold is never mistaken for two italics.
@@ -82,12 +99,12 @@ function renderInline(text, keyBase, sourceFor, onOpenSource) {
  * bullets, so it needs the inline half of this and nothing else.
  */
 export function InlineMarkdown({ text }) {
-  return <>{renderInline(String(text == null ? '' : text), 'inl', () => undefined, null)}</>;
+  return <>{renderInline(normalizeDashes(String(text == null ? '' : text)), 'inl', () => undefined, null)}</>;
 }
 
 export default function AnswerText({ text, sources = [], onOpenSource }) {
   const sourceFor = (ref) => sources.find((s) => Number(s.ref) === ref);
-  const lines = String(text == null ? '' : text).split('\n');
+  const lines = normalizeDashes(String(text == null ? '' : text)).split('\n');
 
   const blocks = [];
   let listItems = [];

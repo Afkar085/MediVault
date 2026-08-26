@@ -2,7 +2,7 @@
 
 Used when there is no real document to hand. Because every value in it is known
 up front, the integration run can assert that OCR read the right thing rather
-than merely that it read *something* — which a real photo cannot do without
+than merely that it read *something*, which a real photo cannot do without
 someone transcribing it first.
 
 What this does NOT prove: that OCR copes with handwriting, stamps, skew, poor
@@ -27,7 +27,7 @@ GROUND_TRUTH = {
     "specialty": "Orthopaedics",
     "diagnosis": "Osteoarthritis of the right knee",
     "medicines": ["Paracetamol", "Etoricoxib", "Omeprazole"],
-    # These live only in the document text — no column holds them — so they are
+    # These live only in the document text and no column holds them, so they are
     # what proves passage retrieval is doing real work.
     "lab_values": {"Haemoglobin": "11.4 g/dL", "ESR": "28 mm/hr", "Serum Uric Acid": "6.8 mg/dL"},
     "advice_phrase": "Physiotherapy three times a week",

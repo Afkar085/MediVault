@@ -4,22 +4,22 @@ This is the "real server" path instead of Render's "connect repo, click deploy" 
 
 ## Why this needs a domain name
 
-Your frontend runs on Vercel over HTTPS. Browsers refuse to let an HTTPS page call a plain-HTTP backend (mixed content blocking) — so the backend needs real HTTPS too, which needs a domain name pointing at it. We'll use **DuckDNS**, a free dynamic DNS service — no cost, no card, 2 minutes to set up.
+Your frontend runs on Vercel over HTTPS. Browsers refuse to let an HTTPS page call a plain-HTTP backend (mixed content blocking), so the backend needs real HTTPS too, which needs a domain name pointing at it. We'll use **DuckDNS**, a free dynamic DNS service, no cost, no card, 2 minutes to set up.
 
-## Part 1 — Create the VM
+## Part 1, Create the VM
 
-1. Sign up at [oracle.com/cloud/free](https://oracle.com/cloud/free). Card required for identity verification only — the "Always Free" resources genuinely never charge unless you explicitly upgrade to a paid account later.
+1. Sign up at [oracle.com/cloud/free](https://oracle.com/cloud/free). Card required for identity verification only, the "Always Free" resources genuinely never charge unless you explicitly upgrade to a paid account later.
 2. In the Oracle Cloud Console: **Compute → Instances → Create Instance**.
 3. Name it `medivault-backend`.
 4. **Image**: click Edit next to the image, choose **Canonical Ubuntu 22.04**.
-5. **Shape**: click Edit next to the shape, choose **Ampere → VM.Standard.A1.Flex**, set **2 OCPUs / 12 GB memory** (comfortably inside the always-free 4 OCPU / 24GB pool — no need to max it out).
+5. **Shape**: click Edit next to the shape, choose **Ampere → VM.Standard.A1.Flex**, set **2 OCPUs / 12 GB memory** (comfortably inside the always-free 4 OCPU / 24GB pool, no need to max it out).
 6. **Networking**: leave it on "Create new virtual cloud network" (Oracle sets up a public subnet for you automatically). Make sure "Assign a public IPv4 address" is checked.
-7. **SSH keys**: choose "Generate a key pair for me" and **download both the private and public key files immediately** — the private key (`.key` file) is the only way you'll ever log into this VM. Save it somewhere safe, e.g. `C:\Users\Lenovo\.ssh\medivault-oracle.key`.
+7. **SSH keys**: choose "Generate a key pair for me" and **download both the private and public key files immediately**, the private key (`.key` file) is the only way you'll ever log into this VM. Save it somewhere safe, e.g. `C:\Users\Lenovo\.ssh\medivault-oracle.key`.
 8. Click **Create**. Wait ~1-2 minutes for it to show "Running". Note the **Public IP Address** shown on the instance page.
 
-## Part 2 — Open the firewall (two places, both required)
+## Part 2, Open the firewall (two places, both required)
 
-Oracle blocks traffic at the cloud level AND the VM's own OS level — missing either one means nothing works.
+Oracle blocks traffic at the cloud level AND the VM's own OS level, missing either one means nothing works.
 
 **Cloud level:**
 1. On the instance page, click the subnet link under "Primary VNIC".
@@ -28,16 +28,16 @@ Oracle blocks traffic at the cloud level AND the VM's own OS level — missing e
    - Source CIDR `0.0.0.0/0`, IP Protocol TCP, Destination Port `80`
    - Source CIDR `0.0.0.0/0`, IP Protocol TCP, Destination Port `443`
 
-**VM level** — do this after you SSH in, in Part 4 below.
+**VM level**, do this after you SSH in, in Part 4 below.
 
-## Part 3 — Point a free domain at your VM
+## Part 3, Point a free domain at your VM
 
 1. Go to [duckdns.org](https://www.duckdns.org), sign in with GitHub or Google.
 2. Under "add domain", type something like `medivault-afkar` → creates `medivault-afkar.duckdns.org`.
 3. Paste your VM's **Public IP Address** into the IP field next to it, click **update ip**.
-4. That's it — `medivault-afkar.duckdns.org` now points at your VM.
+4. That's it, `medivault-afkar.duckdns.org` now points at your VM.
 
-## Part 4 — SSH in and set up the server
+## Part 4, SSH in and set up the server
 
 Open PowerShell on your machine:
 
@@ -45,7 +45,7 @@ Open PowerShell on your machine:
 ssh -i C:\Users\Lenovo\.ssh\medivault-oracle.key ubuntu@<YOUR_VM_PUBLIC_IP>
 ```
 
-(First connection asks "are you sure you want to continue" — type `yes`.)
+(First connection asks "are you sure you want to continue", type `yes`.)
 
 Now, still inside that SSH session, open the VM's own firewall:
 
@@ -61,14 +61,14 @@ Install everything the app needs:
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3-pip python3-venv git
 
-# Caddy — a web server that gets and renews HTTPS certificates automatically
+# Caddy, a web server that gets and renews HTTPS certificates automatically
 sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update && sudo apt install -y caddy
 ```
 
-## Part 5 — Get the app onto the VM
+## Part 5, Get the app onto the VM
 
 ```bash
 git clone https://github.com/Afkar085/MediVault.git
@@ -100,26 +100,26 @@ DEBUG=false
 > **Use the SERVICE_ROLE key, not the anon key** (Supabase Dashboard → Project
 > Settings → API → `service_role`). The backend does its own JWT auth and needs
 > service_role to work through the deny-all RLS set up in migration 002. This key
-> lives only here on the server — never in the frontend.
+> lives only here on the server, never in the frontend.
 
-### Part 5b — Apply the database migrations (once, in the Supabase SQL editor)
+### Part 5b, Apply the database migrations (once, in the Supabase SQL editor)
 
-Two SQL files must be run against your Supabase database — open the **SQL editor**
+Two SQL files must be run against your Supabase database, open the **SQL editor**
 in the Supabase dashboard and paste each one's contents, in order:
 
-1. `backend/database/migrations/001_semantic_search.sql` — enables pgvector, the
+1. `backend/database/migrations/001_semantic_search.sql`, enables pgvector, the
    `embedding` column, the ANN index, and the `match_records` RPC that powers
    semantic search + the "Ask Your Records" RAG feature.
-2. `backend/database/migrations/002_security_advisor_fixes.sql` — enables deny-all
+2. `backend/database/migrations/002_security_advisor_fixes.sql`, enables deny-all
    RLS on all tables (closes the public-API data leak the Supabase advisor flagged)
    and pins the function `search_path`. **Set `SUPABASE_KEY` to the service_role
    key first (above) so the app keeps working once RLS is on.**
 
 Note: `fastembed` (in requirements.txt) downloads its ~130 MB embedding model the
-first time RAG runs — the VM has plenty of RAM/disk for this, unlike Render's free
+first time RAG runs, the VM has plenty of RAM/disk for this, unlike Render's free
 tier. That RAM ceiling is exactly why RAG couldn't run on Render.
 
-## Part 6 — Make it run permanently (systemd)
+## Part 6, Make it run permanently (systemd)
 
 This keeps the app running after you disconnect, and restarts it automatically if it crashes or the VM reboots.
 
@@ -151,9 +151,9 @@ sudo systemctl enable --now medivault
 sudo systemctl status medivault
 ```
 
-You should see "active (running)" in green. (`sudo journalctl -u medivault -f` shows live logs if something looks wrong — Ctrl+C to stop watching.)
+You should see "active (running)" in green. (`sudo journalctl -u medivault -f` shows live logs if something looks wrong, Ctrl+C to stop watching.)
 
-## Part 7 — Point Caddy at it (this is what gets you HTTPS)
+## Part 7, Point Caddy at it (this is what gets you HTTPS)
 
 ```bash
 sudo nano /etc/caddy/Caddyfile
@@ -173,9 +173,9 @@ medivault-afkar.duckdns.org {
 sudo systemctl restart caddy
 ```
 
-Caddy automatically requests and installs a real Let's Encrypt certificate for that domain the first time it starts — no manual cert commands needed.
+Caddy automatically requests and installs a real Let's Encrypt certificate for that domain the first time it starts, no manual cert commands needed.
 
-## Part 8 — Test it
+## Part 8, Test it
 
 From your own computer (not the SSH session):
 
@@ -183,11 +183,11 @@ From your own computer (not the SSH session):
 https://medivault-afkar.duckdns.org/health
 ```
 
-should show `{"status":"ok"}` with a valid padlock — no cold start delay, no waking up. `/docs` should 404 (correct, disabled unless `DEBUG=true`).
+should show `{"status":"ok"}` with a valid padlock, no cold start delay, no waking up. `/docs` should 404 (correct, disabled unless `DEBUG=true`).
 
-## Part 9 — Point the frontend at it
+## Part 9, Point the frontend at it
 
-Same as the Render path — tell me `https://medivault-afkar.duckdns.org` and I'll wire up `api.js` / your Vercel env var, then you redeploy on Vercel.
+Same as the Render path, tell me `https://medivault-afkar.duckdns.org` and I'll wire up `api.js` / your Vercel env var, then you redeploy on Vercel.
 
 ## Updating the app later
 

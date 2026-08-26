@@ -116,7 +116,7 @@ def _replace_medicines(record_id: str, medicines_data: list) -> None:
                 )
         raise HTTPException(
             status_code=502,
-            detail="Could not save the medicines. Nothing was changed — please try again.",
+            detail="Could not save the medicines. Nothing was changed. Please try again.",
         ) from e
 
 
@@ -193,7 +193,7 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
     else:
         result = supabase.table("records").select(_DETAIL_COLUMNS).eq("id", record_id).eq("profile_id", profile_id).execute()
 
-    # Save bill_title/bill_category/bill_number — requires those columns in records table
+    # Save bill_title/bill_category/bill_number; requires those columns in records table
     bill_extra_clean = {k: v for k, v in bill_extra.items() if v is not None}
     if bill_extra_clean:
         try:
@@ -347,6 +347,7 @@ Medical visits:
 Write 3-8 bullet points summarizing the health journey chronologically.
 Focus on: key diagnoses, treatment progression, medication changes, follow-up outcomes.
 Use simple language a patient would understand.
+Use ordinary punctuation. Never use an em dash; use a comma, a full stop or brackets instead.
 Format each point starting with the month/year, then the event.
 Return ONLY the bullet points, no intro or outro."""
             }],

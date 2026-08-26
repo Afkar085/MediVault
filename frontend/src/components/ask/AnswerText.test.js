@@ -118,3 +118,25 @@ test('a citation in fullwidth brackets is still rendered as a citation', () => {
   expect(container.textContent).not.toMatch(/[\u3010\u3011]/);
   expectNoRawMarkup(container);
 });
+
+describe('dashes the model was asked not to use', () => {
+  test('a dash between words becomes ordinary punctuation', () => {
+    const { container } = render(
+      <AnswerText text={'**Amlodipine** \u2014 started after the cardiology visit.'} />,
+    );
+    expect(container.textContent).toBe('Amlodipine, started after the cardiology visit.');
+    expect(container.textContent).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  test('a dose range keeps its meaning instead of becoming a comma', () => {
+    const { container } = render(<AnswerText text={'Take 5\u201310 mg daily.'} />);
+    expect(container.textContent).toBe('Take 5-10 mg daily.');
+  });
+
+  test('a line opening with a dash is still a bullet, not a comma', () => {
+    render(<AnswerText text={'Medicines:\n\u2014 Paracetamol\n\u2014 Omeprazole'} />);
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('Paracetamol');
+  });
+});

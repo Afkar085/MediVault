@@ -3,7 +3,7 @@
 The health journey summary is a pure function of the records that fed it, so
 regenerating it on every visit costs seconds of latency and tokens for an answer
 we already had. Keyed on a fingerprint of those records, so any upload, edit or
-deletion invalidates it automatically — no TTL to tune and no stale summaries.
+deletion invalidates it automatically; no TTL to tune and no stale summaries.
 
 In-process on purpose: it needs no migration and no extra service. A restart or
 a second worker just means a cache miss, which is the current behaviour anyway.

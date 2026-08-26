@@ -23,7 +23,7 @@ test('an error stays on screen long enough to read', () => {
   const onDone = jest.fn();
   render(
     <Toast
-      msg="IMG_0042.HEIC: iPhone HEIC photos aren’t supported — save it as JPEG first"
+      msg="IMG_0042.HEIC: iPhone HEIC photos aren’t supported. Save it as JPEG first"
       type="error"
       onDone={onDone}
     />,

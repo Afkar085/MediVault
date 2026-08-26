@@ -20,7 +20,7 @@ Usage
     # terminal 2
     python scripts/integration_test.py --image /path/to/a/real/prescription.jpg
 
-The image should be a genuine prescription or lab report photo — the point is to
+The image should be a genuine prescription or lab report photo. The point is to
 find out whether OCR reads *your* documents, not a synthetic one.
 """
 import argparse
@@ -262,7 +262,7 @@ def c11(state):
             .eq("record_id", state["record_id"]).execute())
     stored = rows.count or 0
     if stored == 0:
-        return YELLOW, "Table exists but this upload stored no passages — check the indexing step."
+        return YELLOW, "Table exists but this upload stored no passages. Check the indexing step."
     state["passages_stored"] = stored
     return GREEN, f"{stored} passage row(s) written for this record"
 
@@ -287,7 +287,7 @@ def c13(state):
     term = state["ocr_text"].split()[0] if state["ocr_text"].split() else "report"
     hits = _from_stored_chunks([state["record_id"]], term, 5)
     if not hits:
-        return YELLOW, f"match_chunks returned nothing for {term!r} — check the similarity threshold."
+        return YELLOW, f"match_chunks returned nothing for {term!r}. Check the similarity threshold."
     return GREEN, f"match_chunks returned {len(hits)} passage(s) from the real index"
 
 
@@ -303,7 +303,7 @@ def c14(state):
     # app.database, whose create_client() raises synchronously on a bad key.
     # A failed module import isn't cached, so if check 11 already tripped
     # this once, Python retries the whole import here and this function
-    # never reaches its own body — which used to take known_term down with
+    # never reaches its own body, which used to take known_term down with
     # it and fail every later check that asks about it over plain HTTP.
     state["known_term"] = term
     from app.services.passages import _from_ocr_text
@@ -334,7 +334,7 @@ def c16(state):
     state["agent"] = body
     used = body.get("used_tools")
     if used is None:
-        return YELLOW, ("Answered, but via the retrieval fallback rather than the tool loop — "
+        return YELLOW, ("Answered, but via the retrieval fallback rather than the tool loop, so "
                         "so the tool schema was not exercised. Check the backend log for a Groq error.")
     return GREEN, f"Tool loop ran; tools called: {', '.join(used) or '(none)'}"
 
@@ -469,7 +469,7 @@ def c23(state):
     base = signed.split("?")[0].replace("/object/sign/", "/object/public/")
     r = httpx.get(base, timeout=60, follow_redirects=True)
     assert r.status_code != 200, (
-        "the document is readable WITHOUT a signature — the bucket is public. "
+        "the document is readable WITHOUT a signature; the bucket is public. "
         "Storage -> medical-records -> set to private."
     )
     unsigned = httpx.get(signed.split("?")[0], timeout=60, follow_redirects=True)

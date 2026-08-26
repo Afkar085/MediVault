@@ -5,7 +5,7 @@
 -- Uploads used to store `get_public_url(file_path)` in records.file_url and
 -- record_files.file_url. If the `medical-records` bucket is (or ever becomes)
 -- public, each of those rows is a permanent, unauthenticated link to somebody's
--- medical document — and the URLs also leaked into API responses that were not
+-- medical document, and the URLs also leaked into API responses that were not
 -- re-signed. The application no longer writes or reads these columns: every
 -- document URL is now a short-lived signed URL minted per request from
 -- file_path. This migration removes the stale values.

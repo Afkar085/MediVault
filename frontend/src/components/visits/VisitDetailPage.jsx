@@ -123,12 +123,12 @@ export default function VisitDetailPage() {
   const [gal, setGal] = useState(null);
 
   // Derive from the live docGroups (not a frozen nav snapshot) so edits made on this
-  // screen — insurance toggle, adding a document — show up immediately.
+  // screen, insurance toggle, adding a document, show up immediately.
   // Derived from live state, so an edit made inside this visit is reflected
   // immediately rather than showing whatever was captured on navigation.
   const visitRecords = (docGroups[doctorKey] || []).filter(r => getRecordDate(r) === visitDate);
 
-  // Merge across every document in the visit — a lab report's diagnosis and a
+  // Merge across every document in the visit, a lab report's diagnosis and a
   // prescription's medicines are separate records but belong to one summary.
   const visitDiagnosis = visitRecords?.find(r => r.diagnosis)?.diagnosis;
   const visitMedicines = (visitRecords || []).flatMap(r => r.medicines || []);
@@ -144,7 +144,7 @@ export default function VisitDetailPage() {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
-    // Upload directly into this visit — forces document_date = visitDate so it stays grouped here
+    // Upload directly into this visit, forces document_date = visitDate so it stays grouped here
     uploadToVisit(files, type, doctorName, visitDate);
   };
 

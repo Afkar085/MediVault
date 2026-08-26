@@ -27,14 +27,14 @@ const POLL = 4000;
 // Server rejections are phrased for developers; say what the person can do.
 const uploadErrorMessage = (e) => {
   const status = e?.response?.status;
-  if (status === 429) return 'That is a lot of uploads at once — try again in a minute.';
+  if (status === 429) return 'That is a lot of uploads at once. Try again in a minute.';
   if (status === 413) return 'That file is too large to upload.';
-  if (!e?.response) return 'Upload failed — check your connection and try again.';
+  if (!e?.response) return 'Upload failed. Check your connection and try again.';
   return e.response.data?.detail || 'Upload failed. Please try again.';
 };
 // The backend gives a background OCR job 10 minutes before declaring it failed.
 // Polling past that just burns battery and requests, so we stop and let the
-// user refresh — the server will have settled the record's status by then.
+// user refresh, the server will have settled the record's status by then.
 const POLL_LIMIT = Math.ceil((11 * 60 * 1000) / POLL);
 
 function MainApp({ onLogout }) {
@@ -247,7 +247,7 @@ function MainApp({ onLogout }) {
     setUpDrName(doctorName || '');
   }, []);
 
-  // Direct upload from inside a visit — bypasses UploadPreview, forces visit date
+  // Direct upload from inside a visit, bypasses UploadPreview, forces visit date
   const uploadToVisit = useCallback(async (files, type, doctorName, visitDate) => {
     if (!files.length || !sel) return;
     const accepted = acceptFiles(files);
@@ -273,7 +273,7 @@ function MainApp({ onLogout }) {
       }
       pollCountRef.current = 0;
       await loadRecs(sel.id);
-      showToast('Uploaded — AI is extracting info');
+      showToast('Uploaded. Reading the details now');
     } catch (e) {
       showToast(uploadErrorMessage(e), 'error');
     } finally { setVisitUploading(false); }
@@ -321,7 +321,7 @@ function MainApp({ onLogout }) {
       setUpFiles(null);
       pollCountRef.current = 0;
       await loadRecs(sel.id);
-      showToast(upDrName ? 'Saved — AI is processing' : 'Uploaded — AI is extracting info');
+      showToast(upDrName ? 'Saved. Reading the details now' : 'Uploaded. Reading the details now');
     } catch (e) {
       showToast(uploadErrorMessage(e), 'error');
     } finally { setUploading(false); setUploadPct(0); }
@@ -383,7 +383,7 @@ function MainApp({ onLogout }) {
         {waking && (
           <div className="waking-banner" role="status">
             <span className="spinner spinner-sm" />
-            Waking the server up — the first visit after a quiet spell can take a minute.
+            Waking the server up. The first visit after a quiet spell can take a minute.
           </div>
         )}
         <main className="page">{renderPage()}</main>
@@ -447,7 +447,7 @@ export default function App() {
 
   return (
     <AuthScreen
-      notice={expired ? 'Your session ended. Please sign in again — your records are safe.' : ''}
+      notice={expired ? 'Your session ended. Please sign in again. Your records are safe.' : ''}
       onLogin={() => { setExpired(false); setLoggedIn(true); }}
     />
   );

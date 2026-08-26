@@ -2,11 +2,11 @@
 
 Two independent rankers:
 
-* ``vector_search`` — semantic, delegated to a Postgres RPC (``match_records``,
+* ``vector_search``: semantic, delegated to a Postgres RPC (``match_records``,
   see database/migrations/001_semantic_search.sql) backed by pgvector. Needs the
   embedding model, which does not fit on every host, so it returns None when
   unavailable and callers fall back.
-* ``keyword_rank`` — term overlap, pure Python over records already loaded. No
+* ``keyword_rank``: term overlap, pure Python over records already loaded. No
   model, no extra query. This is what makes retrieval work on a small host.
 
 ``reciprocal_rank_fusion`` merges them when both are available.
@@ -21,7 +21,7 @@ from app.services.embeddings import embed_text
 logger = logging.getLogger(__name__)
 
 # Words that appear in almost every question and would otherwise match every
-# record. Kept deliberately small — anything clinical must survive.
+# record. Kept deliberately small; anything clinical must survive.
 _STOPWORDS = frozenset("""
 a an and any are as at be been being but by can did do does for from get give
 had has have he her him his how i in into is it its me my of on or our out she
@@ -134,7 +134,7 @@ def keyword_rank(
 ) -> List[dict]:
     """Rank records by term overlap with the query, best first.
 
-    Records that match nothing are dropped rather than padded in — answering
+    Records that match nothing are dropped rather than padded in: answering
     from an unrelated record is worse than saying nothing was found.
     """
     terms = tokenize(query)

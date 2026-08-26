@@ -53,7 +53,7 @@ export function DetailsView({ record, isBill, isLab, onQuickDate, onSetDoctor })
                   <div className="drow-key">Amount</div>
                   {record.bill_amount != null
                     ? <div className="drow-val">{cur(record.bill_amount)}</div>
-                    : <div style={{ color: '#94a3b8', fontSize: 13 }}>Not recorded — tap Edit Details to add</div>}
+                    : <div style={{ color: '#94a3b8', fontSize: 13 }}>Not recorded. Tap Edit Details to add</div>}
                 </div>
               </div>
             </>

@@ -1,6 +1,6 @@
 // Upload rules, checked on the device before anything is sent.
 //
-// The server enforces all of this again (it must — a client can lie), but
+// The server enforces all of this again (it must, a client can lie), but
 // finding out that a 40MB photo is too big *after* uploading it over mobile
 // data is a bad way to learn. These limits mirror backend/app/api/v1/endpoints/upload.py.
 
@@ -41,8 +41,8 @@ export function validateFiles(picked, existing = []) {
       rejected.push({
         name: file.name,
         reason: file.name.toLowerCase().endsWith('.heic')
-          ? 'iPhone HEIC photos aren’t supported — share it as a photo, or save it as JPEG first'
-          : 'that file type can’t be read — use a photo or a PDF',
+          ? 'iPhone HEIC photos aren’t supported. Share it as a photo, or save it as JPEG first'
+          : 'that file type can’t be read. Use a photo or a PDF',
       });
       continue;
     }
@@ -69,5 +69,5 @@ export function validateFiles(picked, existing = []) {
 export function describeRejections(rejected) {
   if (!rejected.length) return '';
   if (rejected.length === 1) return rejected[0].name + ': ' + rejected[0].reason;
-  return rejected.length + ' files were skipped — ' + rejected[0].name + ': ' + rejected[0].reason;
+  return rejected.length + ' files were skipped. ' + rejected[0].name + ': ' + rejected[0].reason;
 }

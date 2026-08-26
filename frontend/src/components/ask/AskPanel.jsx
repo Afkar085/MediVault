@@ -80,7 +80,7 @@ export default function AskPanel() {
         if (requestRef.current !== id) return;
         setError(
           e?.response?.status === 429
-            ? 'That is a lot of questions at once — give it a minute and try again.'
+            ? 'That is a lot of questions at once. Give it a minute and try again.'
             : "Couldn't get an answer right now. Please try again.",
         );
         setThinking(false);

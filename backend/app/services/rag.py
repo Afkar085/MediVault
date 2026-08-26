@@ -6,7 +6,7 @@ answers grounded and reduces hallucination.
 
 Each record contributes two things: the fields the extractor pulled out (doctor,
 diagnosis, medicines), and the passages of the scanned document that are actually
-relevant to the question. The second matters — a haemoglobin value or a specific
+relevant to the question. The second matters: a haemoglobin value or a specific
 instruction lives in the document text and was never extracted into a column, so
 without the passages the model can only ever say it doesn't know.
 """
@@ -42,6 +42,8 @@ Rules:
 - If the answer is not in these records, say so plainly. Do not guess.
 - Cite the records you used, like [Record 1]. Use plain square brackets exactly like that, not any other bracket character.
 - Answer in the same language the question was asked in.
+- Use ordinary punctuation. Never use an em dash; use a comma, a full stop or brackets instead.
+- Bold only the names that matter (a medicine, a doctor, a diagnosis, a test) with **double asterisks**. Do not bold whole sentences.
 - Do not diagnose, and do not advise starting, stopping or changing any treatment.
 
 Records:

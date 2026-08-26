@@ -180,7 +180,7 @@ export default function Dashboard() {
       <div className="empty">
         <div className="empty-icon"><Icon name="cloud_off" size={30} /></div>
         <div className="empty-title">Couldn't load these records</div>
-        <div className="empty-sub">Check your connection — your records are safe and nothing was lost.</div>
+        <div className="empty-sub">Check your connection. Your records are safe and nothing was lost.</div>
         <button className="btn-s" style={{ marginTop: 16 }} onClick={refreshRecords}>Try again</button>
       </div>
     );

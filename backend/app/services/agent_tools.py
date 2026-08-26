@@ -170,7 +170,7 @@ class RecordTools:
         return {"prescriptions": entries[:MAX_RESULTS]}
 
     def get_test_history(self, member: Optional[str] = None) -> dict:
-        """Lab reports newest first — this is what "when was the last one" needs."""
+        """Lab reports newest first. This is what "when was the last one" needs."""
         ids = self._resolve_member(member)
         if ids is None:
             return {"error": f"No family member matching '{member}'.", "tests": []}
@@ -229,7 +229,7 @@ class RecordTools:
 
     def get_record_details(self, record_id: str) -> dict:
         """Full detail for one record. A record outside this user's family is
-        reported as not found — the id alone grants nothing."""
+        reported as not found; the id alone grants nothing."""
         rows = (
             supabase.table("records")
             .select(_RECORD_COLUMNS)
@@ -341,8 +341,8 @@ TOOL_SCHEMAS = [
             "description": (
                 "The exact wording of the scanned documents. Use this whenever the question "
                 "asks about something that would be written on the document rather than "
-                "summarised — a test value or reading, a specific instruction, wording the "
-                "doctor used. The other tools only return extracted fields."
+                "summarised (a test value or reading, a specific instruction, wording the "
+                "doctor used). The other tools only return extracted fields."
             ),
             "parameters": {
                 "type": "object",

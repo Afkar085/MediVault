@@ -33,7 +33,7 @@ _EXTENSION_BY_TYPE = {
     "application/pdf": "pdf",
 }
 
-# Magic-byte signatures — the client-supplied content_type header can be spoofed,
+# Magic-byte signatures: the client-supplied content_type header can be spoofed,
 # so we verify the actual file bytes match what's claimed before accepting the upload.
 _MAGIC_CHECKS = {
     "image/jpeg": lambda b: b[:3] == b"\xff\xd8\xff",

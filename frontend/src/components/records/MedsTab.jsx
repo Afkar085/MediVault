@@ -35,7 +35,7 @@ function getMedIcon(type) {
 }
 
 function getMedSchedule(med) {
-  if (med.sos) return 'SOS — take only when needed';
+  if (med.sos) return 'SOS: take only when needed';
   const t = med.type || '';
   if (['tablet', 'capsule'].includes(t)) {
     const m = med.morning ?? 0, a = med.afternoon ?? 0, n = med.night ?? 0;
@@ -47,7 +47,7 @@ function getMedSchedule(med) {
   }
   if (t === 'syrup') {
     const parts = [med.morning_ml, med.afternoon_ml, med.night_ml].filter(Boolean);
-    if (parts.length) return parts.join(' – ');
+    if (parts.length) return parts.join('-');
   }
   if (['cream', 'gel', 'ointment', 'lotion'].includes(t)) {
     return [med.body_part, med.frequency].filter(Boolean).join(' · ');
@@ -114,7 +114,7 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
 
       <label className="med-sos-label">
         <input type="checkbox" checked={!!f.sos} onChange={e => set('sos', e.target.checked)} />
-        SOS — Take only when required
+        SOS: take only when required
       </label>
 
       {showSched && isTabCap && (
@@ -254,7 +254,7 @@ export default function MedsTab({ record, profileId, setRecords, openRecord, sho
         duration: m.duration || '',
       }));
       const res = await API.put('/profiles/' + profileId + '/records/' + record.id, { medicines: backendMeds });
-      // Merge local rich medicine data back — backend only stores 4 fields
+      // Merge local rich medicine data back, backend only stores 4 fields
       const merged = { ...res.data, medicines: newMeds };
       setRecords(prev => prev.map(x => x.id === res.data.id ? merged : x));
       openRecord(merged);

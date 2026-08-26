@@ -10,7 +10,7 @@
 
 <p align="center">
   <strong>AI-powered family medical records manager</strong><br/>
-  Upload any prescription — even handwritten. AI reads it, extracts everything, and makes it searchable.
+  Upload any prescription, even handwritten. AI reads it, extracts everything, and makes it searchable.
 </p>
 
 <p align="center">
@@ -70,7 +70,7 @@
 
 ## What It Does
 
-MediVault lets families store their complete medical history in one place. Take a photo of any prescription — printed or handwritten — and the AI extracts the doctor's name, medicines with dosages, diagnosis, hospital, and specialty. Records are automatically grouped into doctor visits. Bills, lab reports, and prescriptions from the same visit stay together even when uploaded on different days.
+MediVault lets families store their complete medical history in one place. Take a photo of any prescription, printed or handwritten, and the AI extracts the doctor's name, medicines with dosages, diagnosis, hospital, and specialty. Records are automatically grouped into doctor visits. Bills, lab reports, and prescriptions from the same visit stay together even when uploaded on different days.
 
 ---
 
@@ -86,7 +86,7 @@ MediVault lets families store their complete medical history in one place. Take 
 
 **Doctor visit timeline**
 - Records grouped by doctor and visit date automatically
-- One visit holds prescriptions, lab reports, and multiple bills — even uploaded on different days
+- One visit holds prescriptions, lab reports, and multiple bills, even uploaded on different days
 - Full visit history per doctor, chronological
 
 **Bills & insurance tracking**
@@ -95,7 +95,7 @@ MediVault lets families store their complete medical history in one place. Take 
 - Running total of claimed vs unclaimed per visit
 
 **Medicines**
-- Structured medicine data — type, dosage schedule (morning / afternoon / night), SOS flag, duration
+- Structured medicine data: type, dosage schedule (morning / afternoon / night), SOS flag, duration
 
 **Family profiles**
 - Independent medical timeline for each family member
@@ -106,23 +106,23 @@ MediVault lets families store their complete medical history in one place. Take 
 - Structured search ranks records; passage retrieval finds the text inside them. Both are
   used where they are better, per the question
 - Semantic matching via pgvector when the embedding model is available; term-overlap
-  ranking when it is not. Nothing about the feature disappears on a small host — semantic
+  ranking when it is not. Nothing about the feature disappears on a small host. Semantic
   matching just becomes literal matching
 - Records indexed before and after the passage migration are both searched, so applying it
   never hides existing history
 
-**Find — structured search**
+**Find: structured search**
 - Server-side ranking across doctor, hospital, department, diagnosis, medicines, the scanned
   document text, and dates ("June", "2026")
 - Search one member or the whole family, with each result labelled by owner
 - Semantic search fuses in via pgvector when the embedding model is available, and degrades
   to keyword ranking when it is not
 
-**Ask — questions in plain words**
+**Ask: questions in plain words**
 - "What medicines was Dad prescribed for his knee?" · "When was Mum's last blood test?"
   · "What was my haemoglobin?"
 - Grounded in the documents themselves, not only the extracted fields. Each document is
-  split into passages, and the passages relevant to the question are quoted to the model —
+  split into passages, and the passages relevant to the question are quoted to the model,
   so a lab value or a specific instruction that was never extracted into a column can still
   be answered, and quoted back
 - Every answer lists the records it used. Each citation shows the excerpt it came from and
@@ -145,7 +145,7 @@ MediVault lets families store their complete medical history in one place. Take 
 - Every overlay is a real dialog: focus moves into it, Tab stays inside it, Escape closes
   it, and focus returns to whatever opened it
 - Icons are hidden from screen readers so controls announce their own label
-- Pinch-zoom works — the documents are photographs, and reading small print matters
+- Pinch-zoom works, because the documents are photographs, and reading small print matters
 - Touch targets sized for a fingertip; verified at 320px through 1920px
 
 **Behaves on a small host**
@@ -163,7 +163,7 @@ MediVault lets families store their complete medical history in one place. Take 
 - Restricted CORS and security headers (HSTS, CSP, X-Frame-Options) on every response
 - Server-side file-content validation on upload (checks the actual bytes, not the claimed type)
 - Startup refuses a JWT secret under 32 characters; registration requires a real password
-- The AI reaches data only through tools bound to the signed-in user's own profiles —
+- The AI reaches data only through tools bound to the signed-in user's own profiles,
   no tool takes a user id, runs SQL, or can widen its own scope
 - Full account deletion, cascading through every family profile and document
 
@@ -187,7 +187,7 @@ uvicorn app.main:app --reload
 ```
 
 `backend/.env.example` lists every required variable. `JWT_SECRET` must be at least 32
-characters — the app refuses to start otherwise:
+characters. The app refuses to start otherwise:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -221,7 +221,7 @@ These need the Supabase and hosting dashboards:
    service_role key (Project Settings → API), then redeploy and confirm the app still works.
 2. **Then** run `backend/database/migrations/002_security_advisor_fixes.sql` in the Supabase
    SQL editor. It enables deny-all RLS on all six tables, closing the public REST API.
-   Running it *before* step 1 will break the app — the order matters.
+   Running it *before* step 1 will break the app, so the order matters.
 3. Run `backend/database/migrations/003_private_document_urls.sql` to clear the public
    document URLs stored by older uploads. `file_path` is untouched, so nothing becomes
    unreachable.
@@ -229,10 +229,10 @@ These need the Supabase and hosting dashboards:
    hands out signed URLs, but a public bucket means anyone who ever saw a URL keeps access.
 5. Set `ALLOWED_ORIGINS` on the backend host to the deployed frontend URL, so CORS is
    actually restricted.
-6. Optional — semantic search: run `001_semantic_search.sql` and `004_document_passages.sql`,
+6. Optional, semantic search: run `001_semantic_search.sql` and `004_document_passages.sql`,
    and install `requirements-rag.txt`. These need more RAM than a 512MB tier provides.
    Without them, search and Ask fall back to term-overlap ranking and passages are computed
-   from the stored document text on the fly — everything still works, matching is just
+   from the stored document text on the fly, so everything still works, matching is just
    literal rather than semantic. Applying them later is safe: records without stored
    passages continue to be searched.
 
@@ -242,7 +242,7 @@ a link.
 
 ## Design System
 
-A deliberate visual identity rather than default styling — deep navy primary with a restrained teal secondary, a consistent 4-color semantic system for document categories (prescriptions, lab reports, bills, discharge summaries) used identically across every screen, and real iconography (Google Material Symbols) throughout instead of emoji.
+A deliberate visual identity rather than default styling: deep navy primary with a restrained teal secondary, a consistent 4-color semantic system for document categories (prescriptions, lab reports, bills, discharge summaries) used identically across every screen, and real iconography (Google Material Symbols) throughout instead of emoji.
 
 ---
 
@@ -254,8 +254,8 @@ A deliberate visual identity rather than default styling — deep navy primary w
 | Backend | FastAPI, Pydantic v2 |
 | Database | PostgreSQL via Supabase |
 | File Storage | Supabase Storage (private bucket, signed URLs) |
-| OCR | Groq — `qwen/qwen3.6-27b` (vision) |
-| AI extraction, summaries & answers | Groq — `openai/gpt-oss-120b` (env-driven via `GROQ_TEXT_MODEL`) |
+| OCR | Groq, `qwen/qwen3.6-27b` (vision) |
+| AI extraction, summaries & answers | Groq, `openai/gpt-oss-120b` (env-driven via `GROQ_TEXT_MODEL`) |
 | Auth | JWT + bcrypt |
 | Retrieval | Document passages + pgvector (optional), fused with keyword ranking via RRF |
 | Testing | pytest + ruff (backend), Jest + Testing Library (frontend), GitHub Actions CI |
@@ -278,7 +278,7 @@ Second AI pass extracts structured fields:
         ↓
 Record saved and shown instantly
         ↓
-When uploading inside a visit — date is enforced
+When uploading inside a visit, the date is enforced
 post-OCR so the document stays in the right visit
 ```
 
@@ -316,7 +316,7 @@ Supabase (PostgreSQL + private Storage)
 
 ## Author
 
-**Afkar** — [GitHub @Afkar085](https://github.com/Afkar085)
+**Afkar** - [GitHub @Afkar085](https://github.com/Afkar085)
 
 ---
 

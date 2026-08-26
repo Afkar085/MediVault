@@ -2,7 +2,7 @@
 
 Documents are medical records, so they are NEVER served from a public URL:
 callers always get a short-lived signed URL generated at read time. If signing
-fails the caller gets ``None`` and the UI shows an "unavailable" state — we
+fails the caller gets ``None`` and the UI shows an "unavailable" state; we
 deliberately do not fall back to a public URL, because that would hand out a
 permanent unauthenticated link to someone's medical document.
 """

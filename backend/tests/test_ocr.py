@@ -1,7 +1,7 @@
 """A document that could not be read must come back empty, never explained.
 
 An explanation returned as text gets stored as raw_ocr_text, shown to the user
-as their prescription, and indexed as a retrievable passage — so the assistant
+as their prescription, and indexed as a retrievable passage, so the assistant
 could quote it back as if it were something a doctor wrote.
 """
 from types import SimpleNamespace

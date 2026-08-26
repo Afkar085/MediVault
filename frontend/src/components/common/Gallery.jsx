@@ -78,11 +78,11 @@ export default function Gallery({ files, startIdx, onClose, title }) {
     });
   };
 
-  // Wheel/trackpad: zoom, scoped to this image only — the event never
+  // Wheel/trackpad: zoom, scoped to this image only, the event never
   // reaches the page, so the app behind the viewer never scales.
   // React attaches onWheel as a passive listener by default, so
   // preventDefault() inside it is silently ignored for real (trusted)
-  // wheel events — a ctrl+scroll trackpad pinch would still trigger the
+  // wheel events, a ctrl+scroll trackpad pinch would still trigger the
   // browser's own page zoom alongside ours. A native listener with
   // passive:false is the only way to actually own the gesture.
   const scaleRef = useRef(scale);

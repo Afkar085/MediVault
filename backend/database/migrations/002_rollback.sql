@@ -4,7 +4,7 @@
 -- WHEN YOU WOULD RUN THIS
 -- You applied 002 while the backend was still using the ANON key. Every query
 -- now returns empty and the app looks like it has lost all its data. Nothing is
--- lost — the rows are there, the anon role simply cannot see them any more.
+-- lost; the rows are there, the anon role simply cannot see them any more.
 --
 -- The better fix is to switch SUPABASE_KEY to the service_role key and redeploy,
 -- because that closes the hole *and* keeps the app working. Use this only if you

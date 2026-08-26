@@ -1,6 +1,6 @@
 """Fill in the related data a record needs before it goes back to the client.
 
-Shared by the records and search endpoints so both return the same shape — in
+Shared by the records and search endpoints so both return the same shape, including
 particular, both must hand out freshly signed document URLs rather than
 anything stored in the database.
 """

@@ -220,7 +220,7 @@ export default function RecordModal({ record, onClose }) {
               )}
               {files.length === 0 && hasStoredDocument(record) && (
                 <div className="notice" style={{ marginBottom: 14 }}>
-                  Document previews couldn't be loaded right now. Your file is safe — try reopening this record in a moment.
+                  Document previews couldn't be loaded right now. Your file is safe. Try reopening this record in a moment.
                 </div>
               )}
               <div className="drow-key" style={{ marginBottom: 8 }}>Raw OCR Text</div>

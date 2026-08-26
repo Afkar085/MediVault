@@ -44,7 +44,7 @@ def mask(value, keep_start=6, keep_end=4):
 def jwt_role(token):
     """The `role` claim of a Supabase key, read without verifying the signature.
 
-    Only the claims are decoded — never printed in full, and the signature is
+    Only the claims are decoded, never printed in full, and the signature is
     never touched. This is how we tell an anon key from a service_role key
     without asking anyone to reveal either.
     """

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef } from 'react';
  * does nothing, focus stays on whatever was behind the overlay, and Tab walks
  * off into the page underneath while the dialog covers it.
  *
- * Renders no markup of its own — children supply the box — so it can wrap the
+ * Renders no markup of its own, children supply the box, so it can wrap the
  * existing overlays without changing how any of them look.
  */
 
