@@ -83,6 +83,27 @@ export const buildDocGroups = records => {
   return { docGroups, docNameMap, sortedDocs };
 };
 
+// Two documents from one visit (e.g. a handwritten AND a printed copy of the same
+// prescription) usually list the same drugs, so a raw union shows each medicine
+// twice — once as "AZEE" and once as "AZEE 500MG TABLET". Collapse by brand (the
+// first word of the name), keeping whichever entry carries the most detail.
+const _medScore = m => {
+  const fields = ['strength', 'dosage', 'frequency', 'duration', 'type', 'morning', 'afternoon', 'night'];
+  return fields.reduce((n, k) => n + (m[k] ? 1 : 0), 0) + ((m.name || '').length * 0.01);
+};
+
+export const dedupeMedicines = meds => {
+  const byKey = new Map();
+  const singles = [];
+  (meds || []).forEach(m => {
+    const key = (m.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ')[0];
+    if (!key) { singles.push(m); return; }
+    const existing = byKey.get(key);
+    if (!existing || _medScore(m) > _medScore(existing)) byKey.set(key, m);
+  });
+  return [...byKey.values(), ...singles];
+};
+
 export const getRecordDate = r => r.document_date?.slice(0, 10) || r.created_at?.slice(0, 10) || null;
 
 export const getActivityLabel = r => {
