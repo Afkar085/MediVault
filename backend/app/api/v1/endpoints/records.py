@@ -236,6 +236,22 @@ def delete_record(profile_id: str, record_id: str, user_id: str = Depends(get_cu
             pass
 
     supabase.table("records").delete().eq("id", record_id).eq("profile_id", profile_id).execute()
+
+    # Verify the row is actually gone. A delete that silently affects zero rows
+    # (e.g. an RLS/permission edge case that returns 200 without deleting) must
+    # surface as an error here — otherwise the UI shows a false "deleted" and the
+    # record reappears on the next refresh, which is exactly the kind of silent
+    # failure that makes delete look broken.
+    check = (
+        supabase.table("records")
+        .select("id")
+        .eq("id", record_id)
+        .eq("profile_id", profile_id)
+        .execute()
+    )
+    if check.data:
+        raise HTTPException(status_code=500, detail="The record could not be deleted. Please try again.")
+
     return {"message": "Record deleted"}
 
 
