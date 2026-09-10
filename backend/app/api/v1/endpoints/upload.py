@@ -55,6 +55,12 @@ def _slugify(name: str) -> str:
     return re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
 
 
+def _norm_med(name: str) -> str:
+    """Normalise a medicine name to its brand token, so 'AZEE' and 'AZEE 500MG
+    TABLET' collapse to the same key when de-duplicating across merged pages."""
+    return re.sub(r'[^a-z0-9]+', ' ', (name or '').lower()).strip().split(' ')[0]
+
+
 def _compute_visit_group(profile_id: str, doctor_name: str, doc_date_str: str) -> str:
     if not doctor_name:
         return None
@@ -237,6 +243,115 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
         supabase.table("records").update({"status": "failed"}).eq("id", record_id).execute()
 
 
+async def _validate_and_store_files(files, user_id: str, profile_id: str):
+    """Validate each upload (type, size, magic bytes) and store it in the private
+    bucket. Returns (file_entries, content_types). Raises HTTPException if any
+    file is invalid, before anything is persisted to the records tables."""
+    file_entries = []
+    content_types = []
+    for file in files:
+        if file.content_type not in ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, GIF, BMP, PDF"
+            )
+        contents = await file.read()
+        if len(contents) > MAX_SIZE:
+            raise HTTPException(status_code=400, detail="File too large. Max 10MB per file")
+        if not _content_matches_type(contents, file.content_type):
+            raise HTTPException(status_code=400, detail="File content does not match its declared type")
+
+        ext = _EXTENSION_BY_TYPE[file.content_type]
+        file_path = f"{user_id}/{profile_id}/{uuid.uuid4()}.{ext}"
+        supabase.storage.from_("medical-records").upload(
+            path=file_path,
+            file=contents,
+            file_options={"content-type": file.content_type},
+        )
+        file_entries.append({"file_path": file_path})
+        content_types.append(file.content_type)
+    return file_entries, content_types
+
+
+def process_added_pages(record_id: str, new_file_entries: list, content_types: list):
+    """Merge newly attached pages INTO an existing record.
+
+    This is what keeps a visit to one record: a second photo of the same
+    prescription (or another page of a report) is appended here rather than
+    becoming a duplicate record. Crucially for retrieval/RAG, the passages and
+    embedding are rebuilt once over the full combined text, so 'Ask Your Records'
+    never sees two overlapping copies of the same document.
+    """
+    try:
+        new_texts = read_pages(new_file_entries, content_types)
+        rec_result = supabase.table("records").select("*").eq("id", record_id).execute()
+        if not rec_result.data:
+            return
+        record = rec_result.data[0]
+
+        existing_text = record.get("raw_ocr_text") or ""
+        added_text = "\n\n--- Page Break ---\n\n".join(t for t in new_texts if t.strip())
+        combined_text = (
+            (existing_text + "\n\n--- Page Break ---\n\n" + added_text).strip()
+            if existing_text else added_text
+        )
+
+        update_data = {"raw_ocr_text": combined_text, "status": "done"}
+
+        if added_text.strip():
+            from app.services.ai_extractor import extract_medical_data
+            data = extract_medical_data(added_text)
+
+            # Only FILL fields the record was missing (e.g. the first page was an
+            # unreadable handwritten copy and the new one is a clear printout).
+            # Never overwrite details the record already has.
+            for field in ("document_type", "doctor_name", "hospital_name",
+                          "document_date", "specialty", "diagnosis",
+                          "recommendations", "document_category"):
+                if data.get(field) and not record.get(field):
+                    update_data[field] = data[field]
+
+            new_meds = data.get("medicines") or []
+            if new_meds:
+                existing_meds = supabase.table("medicines").select("name").eq("record_id", record_id).execute().data or []
+                seen = {_norm_med(m.get("name")) for m in existing_meds}
+                rows = []
+                for m in new_meds:
+                    key = _norm_med(m.get("name"))
+                    if not key or key in seen:
+                        continue  # same drug already on this record — don't duplicate it
+                    seen.add(key)
+                    rows.append({
+                        "record_id": record_id,
+                        "name": m.get("name", "Unknown"),
+                        "dosage": m.get("dosage"),
+                        "frequency": m.get("frequency"),
+                        "duration": m.get("duration"),
+                    })
+                if rows:
+                    supabase.table("medicines").insert(rows).execute()
+
+        supabase.table("records").update(update_data).eq("id", record_id).execute()
+
+        # Rebuild retrieval artefacts over the FULL document, once.
+        try:
+            from app.services.embeddings import build_record_text, embed_text
+            meds_now = supabase.table("medicines").select("name").eq("record_id", record_id).execute().data or []
+            merged = dict(record)
+            merged.update(update_data)
+            embedding = embed_text(build_record_text(merged, meds_now))
+            if embedding is not None:
+                supabase.table("records").update({"embedding": embedding}).eq("id", record_id).execute()
+        except Exception as embed_err:
+            logger.warning("Embedding refresh skipped for record %s: %s", record_id, embed_err)
+
+        index_passages(record_id, combined_text)
+
+    except Exception as e:
+        logger.error("Attaching pages to record %s failed: %s", record_id, e)
+        supabase.table("records").update({"status": "done"}).eq("id", record_id).execute()
+
+
 # Each page costs a vision-model call plus an extraction call, so an unbounded
 # upload loop drains the Groq quota for every user of the deployment.
 @router.post("/upload/{profile_id}")
@@ -252,37 +367,7 @@ async def upload_file(
     if not profile.data:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    file_entries = []
-    content_types = []
-
-    for file in files:
-        if file.content_type not in ALLOWED_TYPES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, GIF, BMP, PDF"
-            )
-
-        contents = await file.read()
-        if len(contents) > MAX_SIZE:
-            raise HTTPException(status_code=400, detail="File too large. Max 10MB per file")
-
-        if not _content_matches_type(contents, file.content_type):
-            raise HTTPException(
-                status_code=400,
-                detail="File content does not match its declared type"
-            )
-
-        ext = _EXTENSION_BY_TYPE[file.content_type]
-        file_path = f"{user_id}/{profile_id}/{uuid.uuid4()}.{ext}"
-
-        supabase.storage.from_("medical-records").upload(
-            path=file_path,
-            file=contents,
-            file_options={"content-type": file.content_type},
-        )
-
-        file_entries.append({"file_path": file_path})
-        content_types.append(file.content_type)
+    file_entries, content_types = await _validate_and_store_files(files, user_id, profile_id)
 
     first = file_entries[0]
     result = supabase.table("records").insert({
@@ -315,4 +400,47 @@ async def upload_file(
         "file_path": first["file_path"],
         "file_url": signed_url(first["file_path"]),
         "pages": len(file_entries),
+    }
+
+
+@router.post("/profiles/{profile_id}/records/{record_id}/pages")
+@limiter.limit("20/minute")
+async def add_pages(
+    request: Request,
+    profile_id: str,
+    record_id: str,
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    user_id: str = Depends(get_current_user),
+):
+    """Attach one or more documents to an EXISTING record as extra pages, instead
+    of creating a new record for the same visit. Used by the visit screen's
+    '+ Add Prescription / Lab Report' buttons so related documents stay a single
+    record (one entry, one carousel, one clean copy of the content for search)."""
+    profile = supabase.table("profiles").select("id").eq("id", profile_id).eq("user_id", user_id).execute()
+    if not profile.data:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    record = supabase.table("records").select("id").eq("id", record_id).eq("profile_id", profile_id).execute()
+    if not record.data:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    file_entries, content_types = await _validate_and_store_files(files, user_id, profile_id)
+
+    # Continue page numbering after whatever the record already has.
+    existing_files = supabase.table("record_files").select("page_number").eq("record_id", record_id).execute().data or []
+    start = max((f.get("page_number") or 0) for f in existing_files) if existing_files else 0
+    rows = [
+        {"record_id": record_id, "file_url": "", "file_path": e["file_path"], "page_number": start + i + 1}
+        for i, e in enumerate(file_entries)
+    ]
+    supabase.table("record_files").insert(rows).execute()
+
+    supabase.table("records").update({"status": "processing"}).eq("id", record_id).execute()
+    background_tasks.add_task(process_added_pages, record_id, file_entries, content_types)
+
+    return {
+        "message": "Pages added. Reading them now.",
+        "record_id": record_id,
+        "pages_added": len(file_entries),
     }

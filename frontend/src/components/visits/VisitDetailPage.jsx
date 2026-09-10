@@ -1,7 +1,7 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import Gallery from '../common/Gallery';
-import { fmt, drN, cur, getRecordFiles, getRecordDate } from '../../utils/format';
+import { fmt, drN, cur, getRecordFiles, getRecordDate, dedupeMedicines } from '../../utils/format';
 import Icon from '../common/Icon';
 import API from '../../api';
 import { ACCEPT_ATTR } from '../../utils/uploads';
@@ -116,7 +116,7 @@ function medSummary(m) {
 }
 
 export default function VisitDetailPage() {
-  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
+  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, attachDocuments, visitUploading } = useContext(AppContext);
   const { visitDate, doctorKey, doctorName } = nav;
 
   const [vtab, setVtab] = useState('prescription');
@@ -131,7 +131,7 @@ export default function VisitDetailPage() {
   // Merge across every document in the visit, a lab report's diagnosis and a
   // prescription's medicines are separate records but belong to one summary.
   const visitDiagnosis = visitRecords?.find(r => r.diagnosis)?.diagnosis;
-  const visitMedicines = (visitRecords || []).flatMap(r => r.medicines || []);
+  const visitMedicines = dedupeMedicines((visitRecords || []).flatMap(r => r.medicines || []));
   const visitRecommendations = [...new Set((visitRecords || []).map(r => r.recommendations).filter(Boolean))];
 
   const prescriptions = (visitRecords || []).filter(r => r.document_category === 'prescription' || (!r.document_category && r.document_type !== 'Lab Report'));
@@ -144,8 +144,20 @@ export default function VisitDetailPage() {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
-    // Upload directly into this visit, forces document_date = visitDate so it stays grouped here
-    uploadToVisit(files, type, doctorName, visitDate);
+    // If this visit already has a prescription / lab record, attach the new
+    // documents to it as extra pages instead of creating a duplicate record.
+    // Bills are genuinely separate (each has its own amount), so they always
+    // create their own record.
+    const existing = type === 'prescription' ? prescriptions[0]
+      : type === 'lab_report' ? labs[0]
+      : null;
+    if (existing) {
+      attachDocuments(existing.id, files);
+    } else {
+      // First document of its kind for this visit: forces document_date =
+      // visitDate so it stays grouped here.
+      uploadToVisit(files, type, doctorName, visitDate);
+    }
   };
 
   return (
