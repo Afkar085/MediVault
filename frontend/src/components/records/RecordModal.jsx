@@ -261,7 +261,7 @@ export default function RecordModal({ record, onClose }) {
       </Modal>
 
       {del && (
-        <Modal onClose={() => !deleting && setDel(false)} boxClassName="confirm-box" label="Delete record?">
+        <Modal onClose={() => !deleting && setDel(false)} className="overlay confirm-over" boxClassName="confirm-box" label="Delete record?">
           <div className="confirm-title">Delete record?</div>
           <div className="confirm-text">This will permanently delete the record and its files.</div>
           <div className="confirm-btns">

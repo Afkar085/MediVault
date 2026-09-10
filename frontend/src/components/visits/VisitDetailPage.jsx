@@ -136,7 +136,7 @@ function medSummary(m) {
 }
 
 export default function VisitDetailPage() {
-  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
+  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, attachDocuments, visitUploading } = useContext(AppContext);
   const { visitDate, doctorKey, doctorName } = nav;
 
   const [vtab, setVtab] = useState('prescription');
@@ -164,8 +164,20 @@ export default function VisitDetailPage() {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
-    // Upload directly into this visit, forces document_date = visitDate so it stays grouped here
-    uploadToVisit(files, type, doctorName, visitDate);
+    // If this visit already has a prescription / lab record, attach the new
+    // documents to it as extra pages instead of creating a duplicate record.
+    // Bills are genuinely separate (each has its own amount), so they always
+    // create their own record.
+    const existing = type === 'prescription' ? prescriptions[0]
+      : type === 'lab_report' ? labs[0]
+      : null;
+    if (existing) {
+      attachDocuments(existing.id, files);
+    } else {
+      // First document of its kind for this visit: forces document_date =
+      // visitDate so it stays grouped here.
+      uploadToVisit(files, type, doctorName, visitDate);
+    }
   };
 
   return (

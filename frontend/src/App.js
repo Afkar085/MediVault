@@ -279,6 +279,30 @@ function MainApp({ onLogout }) {
     } finally { setVisitUploading(false); }
   }, [sel, loadRecs, showToast, acceptFiles]);
 
+  // Attach documents to an EXISTING record (as extra pages of the same visit)
+  // rather than creating a second record. This is what stops a visit from
+  // accumulating duplicate records — and keeps one clean copy of the content
+  // for search / "Ask Your Records".
+  const attachDocuments = useCallback(async (recordId, files) => {
+    if (!files.length || !sel) return;
+    const accepted = acceptFiles(files);
+    if (!accepted.length) return;
+    setVisitUploading(true);
+    const fd = new FormData();
+    accepted.forEach(f => fd.append('files', f));
+    try {
+      await API.post('/profiles/' + sel.id + '/records/' + recordId + '/pages', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+      });
+      pollCountRef.current = 0;
+      await loadRecs(sel.id);
+      showToast('Added to this record. Reading the new page…');
+    } catch (e) {
+      showToast(uploadErrorMessage(e), 'error');
+    } finally { setVisitUploading(false); }
+  }, [sel, loadRecs, showToast, acceptFiles]);
+
   const onAddMore = (e) => {
     const picked = Array.from(e.target.files || []);
     e.target.value = '';
@@ -358,6 +382,7 @@ function MainApp({ onLogout }) {
     showUpload,
     startUpload,
     uploadToVisit,
+    attachDocuments,
     visitUploading,
     onLogout,
   };
