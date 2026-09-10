@@ -97,6 +97,26 @@ function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFi
   );
 }
 
+// Two documents from one visit (e.g. a handwritten AND a printed copy of the same
+// prescription) usually list the same drugs, so the raw union shows each medicine
+// twice — once as "AZEE" and once as "AZEE 500MG TABLET". Collapse by brand (the
+// first word of the name), keeping whichever entry carries the most detail.
+function _medScore(m) {
+  const fields = ['strength', 'dosage', 'frequency', 'duration', 'type', 'morning', 'afternoon', 'night'];
+  return fields.reduce((n, k) => n + (m[k] ? 1 : 0), 0) + ((m.name || '').length * 0.01);
+}
+function dedupeMedicines(meds) {
+  const byKey = new Map();
+  const singles = [];
+  meds.forEach(m => {
+    const key = (m.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ')[0];
+    if (!key) { singles.push(m); return; }
+    const existing = byKey.get(key);
+    if (!existing || _medScore(m) > _medScore(existing)) byKey.set(key, m);
+  });
+  return [...byKey.values(), ...singles];
+}
+
 function medSummary(m) {
   const parts = [];
   if (m.strength) parts.push(m.strength);
@@ -131,7 +151,7 @@ export default function VisitDetailPage() {
   // Merge across every document in the visit, a lab report's diagnosis and a
   // prescription's medicines are separate records but belong to one summary.
   const visitDiagnosis = visitRecords?.find(r => r.diagnosis)?.diagnosis;
-  const visitMedicines = (visitRecords || []).flatMap(r => r.medicines || []);
+  const visitMedicines = dedupeMedicines((visitRecords || []).flatMap(r => r.medicines || []));
   const visitRecommendations = [...new Set((visitRecords || []).map(r => r.recommendations).filter(Boolean))];
 
   const prescriptions = (visitRecords || []).filter(r => r.document_category === 'prescription' || (!r.document_category && r.document_type !== 'Lab Report'));
