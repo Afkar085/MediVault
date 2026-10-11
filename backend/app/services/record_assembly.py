@@ -5,7 +5,48 @@ particular, both must hand out freshly signed document URLs rather than
 anything stored in the database.
 """
 from app.database import supabase
+from app.logger import logger
 from app.services.storage import signed_urls
+
+BASE_RECORD_COLUMNS = (
+    "id, profile_id, document_type, status, file_path, doctor_name, "
+    "hospital_name, document_date, specialty, diagnosis, recommendations, "
+    "document_category, bill_amount, insurance_claimed, visit_group, "
+    "created_at, updated_at"
+)
+BILL_DETAIL_COLUMNS = "bill_title, bill_category, bill_number"
+
+# None = not known yet. Only a definite "column does not exist" answer is
+# remembered; a network error is not a reason to stop asking.
+_bill_columns = None
+
+
+def has_bill_columns() -> bool:
+    """Whether migration 005 (bill title, category and number) has been applied.
+
+    The editor has always let people type these, but no migration ever created
+    the columns, so the value was dropped and the list never returned it: a bill
+    title vanished on the next refresh. Asked once, so the app works the same
+    before and after the migration is run.
+    """
+    global _bill_columns
+    if _bill_columns is not None:
+        return _bill_columns
+    try:
+        supabase.table("records").select(BILL_DETAIL_COLUMNS).limit(1).execute()
+        _bill_columns = True
+    except Exception as e:
+        message = str(e).lower()
+        if "does not exist" in message or "42703" in message or "column" in message:
+            _bill_columns = False
+            logger.info("Bill detail columns missing; apply migration 005 to store them")
+        else:
+            return False
+    return _bill_columns
+
+
+def record_columns() -> str:
+    return BASE_RECORD_COLUMNS + (", " + BILL_DETAIL_COLUMNS if has_bill_columns() else "")
 
 
 def attach_medicines(records: list) -> list:

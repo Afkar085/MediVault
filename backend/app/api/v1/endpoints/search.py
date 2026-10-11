@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.logger import logger
-from app.services.record_assembly import attach_files
+from app.services.record_assembly import attach_files, record_columns
 from app.services.retrieval import vector_search, reciprocal_rank_fusion
 from typing import Optional
 import re
@@ -12,12 +12,8 @@ router = APIRouter()
 # raw_ocr_text is the full text of every document. Selecting it for every record
 # on every search meant shipping all of it out of Postgres just to substring-match
 # it, so the match is done with a separate id-only query instead (see below).
-_SEARCH_COLUMNS = (
-    "id, profile_id, document_type, status, doctor_name, hospital_name, "
-    "document_date, specialty, diagnosis, recommendations, document_category, "
-    "bill_amount, insurance_claimed, visit_group, created_at, "
-    "updated_at, profiles(name, relationship)"
-)
+def _search_columns() -> str:
+    return record_columns() + ", profiles(name, relationship)"
 
 
 def _records_mentioning(profile_ids, term):
@@ -153,7 +149,7 @@ def search_records(
 
     query = (
         supabase.table("records")
-        .select(_SEARCH_COLUMNS)
+        .select(_search_columns())
         .in_("profile_id", search_profile_ids)
         .order("created_at", desc=True)
     )

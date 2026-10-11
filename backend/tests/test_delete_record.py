@@ -16,6 +16,14 @@ class _R:
         self.data = data
 
 
+class _AnyOf:
+    def __init__(self, values):
+        self.values = set(values)
+
+    def __eq__(self, other):
+        return other in self.values
+
+
 class _Storage:
     def __init__(self, store):
         self.store = store
@@ -44,8 +52,12 @@ class _Table:
         self._f[k] = v
         return self
 
+    def in_(self, k, values):
+        self._f[k] = _AnyOf(values)
+        return self
+
     def _match(self, r):
-        return all(r.get(k) == v for k, v in self._f.items())
+        return all(v == r.get(k) for k, v in self._f.items())
 
     def execute(self):
         rows = self.store.setdefault(self.name, [])
@@ -56,6 +68,11 @@ class _Table:
                 return _R([])
             removed = [r for r in rows if self._match(r)]
             self.store[self.name] = [r for r in rows if not self._match(r)]
+            if self.name == "records":  # ON DELETE CASCADE, as in schema.sql
+                gone = {r["id"] for r in removed}
+                self.store["record_files"] = [
+                    f for f in self.store.get("record_files", []) if f["record_id"] not in gone
+                ]
             return _R(removed)
         return _R([])
 
@@ -116,3 +133,17 @@ def test_a_silent_delete_is_reported_as_an_error_not_false_success(db):
         rec.delete_record("p1", "rA", user_id="u1")
     assert e.value.status_code == 500
     assert ids(db) == ["rA", "rB"]               # still present; no false success
+
+
+def test_the_row_is_deleted_before_its_files(db, monkeypatch):
+    """If the row delete fails, the record must still have its documents."""
+    db["block_delete"] = True
+    with pytest.raises(HTTPException):
+        rec.delete_record("p1", "rA", user_id="u1")
+    assert db.get("removed", []) == []          # nothing removed from storage
+
+
+def test_a_file_another_record_still_uses_is_kept(db):
+    db["record_files"].append({"record_id": "rB", "file_path": "a.png"})
+    rec.delete_record("p1", "rA", user_id="u1")
+    assert "a.png" not in db.get("removed", [])

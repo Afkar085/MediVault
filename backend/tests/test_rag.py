@@ -1,3 +1,4 @@
+import pytest
 """Tests for grounded RAG answering (Groq mocked, no network)."""
 from types import SimpleNamespace
 import app.services.rag as rag
@@ -158,10 +159,22 @@ def test_no_records_says_so_without_calling_the_model(mocker):
 def test_a_model_failure_never_fabricates_an_answer(mocker):
     mocker.patch.object(rag, "relevant_passages", return_value=[])
     mocker.patch.object(rag.client.chat.completions, "create", side_effect=RuntimeError("down"))
-    result = rag.answer_question("anything", RECORDS, {"name": "Afkar"})
-    assert "couldn't generate" in result["answer"]
-    # Sources are still returned so the user can go read the records themselves.
-    assert result["sources"][0]["record_id"] == "r-blood"
+    # A failure is raised, so the endpoint can answer 503 and the client can
+    # offer a retry, instead of presenting an apology as if it were the answer.
+    with pytest.raises(rag.AnswerUnavailable):
+        rag.answer_question("anything", RECORDS, {"name": "Afkar"})
+
+
+def test_only_the_records_the_answer_cites_are_returned_as_sources(mocker):
+    mocker.patch.object(rag, "relevant_passages", return_value=[])
+    records = [{"id": "a"}, {"id": "b"}, {"id": "c"}]
+    reply = type("R", (), {"choices": [type("C", (), {"message": type("M", (), {
+        "content": "It was prescribed [Record 2]."})()})()]})()
+    mocker.patch.object(rag.client.chat.completions, "create", return_value=reply)
+    result = rag.answer_question("q", records, {"name": "X"})
+    assert [s["record_id"] for s in result["sources"]] == ["b"]
+    assert result["sources"][0]["ref"] == 2   # numbering still matches the answer text
+    assert result["found"] is True
 
 
 def test_every_source_maps_to_a_record_that_was_actually_in_context(mocker):

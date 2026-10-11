@@ -74,9 +74,9 @@ Return only the JSON, no explanation.
                 raw = raw[4:]
         return json.loads(raw)
     except (json.JSONDecodeError, IndexError, AttributeError) as e:
-        # The model returned something that isn't valid JSON. Log the raw output
-        # (truncated) so the failure is debuggable instead of silently swallowed.
+        # The model returned something that isn't valid JSON. Its output is the
+        # patient's medical details, so only its shape is logged, never the text.
         logger.error(
-            "Failed to parse extraction JSON (%s): %r", e, raw[:500]
+            "Failed to parse extraction JSON (%s); %d characters returned", e, len(raw)
         )
         return {}

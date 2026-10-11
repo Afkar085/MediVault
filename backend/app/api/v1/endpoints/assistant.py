@@ -12,7 +12,7 @@ from app.database import supabase
 from app.limiter import limiter
 from app.logger import logger
 from app.services import agent, rag
-from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS
+from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS, AnswerUnavailable
 from app.services.agent_tools import RecordTools
 from app.services.record_assembly import attach_medicines
 from app.services.retrieval import select_context_records
@@ -45,7 +45,7 @@ def _fallback(question: str, profiles: list) -> dict:
     candidates = attach_medicines(rows)
     records = select_context_records(candidates, question, limit=CONTEXT_RECORD_LIMIT)
     if not records:
-        return {"answer": NOT_IN_RECORDS, "sources": []}
+        return {"answer": NOT_IN_RECORDS, "sources": [], "found": False}
 
     names = ", ".join(p.get("name", "") for p in profiles if p.get("name"))
     return rag.answer_question(question, records, {"name": names or "the family"})
@@ -67,7 +67,7 @@ def ask_family(request: Request, body: AskRequest, user_id: str = Depends(get_cu
         or []
     )
     if not profiles:
-        return {"answer": "There are no family members set up yet.", "sources": []}
+        return {"answer": "There are no family members set up yet.", "sources": [], "found": False}
 
     try:
         answered = agent.answer_with_tools(question, RecordTools(profiles))
@@ -75,4 +75,14 @@ def ask_family(request: Request, body: AskRequest, user_id: str = Depends(get_cu
         logger.error("Assistant failed, falling back to retrieval: %s", e)
         answered = None
 
-    return answered or _fallback(question, profiles)
+    if answered:
+        answered.setdefault("found", bool(answered.get("sources")))
+        # The tool loop reports every record its lookups returned. That is what
+        # was read to answer, not proof of each sentence, and is labelled so.
+        answered["source_kind"] = "consulted"
+        return answered
+    try:
+        return _fallback(question, profiles)
+    except AnswerUnavailable as e:
+        # Distinct from "not in your records": nothing was read, so say so.
+        raise HTTPException(status_code=503, detail="Couldn't get an answer right now. Please try again.") from e
