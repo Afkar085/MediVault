@@ -2,7 +2,10 @@ import { useContext } from 'react';
 import { AppContext } from '../../App';
 import { fmt, fmtRel, drN, drInitial, getRecordDate } from '../../utils/format';
 import Icon from '../common/Icon';
+import { PageHeader, EmptyState } from '../common/ui';
 import { clickable } from '../../utils/interaction';
+
+const CAT_LABEL = { prescription: 'Rx', lab_report: 'Lab', bill: 'Bill', discharge_summary: 'Discharge' };
 
 export default function DoctorDetailPage() {
   const { nav, navigate, goBack, docGroups } = useContext(AppContext);
@@ -21,104 +24,74 @@ export default function DoctorDetailPage() {
     .sort((a, b) => b.localeCompare(a));
   if (visitGroups['unknown']) sortedDates.push('unknown');
 
-  const totalVisits = sortedDates.length;
   const lastVisit = visits[0];
+  const unassigned = !doctorName || doctorName === 'Unassigned';
 
   const openVisit = (date) => {
-    navigate('visit-detail', {
-      visitDate: date,
-      doctorKey,
-      doctorName,
-      specialty,
-      hospital,
-    });
-  };
-
-  const getCatBadges = (recs) => {
-    const cats = [...new Set(recs.map(r => r.document_category).filter(Boolean))];
-    return cats;
-  };
-
-  const getVisitLabel = (recs) => {
-    const prim = recs.find(r => r.diagnosis);
-    return prim?.diagnosis || recs.find(r => r.document_type)?.document_type || '';
+    navigate('visit-detail', { visitDate: date, doctorKey, doctorName, specialty, hospital });
   };
 
   return (
     <div>
-      <div className="ph">
-        <button className="ph-back" onClick={goBack} aria-label="Go back">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <div className="ph-title">Doctor Details</div>
-      </div>
+      <PageHeader title={unassigned ? 'No doctor recorded' : drN(doctorName)} sub={[specialty, hospital].filter(Boolean).join(' · ')} onBack={goBack} />
 
-      <div className="dr-detail-header">
-        <div className="dr-detail-av">
-          {drInitial(doctorName)}
-        </div>
-        <div className="dr-detail-name">
-          {(!doctorName || doctorName === 'Unassigned') ? 'Unassigned' : drN(doctorName)}
-        </div>
-        {(specialty || hospital) && (
-          <div className="dr-detail-meta">
-            {specialty}{specialty && hospital ? ' · ' : ''}{hospital}
-          </div>
-        )}
-        <div className="dr-detail-stats">
+      <div className="card dr-hero">
+        <div className="avatar avatar-lg">{drInitial(doctorName)}</div>
+        <div className="dr-hero-stats">
           <div>
-            <div className="dr-stat-val">{totalVisits}</div>
-            <div className="dr-stat-lbl">{totalVisits === 1 ? 'Visit' : 'Visits'}</div>
+            <div className="stat-val">{sortedDates.length}</div>
+            <div className="stat-lbl">{sortedDates.length === 1 ? 'Visit' : 'Visits'}</div>
+          </div>
+          <div>
+            <div className="stat-val">{visits.length}</div>
+            <div className="stat-lbl">{visits.length === 1 ? 'Document' : 'Documents'}</div>
           </div>
           {lastVisit && (
             <div>
-              <div className="dr-stat-val" style={{ fontSize: 13 }}>{fmt(getRecordDate(lastVisit)) || fmtRel(lastVisit.created_at)}</div>
-              <div className="dr-stat-lbl">Last Visit</div>
+              <div className="stat-val stat-val-sm">{fmt(getRecordDate(lastVisit)) || fmtRel(lastVisit.created_at)}</div>
+              <div className="stat-lbl">Last visit</div>
             </div>
           )}
         </div>
       </div>
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
-        Visits
-      </div>
+      <h2 className="eyebrow eyebrow-section">Visits</h2>
 
-      {sortedDates.length === 0 && (
-        <div className="empty">
-          <div className="empty-icon"><Icon name="calendar_month" size={30} /></div>
-          <div className="empty-title">No visits yet</div>
-          <div className="empty-sub">Upload a record to create a visit entry.</div>
+      {sortedDates.length === 0 ? (
+        <EmptyState icon="calendar_month" title="No visits yet">
+          Upload a record to create a visit entry.
+        </EmptyState>
+      ) : (
+        <div className="list-card">
+          {sortedDates.map(date => {
+            const recs = visitGroups[date];
+            const cats = [...new Set(recs.map(r => r.document_category).filter(Boolean))];
+            const label = recs.find(r => r.diagnosis)?.diagnosis || '';
+            return (
+              <div key={date} className="list-row" {...clickable(() => openVisit(date), 'Visit on ' + (fmt(date) || 'an unknown date'))}>
+                <div className="date-chip">
+                  {date === 'unknown' ? <Icon name="event" size={18} /> : (
+                    <>
+                      <span className="date-chip-mon">{new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short' })}</span>
+                      <span className="date-chip-day">{Number(date.slice(8, 10))}</span>
+                    </>
+                  )}
+                </div>
+                <div className="list-row-body">
+                  <div className="list-row-title">{date === 'unknown' ? 'Date unknown' : fmt(date) || date}</div>
+                  {label && <div className="list-row-sub">{label}</div>}
+                  {cats.length > 0 && (
+                    <div className="badges">
+                      {cats.map(c => <span key={c} className={'badge cat-' + c}>{CAT_LABEL[c] || c}</span>)}
+                    </div>
+                  )}
+                </div>
+                <Icon name="chevron_right" size={20} style={{ color: 'var(--ink-4)' }} />
+              </div>
+            );
+          })}
         </div>
       )}
-
-      {sortedDates.map(date => {
-        const recs = visitGroups[date];
-        const cats = getCatBadges(recs);
-        const label = getVisitLabel(recs);
-        return (
-          <div key={date} className="visit-row" {...clickable(() => openVisit(date), 'Visit on ' + (fmt(date) || date))}>
-            <div className="visit-dot" />
-            <div className="visit-info">
-              <div className="visit-date">{date === 'unknown' ? 'Date Unknown' : fmt(date) || date}</div>
-              {label && <div className="visit-diag">{label}</div>}
-              {cats.length > 0 && (
-                <div className="visit-badges">
-                  {cats.map(c => (
-                    <span key={c} className={'visit-badge ' + c}>
-                      {c === 'prescription' ? 'Rx' : c === 'lab_report' ? 'Lab' : c === 'bill' ? 'Bill' : c}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </div>
-        );
-      })}
     </div>
   );
 }

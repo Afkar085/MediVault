@@ -4,10 +4,11 @@ from app.schemas.record import RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services import summary_cache
-from app.services.record_assembly import attach_files, attach_medicines
+from app.services.record_assembly import attach_files, attach_medicines, has_bill_columns, record_columns
 from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
-from app.services.rag import CONTEXT_RECORD_LIMIT
+from app.services.rag import CONTEXT_RECORD_LIMIT, AnswerUnavailable
+from app.services.storage import BUCKET
 from app.limiter import limiter
 from app.logger import logger
 from datetime import datetime, timedelta, timezone
@@ -17,28 +18,37 @@ from app.config import settings
 
 router = APIRouter()
 
-# Columns returned to the client. The embedding is a 384-float vector used only
-# for server-side retrieval, and raw_ocr_text is the full document text - neither
-# belongs in a list response the dashboard re-polls every few seconds.
-_LIST_COLUMNS = (
-    "id, profile_id, document_type, status, file_path, doctor_name, "
-    "hospital_name, document_date, specialty, diagnosis, recommendations, "
-    "document_category, bill_amount, insurance_claimed, visit_group, "
-    "created_at, updated_at"
-)
-_DETAIL_COLUMNS = _LIST_COLUMNS + ", raw_ocr_text"
+
+# Columns returned to the client (see record_assembly.record_columns). The
+# embedding is a 384-float vector used only for server-side retrieval, and
+# raw_ocr_text is the full document text: neither belongs in a list response.
+def _list_columns() -> str:
+    return record_columns()
+
+
+def _detail_columns() -> str:
+    return record_columns() + ", raw_ocr_text"
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class AskRequest(BaseModel):
     question: str
 
 
-
-
 # OCR runs as a background task, so a worker restart, redeploy or hung upstream
 # call can leave a record on "processing" with nothing left to finish it. The
-# client would then poll forever. Anything older than this is declared failed so
-# the user gets a real error state and something to act on.
+# client would then poll forever. Anything that has been processing for longer
+# than this is declared failed so the user gets a real error state and something
+# to act on (a retry, which reads the original file again).
+#
+# Measured from updated_at, which every status change stamps, NOT created_at: a
+# record uploaded last month that just had a page added, or was retried, started
+# processing a second ago. Keying on created_at failed it on the very next poll,
+# which is what made the "couldn't be read" warning appear for documents that
+# went on to read perfectly well, and stay there until the page was reloaded.
 PROCESSING_TIMEOUT = timedelta(minutes=10)
 _PENDING_STATUSES = ["processing", "extracting"]
 
@@ -48,10 +58,10 @@ def _expire_stuck_processing(profile_id: str) -> None:
     try:
         result = (
             supabase.table("records")
-            .update({"status": "failed"})
+            .update({"status": "failed", "updated_at": _now()})
             .eq("profile_id", profile_id)
             .in_("status", _PENDING_STATUSES)
-            .lt("created_at", cutoff)
+            .lt("updated_at", cutoff)
             .execute()
         )
         if result.data:
@@ -68,24 +78,39 @@ def _expire_stuck_processing(profile_id: str) -> None:
 _MEDICINE_FIELDS = ("dosage", "frequency", "duration")
 
 
-def _replace_medicines(record_id: str, medicines_data: list) -> None:
+def _medicine_label(m: dict) -> str:
+    detail = " ".join(str(m.get(f)) for f in _MEDICINE_FIELDS if m.get(f))
+    return f"{m.get('name')} ({detail})" if detail else str(m.get("name"))
+
+
+def _replace_medicines(record_id: str, medicines_data: list) -> tuple:
     """Swap a record's medicines for a new set, without a window where it has none.
 
     There is no transaction available through the REST client, so the delete and
     the insert are separate calls. If the insert failed the delete had already
     committed and the prescription was simply gone, with nothing to recover it.
     We snapshot first and put the old rows back if the new ones do not land.
+
+    An entry that repeats another exactly is dropped: one prescription listing
+    the same medicine, dose and schedule twice can only ever be a mistake.
+    Returns (before, after) as readable labels for the edit history.
     """
     new_rows = []
+    seen = set()
     for medicine in medicines_data:
         name = (medicine.get("name") or "").strip()
         if not name:
             continue
-        new_rows.append({
+        row = {
             "record_id": record_id,
             "name": name,
             **{field: medicine.get(field) or None for field in _MEDICINE_FIELDS},
-        })
+        }
+        key = (name.lower(),) + tuple(str(row[f] or "").strip().lower() for f in _MEDICINE_FIELDS)
+        if key in seen:
+            continue
+        seen.add(key)
+        new_rows.append(row)
 
     previous = (
         supabase.table("medicines")
@@ -95,10 +120,12 @@ def _replace_medicines(record_id: str, medicines_data: list) -> None:
         .data
         or []
     )
+    before = [_medicine_label(m) for m in previous]
+    after = [_medicine_label(m) for m in new_rows]
 
     supabase.table("medicines").delete().eq("record_id", record_id).execute()
     if not new_rows:
-        return
+        return before, after
 
     try:
         supabase.table("medicines").insert(new_rows).execute()
@@ -118,6 +145,7 @@ def _replace_medicines(record_id: str, medicines_data: list) -> None:
             status_code=502,
             detail="Could not save the medicines. Nothing was changed. Please try again.",
         ) from e
+    return before, after
 
 
 def _assert_profile_owned(profile_id: str, user_id: str):
@@ -134,7 +162,7 @@ def get_records(
 ):
     _assert_profile_owned(profile_id, user_id)
     _expire_stuck_processing(profile_id)
-    query = supabase.table("records").select(_LIST_COLUMNS).eq("profile_id", profile_id).order("created_at", desc=True)
+    query = supabase.table("records").select(_list_columns()).eq("profile_id", profile_id).order("created_at", desc=True)
     if document_category:
         query = query.eq("document_category", document_category)
     result = query.execute()
@@ -143,10 +171,24 @@ def get_records(
     return records
 
 
+@router.get("/{profile_id}/records/status", response_model=None)
+def get_record_statuses(profile_id: str, user_id: str = Depends(get_current_user)):
+    """Only id, status and updated_at for each of this member's records.
+
+    This is what the client polls while a document is being read. The full list
+    costs three queries plus signing every page's URL; this is one narrow query,
+    and the client fetches the full list only when something actually changed.
+    """
+    _assert_profile_owned(profile_id, user_id)
+    _expire_stuck_processing(profile_id)
+    rows = supabase.table("records").select("id, status, updated_at").eq("profile_id", profile_id).execute()
+    return rows.data or []
+
+
 @router.get("/{profile_id}/records/{record_id}", response_model=None)
 def get_record(profile_id: str, record_id: str, user_id: str = Depends(get_current_user)):
     _assert_profile_owned(profile_id, user_id)
-    result = supabase.table("records").select(_DETAIL_COLUMNS).eq("id", record_id).eq("profile_id", profile_id).execute()
+    result = supabase.table("records").select(_detail_columns()).eq("id", record_id).eq("profile_id", profile_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Record not found")
     records = attach_medicines(result.data)
@@ -154,61 +196,82 @@ def get_record(profile_id: str, record_id: str, user_id: str = Depends(get_curre
     return records[0]
 
 
+_BILL_DETAIL_FIELDS = ("bill_category", "bill_title", "bill_number")
+
+
 @router.put("/{profile_id}/records/{record_id}", response_model=None)
 def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: str = Depends(get_current_user)):
     _assert_profile_owned(profile_id, user_id)
 
-    existing_result = supabase.table("records").select(_DETAIL_COLUMNS).eq("id", record_id).eq("profile_id", profile_id).execute()
+    existing_result = supabase.table("records").select(_detail_columns()).eq("id", record_id).eq("profile_id", profile_id).execute()
     if not existing_result.data:
         raise HTTPException(status_code=404, detail="Record not found")
     existing = existing_result.data[0]
 
     data = body.model_dump(exclude_none=True)
-
-    # Extract fields that need separate handling before Supabase update
     medicines_data = data.pop("medicines", None)
-    # Bill-specific fields saved separately so missing columns don't break main update
-    bill_extra = {k: data.pop(k, None) for k in ("bill_category", "bill_title", "bill_number")}
+
+    # The bill detail columns come with migration 005. Until it is applied they
+    # cannot be stored, and the client is told so instead of being shown
+    # "Updated" for a value that silently vanished.
+    unsaved_fields = []
+    if not has_bill_columns():
+        for field in _BILL_DETAIL_FIELDS:
+            if data.pop(field, None) is not None:
+                unsaved_fields.append(field)
 
     if "document_date" in data and data["document_date"]:
         data["document_date"] = str(data["document_date"])
 
-    edits = []
-    for field, new_val in data.items():
-        old_val = existing.get(field)
-        if str(old_val) != str(new_val):
-            edits.append({
-                "record_id": record_id,
-                "field_name": field,
-                "old_value": str(old_val) if old_val is not None else None,
-                "new_value": str(new_val),
-            })
-    if edits:
-        supabase.table("record_edits").insert(edits).execute()
+    # Only what actually changes is written, and recorded.
+    data = {f: v for f, v in data.items() if str(existing.get(f)) != str(v)}
+    edits = [
+        {
+            "record_id": record_id,
+            "field_name": field,
+            "old_value": str(existing.get(field)) if existing.get(field) is not None else None,
+            "new_value": str(new_val),
+        }
+        for field, new_val in data.items()
+    ]
 
     if data:
-        result = supabase.table("records").update(data).eq("id", record_id).eq("profile_id", profile_id).execute()
+        result = (
+            supabase.table("records").update({**data, "updated_at": _now()})
+            .eq("id", record_id).eq("profile_id", profile_id).execute()
+        )
         if not result.data:
             raise HTTPException(status_code=404, detail="Record not found")
-    else:
-        result = supabase.table("records").select(_DETAIL_COLUMNS).eq("id", record_id).eq("profile_id", profile_id).execute()
-
-    # Save bill_title/bill_category/bill_number; requires those columns in records table
-    bill_extra_clean = {k: v for k, v in bill_extra.items() if v is not None}
-    if bill_extra_clean:
-        try:
-            supabase.table("records").update(bill_extra_clean).eq("id", record_id).eq("profile_id", profile_id).execute()
-            if result.data:
-                result.data[0].update(bill_extra_clean)
-        except Exception:
-            pass
 
     if medicines_data is not None:
-        _replace_medicines(record_id, medicines_data)
+        before, after = _replace_medicines(record_id, medicines_data)
+        if before != after:
+            edits.append({
+                "record_id": record_id,
+                "field_name": "medicines",
+                "old_value": "; ".join(before) or None,
+                "new_value": "; ".join(after) or "none",
+            })
+            if not data:
+                supabase.table("records").update({"updated_at": _now()}).eq("id", record_id).execute()
 
+    # History is written after the change it describes has landed, so it can
+    # never claim an edit that failed. Losing a history row must not undo a save.
+    if edits:
+        try:
+            supabase.table("record_edits").insert(edits).execute()
+        except Exception as e:
+            logger.warning("Could not record edit history for %s: %s", record_id, e)
+
+    result = supabase.table("records").select(_detail_columns()).eq("id", record_id).eq("profile_id", profile_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Record not found")
     records = attach_medicines(result.data)
     records = attach_files(records)
-    return records[0]
+    record = records[0]
+    if unsaved_fields:
+        record["unsaved_fields"] = unsaved_fields
+    return record
 
 
 @router.delete("/{profile_id}/records/{record_id}")
@@ -229,13 +292,44 @@ def delete_record(profile_id: str, record_id: str, user_id: str = Depends(get_cu
         if p and p not in paths_to_delete:
             paths_to_delete.append(p)
 
+    # The row goes first; its medicines, pages, passages and history cascade with
+    # it in one statement. Removing the files first meant that a failed row
+    # delete left a record whose documents were already gone.
+    supabase.table("records").delete().eq("id", record_id).eq("profile_id", profile_id).execute()
+
+    # Verify the row is actually gone. A delete that silently affects zero rows
+    # (e.g. an RLS/permission edge case that returns 200 without deleting) must
+    # surface as an error here — otherwise the UI shows a false "deleted" and the
+    # record reappears on the next refresh, which is exactly the kind of silent
+    # failure that makes delete look broken.
+    check = (
+        supabase.table("records")
+        .select("id")
+        .eq("id", record_id)
+        .eq("profile_id", profile_id)
+        .execute()
+    )
+    if check.data:
+        raise HTTPException(status_code=500, detail="The record could not be deleted. Please try again.")
+
+    # Only now are the files removed. One that another record still points to
+    # is kept.
+    still_used = set()
     if paths_to_delete:
         try:
-            supabase.storage.from_("medical-records").remove(paths_to_delete)
+            shared = supabase.table("record_files").select("file_path").in_("file_path", paths_to_delete).execute()
+            still_used = {f["file_path"] for f in (shared.data or [])}
         except Exception:
-            pass
+            still_used = set(paths_to_delete)  # unsure: keep them rather than break another record
+    orphaned = [p for p in paths_to_delete if p not in still_used]
+    if orphaned:
+        try:
+            supabase.storage.from_(BUCKET).remove(orphaned)
+        except Exception as e:
+            # The record is deleted either way; a leftover private file is
+            # unreachable from the app and only costs storage.
+            logger.warning("Record %s deleted but %d file(s) were not removed: %s", record_id, len(orphaned), e)
 
-    supabase.table("records").delete().eq("id", record_id).eq("profile_id", profile_id).execute()
     return {"message": "Record deleted"}
 
 
@@ -246,7 +340,12 @@ def toggle_insurance(profile_id: str, record_id: str, user_id: str = Depends(get
     if not existing.data:
         raise HTTPException(status_code=404, detail="Record not found")
     current = existing.data[0].get("insurance_claimed", False)
-    result = supabase.table("records").update({"insurance_claimed": not current}).eq("id", record_id).execute()
+    result = (
+        supabase.table("records").update({"insurance_claimed": not current, "updated_at": _now()})
+        .eq("id", record_id).eq("profile_id", profile_id).execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Record not found")
     return result.data[0]
 
 
@@ -255,7 +354,7 @@ def get_bills(profile_id: str, user_id: str = Depends(get_current_user)):
     _assert_profile_owned(profile_id, user_id)
     result = (
         supabase.table("records")
-        .select(_LIST_COLUMNS)
+        .select(_list_columns())
         .eq("profile_id", profile_id)
         .eq("document_category", "bill")
         .order("document_date", desc=True)
@@ -298,11 +397,11 @@ def get_health_journey(request: Request, profile_id: str, user_id: str = Depends
     profile_result = supabase.table("profiles").select("name, relationship").eq("id", profile_id).execute()
     profile = profile_result.data[0] if profile_result.data else {"name": "Patient", "relationship": "Self"}
 
-    records_result = supabase.table("records").select(_LIST_COLUMNS).eq("profile_id", profile_id).eq("status", "done").order("created_at", desc=False).execute()
+    records_result = supabase.table("records").select(_list_columns()).eq("profile_id", profile_id).eq("status", "done").order("created_at", desc=False).execute()
     records = attach_medicines(records_result.data)
 
     if not records:
-        return {"summary": "No medical records yet. Upload prescriptions to build your health journey."}
+        return {"summary": "", "total_visits": 0}
 
     visits = []
     for r in records:
@@ -332,6 +431,7 @@ def get_health_journey(request: Request, profile_id: str, user_id: str = Depends
     if cached:
         return {"summary": cached, "total_visits": len(records), "cached": True}
 
+    summary = ""
     try:
         client = Groq(api_key=settings.GROQ_API_KEY, timeout=60.0, max_retries=1)
         response = client.chat.completions.create(
@@ -347,6 +447,7 @@ Medical visits:
 Write 3-8 bullet points summarizing the health journey chronologically.
 Focus on: key diagnoses, treatment progression, medication changes, follow-up outcomes.
 Use simple language a patient would understand.
+Use only what is in the visits above; do not add anything that is not written there.
 Use ordinary punctuation. Never use an em dash; use a comma, a full stop or brackets instead.
 Format each point starting with the month/year, then the event.
 Return ONLY the bullet points, no intro or outro."""
@@ -363,9 +464,11 @@ Return ONLY the bullet points, no intro or outro."""
             logger.warning("Health journey generation returned empty content for profile %s", profile_id)
     except Exception as e:
         logger.error("Health journey generation failed for profile %s: %s", profile_id, e)
-        # Deliberately not cached: the next attempt should try again.
-        summary = "We couldn't put your health journey together just now. Please try again in a moment."
 
+    if not summary:
+        # A failure is an error, not a summary: returned as text it was shown as
+        # a bullet point about the patient. Deliberately not cached.
+        raise HTTPException(status_code=503, detail="The summary couldn't be written just now. Please try again.")
     return {"summary": summary, "total_visits": len(records)}
 
 
@@ -392,8 +495,9 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
     if matched_ids:
         rows = (
             supabase.table("records")
-            .select(_DETAIL_COLUMNS)
+            .select(_detail_columns())
             .eq("profile_id", profile_id)
+            .eq("status", "done")
             .in_("id", matched_ids)
             .execute()
         )
@@ -402,7 +506,7 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
     else:
         rows = (
             supabase.table("records")
-            .select(_DETAIL_COLUMNS)
+            .select(_detail_columns())
             .eq("profile_id", profile_id)
             .eq("status", "done")
             .order("created_at", desc=True)
@@ -412,7 +516,12 @@ def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: st
         records = select_context_records(candidates, question, limit=CONTEXT_RECORD_LIMIT)
 
     records = attach_medicines(records)
-    return rag.answer_question(question, records, profile)
+    try:
+        return rag.answer_question(question, records, profile)
+    except AnswerUnavailable as e:
+        # A technical failure is not an answer. Returning "Sorry" with a 200 made
+        # it look as if the records had been read and found wanting.
+        raise HTTPException(status_code=503, detail="Couldn't get an answer right now. Please try again.") from e
 
 
 @router.get("/{profile_id}/records/{record_id}/history", response_model=List[RecordEditResponse])

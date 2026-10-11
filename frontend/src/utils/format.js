@@ -83,6 +83,94 @@ export const buildDocGroups = records => {
   return { docGroups, docNameMap, sortedDocs };
 };
 
+// Two documents from one visit (e.g. a handwritten AND a printed copy of the same
+// prescription) usually list the same drugs, so a raw union shows each medicine
+// twice — once as "AZEE" and once as "AZEE 500MG TABLET". Collapse by brand (the
+// first word of the name), keeping whichever entry carries the most detail.
+const _medScore = m => {
+  const fields = ['strength', 'dosage', 'frequency', 'duration', 'type', 'morning', 'afternoon', 'night'];
+  return fields.reduce((n, k) => n + (m[k] ? 1 : 0), 0) + ((m.name || '').length * 0.01);
+};
+
+export const dedupeMedicines = meds => {
+  const byKey = new Map();
+  const singles = [];
+  (meds || []).forEach(m => {
+    const key = (m.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ')[0];
+    if (!key) { singles.push(m); return; }
+    const existing = byKey.get(key);
+    if (!existing || _medScore(m) > _medScore(existing)) byKey.set(key, m);
+  });
+  return [...byKey.values(), ...singles];
+};
+
+export const isPending = r => r.status === 'processing' || r.status === 'extracting';
+export const isFailed = r => r.status === 'failed';
+
+const _medKey = name => (name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * Every distinct medicine across the given records, newest prescription first.
+ *
+ * What the dashboard's Medicines count is a count OF, and what the Medicines
+ * list shows, so the number on the tile always matches the list behind it. The
+ * old count summed every row on every record, so one medicine prescribed at
+ * three visits counted three times. Matching is on the whole name: "AZEE 250"
+ * and "AZEE 500" are different instructions, not duplicates.
+ */
+export const uniqueMedicines = records => {
+  const byKey = new Map();
+  const ordered = [...(records || [])]
+    .filter(r => r.status === 'done')
+    .sort((a, b) => String(getRecordDate(b) || '').localeCompare(String(getRecordDate(a) || '')));
+  ordered.forEach(r => (r.medicines || []).forEach(m => {
+    const key = _medKey(m.name);
+    if (!key) return;
+    const entry = byKey.get(key);
+    if (entry) { entry.count += 1; if (!entry.records.includes(r)) entry.records.push(r); return; }
+    byKey.set(key, { key, name: m.name, medicine: m, latest: r, count: 1, records: [r] });
+  }));
+  return [...byKey.values()];
+};
+
+/**
+ * What a saved record is still missing, in words. A record the reader could only
+ * partly make out (no date, no doctor or hospital) is saved, but it is not right
+ * yet, and it would sit in the wrong place in the file until someone fixes it.
+ * Nothing is guessed: this only reports absences.
+ */
+export const reviewReasons = r => {
+  if (r.status !== 'done') return [];
+  const reasons = [];
+  if (!r.document_date) reasons.push('date');
+  if (r.document_category !== 'bill' && !r.doctor_name && !r.hospital_name) reasons.push('doctor');
+  if (r.document_category === 'bill' && r.bill_amount == null) reasons.push('amount');
+  return reasons;
+};
+export const needsReview = r => reviewReasons(r).length > 0;
+
+/**
+ * Groups of records that may be the same document saved twice, for a person to
+ * look at. Deliberately strict (same type, same date, same doctor, and the same
+ * medicines or diagnosis) and never acted on automatically: two visits to one
+ * doctor on one day can be genuinely different records.
+ */
+export const possibleDuplicates = (records, dismissed = []) => {
+  const groups = new Map();
+  (records || []).filter(r => r.status === 'done' && r.document_date).forEach(r => {
+    const meds = (r.medicines || []).map(m => _medKey(m.name)).filter(Boolean).sort().join('|');
+    const content = meds || (r.diagnosis || '').trim().toLowerCase();
+    if (!content) return;
+    const key = [r.document_category, getRecordDate(r), normalizeDrKey(r.doctor_name), content].join('#');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  return [...groups.values()]
+    .filter(g => g.length > 1)
+    .filter(g => !dismissed.includes(g.map(r => r.id).sort().join(',')));
+};
+export const duplicateGroupId = group => group.map(r => r.id).sort().join(',');
+
 export const getRecordDate = r => r.document_date?.slice(0, 10) || r.created_at?.slice(0, 10) || null;
 
 export const getActivityLabel = r => {

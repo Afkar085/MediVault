@@ -23,17 +23,6 @@ const MED_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
-const MED_ICONS = {
-  tablet: 'medication', capsule: 'medication', syrup: 'water_full', injection: 'syringe',
-  cream: 'colorize', gel: 'colorize', ointment: 'colorize', lotion: 'colorize',
-  drops: 'water_drop', spray: 'air', sachet: 'grain', powder: 'grain',
-  inhaler: 'air', patch: 'healing', other: 'medication',
-};
-
-function getMedIcon(type) {
-  return MED_ICONS[type] || 'medication';
-}
-
 function getMedSchedule(med) {
   if (med.sos) return 'SOS: take only when needed';
   const t = med.type || '';
@@ -72,8 +61,11 @@ function blankMed() {
   };
 }
 
-function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
+function MedicineFormPanel({ initial, onSave, onCancel, onDelete, busy }) {
   const [f, setF] = useState(() => ({ ...blankMed(), ...(initial || {}) }));
+  // Removing a medicine from a prescription is one tap away from Save, so it
+  // asks once before doing it.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const set = (key, val) => setF(p => ({ ...p, [key]: val }));
   const t = f.type || 'tablet';
   const isTabCap = ['tablet', 'capsule'].includes(t);
@@ -86,29 +78,29 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
 
   const inp = (key, label, attrs = {}) => (
     <div className="med-ff">
-      <label className="edit-lbl">{label}</label>
-      <input className="edit-inp" value={f[key] || ''} onChange={e => set(key, e.target.value)} {...attrs} />
+      <label className="field-lbl">{label}</label>
+      <input className="field-inp" value={f[key] || ''} onChange={e => set(key, e.target.value)} {...attrs} />
     </div>
   );
 
   return (
     <div className="med-form">
       <div className="med-ff">
-        <label className="edit-lbl">Medicine Name</label>
-        <input className="edit-inp" value={f.name} onChange={e => set('name', e.target.value)}
+        <label className="field-lbl">Medicine Name</label>
+        <input className="field-inp" value={f.name} onChange={e => set('name', e.target.value)}
           placeholder="e.g. Amoxicillin" autoFocus />
       </div>
 
       <div className="med-form-row">
         <div className="med-ff">
-          <label className="edit-lbl">Type</label>
-          <select className="edit-inp" value={t} onChange={e => set('type', e.target.value)}>
+          <label className="field-lbl">Type</label>
+          <select className="field-inp" value={t} onChange={e => set('type', e.target.value)}>
             {MED_TYPES.map(mt => <option key={mt.value} value={mt.value}>{mt.label}</option>)}
           </select>
         </div>
         <div className="med-ff">
-          <label className="edit-lbl">Strength</label>
-          <input className="edit-inp" value={f.strength || ''} onChange={e => set('strength', e.target.value)} placeholder="e.g. 500mg" />
+          <label className="field-lbl">Strength</label>
+          <input className="field-inp" value={f.strength || ''} onChange={e => set('strength', e.target.value)} placeholder="e.g. 500mg" />
         </div>
       </div>
 
@@ -119,19 +111,19 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
 
       {showSched && isTabCap && (
         <div className="med-sched-box">
-          <div className="edit-lbl" style={{ marginBottom: 8 }}>Schedule (tablets per dose)</div>
+          <div className="field-lbl">Schedule (tablets per dose)</div>
           <div className="med-time-row">
             {[['morning', 'Morning'], ['afternoon', 'Afternoon'], ['night', 'Night']].map(([k, lbl]) => (
               <div key={k} className="med-time-cell">
                 <div className="med-time-lbl">{lbl}</div>
-                <input className="edit-inp med-num" type="number" min="0" step="0.5"
+                <input className="field-inp med-num" type="number" min="0" step="0.5"
                   value={f[k] || ''} onChange={e => set(k, e.target.value)} placeholder="0" />
               </div>
             ))}
           </div>
-          <div className="med-ff" style={{ marginTop: 10 }}>
-            <label className="edit-lbl">Food Timing</label>
-            <select className="edit-inp" value={f.food || 'anytime'} onChange={e => set('food', e.target.value)}>
+          <div className="med-ff">
+            <label className="field-lbl">Food Timing</label>
+            <select className="field-inp" value={f.food || 'anytime'} onChange={e => set('food', e.target.value)}>
               <option value="before">Before Food</option>
               <option value="after">After Food</option>
               <option value="anytime">Anytime</option>
@@ -142,18 +134,18 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
 
       {showSched && isSyrup && (
         <div className="med-sched-box">
-          <div className="edit-lbl" style={{ marginBottom: 8 }}>Schedule (ml per dose)</div>
+          <div className="field-lbl">Schedule (ml per dose)</div>
           <div className="med-time-row">
             {[['morning_ml', 'Morning'], ['afternoon_ml', 'Afternoon'], ['night_ml', 'Night']].map(([k, lbl]) => (
               <div key={k} className="med-time-cell">
                 <div className="med-time-lbl">{lbl}</div>
-                <input className="edit-inp" value={f[k] || ''} onChange={e => set(k, e.target.value)} placeholder="ml" />
+                <input className="field-inp" value={f[k] || ''} onChange={e => set(k, e.target.value)} placeholder="ml" />
               </div>
             ))}
           </div>
-          <div className="med-ff" style={{ marginTop: 10 }}>
-            <label className="edit-lbl">Food Timing</label>
-            <select className="edit-inp" value={f.food || 'anytime'} onChange={e => set('food', e.target.value)}>
+          <div className="med-ff">
+            <label className="field-lbl">Food Timing</label>
+            <select className="field-inp" value={f.food || 'anytime'} onChange={e => set('food', e.target.value)}>
               <option value="before">Before Food</option>
               <option value="after">After Food</option>
               <option value="anytime">Anytime</option>
@@ -174,8 +166,8 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
           <div className="med-form-row">
             {inp('dose', 'Dose', { placeholder: 'e.g. 10ml' })}
             <div className="med-ff">
-              <label className="edit-lbl">Route</label>
-              <select className="edit-inp" value={f.route || 'IM'} onChange={e => set('route', e.target.value)}>
+              <label className="field-lbl">Route</label>
+              <select className="field-inp" value={f.route || 'IM'} onChange={e => set('route', e.target.value)}>
                 {['IV', 'IM', 'SC', 'Other'].map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
@@ -188,8 +180,8 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
         <>
           <div className="med-form-row">
             <div className="med-ff">
-              <label className="edit-lbl">Location</label>
-              <select className="edit-inp" value={f.drop_location || 'eye'} onChange={e => set('drop_location', e.target.value)}>
+              <label className="field-lbl">Location</label>
+              <select className="field-inp" value={f.drop_location || 'eye'} onChange={e => set('drop_location', e.target.value)}>
                 {['eye', 'ear', 'nose'].map(l => <option key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
               </select>
             </div>
@@ -223,25 +215,29 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete }) {
       {inp('duration', 'Duration', { placeholder: 'e.g. 7 days' })}
 
       <div className="med-ff">
-        <label className="edit-lbl">Instructions / Notes</label>
-        <textarea className="edit-inp" rows={2} value={f.instructions || ''}
+        <label className="field-lbl">Instructions / Notes</label>
+        <textarea className="field-inp" rows={2} value={f.instructions || ''}
           onChange={e => set('instructions', e.target.value)}
-          placeholder="e.g. Drink plenty of water" style={{ resize: 'vertical' }} />
+          placeholder="e.g. Drink plenty of water" />
       </div>
 
       <div className="med-form-actions">
-        {onDelete && <button className="btn-d" style={{ marginRight: 'auto' }} onClick={onDelete}>Delete</button>}
-        <button className="btn-c" onClick={onCancel}>Cancel</button>
-        <button className="btn-s" onClick={() => onSave(f)} disabled={!f.name.trim()}>Save</button>
+        {onDelete && (confirmDelete
+          ? <button className="btn btn-danger" onClick={onDelete} disabled={busy}>Remove {f.name || 'medicine'}?</button>
+          : <button className="btn btn-danger-quiet" onClick={() => setConfirmDelete(true)} disabled={busy}>Remove</button>)}
+        <span className="m-ftr-spacer" />
+        <button className="btn btn-secondary" onClick={onCancel} disabled={busy}>Cancel</button>
+        <button className="btn btn-primary" onClick={() => onSave(f)} disabled={busy || !f.name.trim()}>{busy ? 'Saving…' : 'Save'}</button>
       </div>
     </div>
   );
 }
 
-export default function MedsTab({ record, profileId, setRecords, openRecord, showToast }) {
+export default function MedsTab({ record, profileId, setRecords, showRecord, showToast }) {
   const [editIdx, setEditIdx] = useState(null);
   const [saving, setSaving] = useState(false);
   const meds = record.medicines || [];
+  const editable = record.status === 'done';
 
   const persistMeds = async (newMeds) => {
     setSaving(true);
@@ -254,14 +250,14 @@ export default function MedsTab({ record, profileId, setRecords, openRecord, sho
         duration: m.duration || '',
       }));
       const res = await API.put('/profiles/' + profileId + '/records/' + record.id, { medicines: backendMeds });
-      // Merge local rich medicine data back, backend only stores 4 fields
-      const merged = { ...res.data, medicines: newMeds };
-      setRecords(prev => prev.map(x => x.id === res.data.id ? merged : x));
-      openRecord(merged);
+      // What the server stored is what is shown. Keeping the richer local copy
+      // instead made a medicine look saved with details that a refresh dropped.
+      setRecords(prev => prev.map(x => x.id === res.data.id ? res.data : x));
+      showRecord(res.data);
       setEditIdx(null);
       showToast('Medicines updated');
     } catch (e) {
-      showToast('Save failed', 'error');
+      showToast('Couldn’t save the medicines. Nothing was changed; try again.', 'error');
     } finally {
       setSaving(false);
     }
@@ -270,7 +266,7 @@ export default function MedsTab({ record, profileId, setRecords, openRecord, sho
   const handleSave = (data) => {
     const updated = [...meds];
     if (editIdx === 'new') {
-      updated.push({ ...data, id: String(Date.now()) });
+      updated.push({ ...data });
     } else {
       updated[editIdx] = { ...meds[editIdx], ...data };
     }
@@ -288,66 +284,59 @@ export default function MedsTab({ record, profileId, setRecords, openRecord, sho
         onSave={handleSave}
         onCancel={() => setEditIdx(null)}
         onDelete={editIdx !== 'new' ? () => handleDelete(editIdx) : null}
+        busy={saving}
       />
     );
   }
 
   return (
     <div>
-      {saving && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 12px', color: '#64748b', fontSize: 13 }}>
-          <div className="spinner" style={{ width: 16, height: 16, margin: 0, borderWidth: 2 }} />
-          Saving…
+      {meds.length === 0 && (
+        <div className="muted-line center">
+          {editable ? 'No medicines were found on this document. Add them below if it lists any.'
+            : 'Medicines appear here once the document has been read.'}
         </div>
       )}
 
-      {meds.length === 0 && !saving && (
-        <div style={{ textAlign: 'center', padding: '24px 0 16px', color: '#94a3b8', fontSize: 13 }}>
-          No medicines yet.<br />
-          <span style={{ fontSize: 12 }}>AI will extract them from the prescription, or add manually below.</span>
-        </div>
+      {meds.length > 0 && (
+        <table className="rx-table">
+          <thead>
+            <tr><th scope="col">Medicine</th><th scope="col">Dose</th><th scope="col">When</th><th scope="col">For</th>{editable && <th scope="col"><span className="sr-only">Edit</span></th>}</tr>
+          </thead>
+          <tbody>
+            {meds.map((med, i) => {
+              // Stored medicines carry dose and schedule as text; the richer
+              // fields only exist while one is being edited.
+              const dose = med.strength || med.dosage;
+              const when = med.type ? getMedSchedule(med) : med.frequency;
+              return (
+                <tr key={med.id || i}>
+                  <th scope="row" className="rx-name">
+                    {med.name}
+                    {med.instructions && <span className="rx-note">{med.instructions}</span>}
+                  </th>
+                  <td data-label="Dose">{dose || <span className="muted">–</span>}</td>
+                  <td data-label="When">{when || <span className="muted">–</span>}</td>
+                  <td data-label="For">{med.duration || <span className="muted">–</span>}</td>
+                  {editable && (
+                    <td className="rx-edit">
+                      <button className="icon-btn" onClick={() => setEditIdx(i)} aria-label={'Edit ' + med.name}>
+                        <Icon name="edit" size={18} />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
 
-      {meds.map((med, i) => {
-        const sched = getMedSchedule(med);
-        const typeLabel = med.type ? med.type.charAt(0).toUpperCase() + med.type.slice(1) : '';
-        return (
-          <div key={med.id || i} className="med-item">
-            <div className="med-item-icon"><Icon name={getMedIcon(med.type)} size={20} /></div>
-            <div className="med-item-body">
-              <div className="med-item-name">{med.name}</div>
-              {(typeLabel || med.strength) && (
-                <div className="med-item-meta">
-                  {[typeLabel, med.strength].filter(Boolean).join(' · ')}
-                </div>
-              )}
-              {sched && <div className="med-item-sched">{sched}</div>}
-              {med.duration && <div className="med-item-dur"><Icon name="schedule" size={11} style={{ marginRight: 3 }} />{med.duration}</div>}
-              {med.instructions && <div className="med-item-notes">{med.instructions}</div>}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <button className="med-edit-btn" onClick={() => setEditIdx(i)}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Edit
-              </button>
-              <button className="med-edit-btn" style={{ background: 'var(--success-container)', color: 'var(--success)', borderColor: '#a7e8cf' }}
-                onClick={() => persistMeds([...meds.slice(0, i + 1), { ...med, id: String(Date.now()) }, ...meds.slice(i + 1)])}>
-                Dup
-              </button>
-            </div>
-          </div>
-        );
-      })}
-
-      <button className="med-add-btn" onClick={() => setEditIdx('new')}>
-        + Add Medicine
-      </button>
+      {editable && (
+        <button className="text-btn" onClick={() => setEditIdx('new')} disabled={saving}>
+          <Icon name="add" size={18} /> Add a medicine
+        </button>
+      )}
     </div>
   );
 }
-
-// Users should never have to interpret a pipeline status. Say what happened
-// and what to do about it.

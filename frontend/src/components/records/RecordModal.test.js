@@ -64,12 +64,18 @@ async function openRecord(record) {
   });
   render(<App />);
   await act(async () => { await Promise.resolve(); });
-  fireEvent.click(await screen.findByRole('button', { name: /prescription uploaded|bill added|couldn't read/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /^(prescription|bill),|^open the/i }));
   return screen.getByRole('dialog');
 }
 
 const modal = () => screen.getByRole('dialog');
-const tab = (name) => within(modal()).getByRole('button', { name });
+const section = (name) => within(modal()).queryByRole('heading', { name });
+const openDisclosure = (name) => {
+  const summary = within(modal()).getByText(name);
+  const details = summary.closest('details');
+  details.open = true;
+  fireEvent(details, new Event('toggle'));
+};
 
 beforeEach(() => {
   localStorage.setItem('token', 'test-token');
@@ -84,55 +90,62 @@ test('a prescription opens showing its details', async () => {
   await openRecord(PRESCRIPTION);
   expect(within(modal()).getByText('Dr. Kumar')).toBeInTheDocument();
   expect(within(modal()).getByText('Osteoarthritis of the right knee')).toBeInTheDocument();
-  expect(within(modal()).getAllByText('14 Jun 2026').length).toBeGreaterThan(0);
+  expect(within(modal()).getAllByText(/14 Jun 2026/).length).toBeGreaterThan(0);
 });
 
-test('a prescription offers a medicines tab; a bill does not', async () => {
+test('a prescription lists its medicines; a bill does not', async () => {
   await openRecord(PRESCRIPTION);
-  expect(within(modal()).getByText(/^Meds/)).toBeInTheDocument();
+  expect(section(/^medicines/i)).toBeInTheDocument();
 });
 
 test('a bill shows its amount and title instead of medicines', async () => {
   await openRecord(BILL);
   expect(within(modal()).getAllByText('Consultation and X-ray').length).toBeGreaterThan(0);
-  expect(within(modal()).queryByText(/^Meds/)).not.toBeInTheDocument();
+  expect(section(/^medicines/i)).not.toBeInTheDocument();
 });
 
 test('a failed record explains itself in plain language', async () => {
   await openRecord(FAILED);
   expect(within(modal()).getByText(/couldn’t read this document/i)).toBeInTheDocument();
-  expect(within(modal()).getByText('unreadable')).toBeInTheDocument();
+  expect(within(modal()).getByText('Couldn’t read')).toBeInTheDocument();
+  // A failure can be retried from the original file, right here.
+  expect(within(modal()).getByRole('button', { name: /try reading again/i })).toBeInTheDocument();
 });
 
-// --- tabs --------------------------------------------------------------------
+// --- one page, read top to bottom ---------------------------------------------
 
-test('the medicines tab lists what was prescribed', async () => {
+test('the medicines are on the record itself', async () => {
   await openRecord(PRESCRIPTION);
-  fireEvent.click(tab(/^Meds/));
   expect(within(modal()).getByText('Paracetamol')).toBeInTheDocument();
 });
 
-test('the documents tab fetches the scanned text only when opened', async () => {
+test('the scanned text is fetched only when someone opens it', async () => {
   await openRecord(PRESCRIPTION);
-  const before = API.get.mock.calls.filter(([u]) => u === '/profiles/p-alice/records/r-presc').length;
-  expect(before).toBe(0);
+  expect(API.get.mock.calls.filter(([u]) => u === '/profiles/p-alice/records/r-presc').length).toBe(0);
 
-  fireEvent.click(tab(/^Docs/));
+  openDisclosure(/scanned text/i);
 
   await waitFor(() =>
     expect(within(modal()).getByText(/Paracetamol 650mg BD/)).toBeInTheDocument(),
   );
 });
 
-test('the history tab loads the edit trail only when opened', async () => {
-  await openRecord(PRESCRIPTION);
-  expect(API.get.mock.calls.some(([u]) => u.endsWith('/history'))).toBe(false);
-
-  fireEvent.click(tab(/^History/i));
-
-  await waitFor(() =>
-    expect(API.get.mock.calls.some(([u]) => u.endsWith('/history'))).toBe(true),
-  );
+test('a value someone changed is marked as edited, using the real edit history', async () => {
+  API.get.mockImplementation((url) => {
+    if (url === '/profiles') return Promise.resolve({ data: [ALICE] });
+    if (url === '/profiles/p-alice/records') return Promise.resolve({ data: [PRESCRIPTION] });
+    if (url.endsWith('/history')) {
+      return Promise.resolve({ data: [{ id: 'h1', field_name: 'diagnosis', old_value: 'Knee pain', new_value: 'Osteoarthritis of the right knee', edited_at: '2026-06-15T00:00:00' }] });
+    }
+    return Promise.resolve({ data: PRESCRIPTION });
+  });
+  render(<App />);
+  await act(async () => { await Promise.resolve(); });
+  fireEvent.click(await screen.findByRole('button', { name: /^prescription, dr\. kumar/i }));
+  const row = (label) => [...modal().querySelectorAll('.dl-row')].find(r => r.querySelector('dt').firstChild.textContent === label);
+  await waitFor(() => expect(within(row('Diagnosis')).getByText('edited')).toBeInTheDocument());
+  const doctorRow = row('Doctor');
+  expect(within(doctorRow).queryByText('edited')).not.toBeInTheDocument();
 });
 
 // --- editing -----------------------------------------------------------------
@@ -166,12 +179,14 @@ test('a failed record cannot be edited', async () => {
   expect(within(modal()).queryByRole('button', { name: /edit details/i })).not.toBeInTheDocument();
 });
 
-test('changing the date from the details view saves immediately', async () => {
+test('changing the date from the details view saves once the field is left', async () => {
   API.put.mockResolvedValue({ data: { ...PRESCRIPTION, document_date: '2026-07-01' } });
   await openRecord(PRESCRIPTION);
 
   const dateInput = modal().querySelector('input[type=date]');
   fireEvent.change(dateInput, { target: { value: '2026-07-01' } });
+  expect(API.put).not.toHaveBeenCalled();  // not on every keystroke of the year
+  fireEvent.blur(dateInput);
 
   await waitFor(() =>
     expect(API.put).toHaveBeenCalledWith(
@@ -206,6 +221,7 @@ test('a record belonging to another member is edited against its own profile', a
 
   const dateInput = modal().querySelector('input[type=date]');
   fireEvent.change(dateInput, { target: { value: '2026-07-01' } });
+  fireEvent.blur(dateInput);
 
   await waitFor(() => expect(API.put).toHaveBeenCalled());
   expect(API.put.mock.calls.at(-1)[0]).toBe('/profiles/p-dad/records/r-presc');
@@ -234,7 +250,7 @@ test('closing a record returns focus to the row it was opened from', async () =>
   render(<App />);
   await act(async () => { await Promise.resolve(); });
 
-  const opener = await screen.findByRole('button', { name: /prescription uploaded/i });
+  const opener = await screen.findByRole('button', { name: /^prescription, dr\. kumar/i });
   opener.focus();
   fireEvent.click(opener);
 
@@ -242,7 +258,7 @@ test('closing a record returns focus to the row it was opened from', async () =>
   fireEvent.keyDown(modal(), { key: 'Escape' });
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: /prescription uploaded/i }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: /^prescription, dr\. kumar/i }));
 });
 
 test('Tab cannot walk out of the dialog into the page behind it', async () => {
@@ -293,3 +309,56 @@ test('a failed delete explains itself and lets you try again', async () => {
     expect(within(confirm).getByRole('button', { name: /^delete$/i })).not.toBeDisabled(),
   );
 });
+
+
+// --- the bugs this view used to have ------------------------------------------
+
+test('typing a year digit by digit does not save a date for each digit', async () => {
+  API.put.mockResolvedValue({ data: PRESCRIPTION });
+  await openRecord(PRESCRIPTION);
+  const dateInput = modal().querySelector('input[type=date]');
+  for (const value of ['0002-06-14', '0020-06-14', '0202-06-14', '2026-06-15']) {
+    fireEvent.change(dateInput, { target: { value } });
+  }
+  fireEvent.blur(dateInput);
+  await waitFor(() => expect(API.put).toHaveBeenCalledTimes(1));
+  expect(API.put.mock.calls[0][1]).toEqual({ document_date: '2026-06-15' });
+});
+
+test('after saving, one Escape still closes the record', async () => {
+  API.put.mockResolvedValue({ data: { ...PRESCRIPTION, diagnosis: 'Knee sprain' } });
+  await openRecord(PRESCRIPTION);
+  fireEvent.click(within(modal()).getByRole('button', { name: /edit details/i }));
+  fireEvent.change(within(modal()).getByDisplayValue('Osteoarthritis of the right knee'), { target: { value: 'Knee sprain' } });
+  fireEvent.click(within(modal()).getByRole('button', { name: /^save$/i }));
+  await waitFor(() => expect(within(modal()).getByText('Knee sprain')).toBeInTheDocument());
+
+  fireEvent.keyDown(modal(), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('a medicine cannot be duplicated by a single tap', async () => {
+  await openRecord(PRESCRIPTION);
+  expect(within(modal()).queryByRole('button', { name: /^dup/i })).not.toBeInTheDocument();
+});
+
+test('a failed record can be read again', async () => {
+  API.post.mockResolvedValue({ data: { record_id: 'r-failed', status: 'processing', started: true } });
+  await openRecord(FAILED);
+  fireEvent.click(within(modal()).getByRole('button', { name: /try reading again/i }));
+  await waitFor(() =>
+    expect(API.post).toHaveBeenCalledWith('/profiles/p-alice/records/r-failed/retry'),
+  );
+  expect(await within(modal()).findByText(/reading this document/i)).toBeInTheDocument();
+});
+
+test('a record already deleted elsewhere is removed instead of reported as a failure', async () => {
+  API.delete.mockRejectedValue({ response: { status: 404 } });
+  await openRecord(PRESCRIPTION);
+  fireEvent.click(within(modal()).getByRole('button', { name: /^delete$/i }));
+  const confirm = screen.getByRole('dialog', { name: /delete record/i });
+  fireEvent.click(within(confirm).getByRole('button', { name: /^delete$/i }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+})
+;

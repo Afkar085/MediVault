@@ -11,6 +11,7 @@ instruction lives in the document text and was never extracted into a column, so
 without the passages the model can only ever say it doesn't know.
 """
 import logging
+import re
 from typing import List, Optional, Tuple
 
 from groq import Groq
@@ -31,6 +32,25 @@ NOT_IN_RECORDS = (
     "I couldn't find that in the uploaded records. Try naming a doctor, "
     "a medicine or a condition that appears in them."
 )
+
+
+class AnswerUnavailable(Exception):
+    """The model could not be reached. A technical failure, not an answer."""
+
+
+# Matches the same bracket variants the client renders as citations.
+_CITATION = re.compile(r"[\[【〔]\s*Record\s*(\d+)\s*[\]】〕]", re.I)
+
+
+def cited_sources(answer: str, sources: List[dict]) -> List[dict]:
+    """The sources the answer actually cites, in the order they were numbered.
+
+    Every record put in front of the model used to be listed under the answer,
+    so a record it had read and not used appeared as support for a claim it had
+    nothing to do with. When the answer cites nothing, nothing is claimed.
+    """
+    refs = {int(n) for n in _CITATION.findall(answer or "")}
+    return [s for s in sources if s.get("ref") in refs]
 
 PROMPT_TEMPLATE = """You are a careful medical-records assistant. Answer the question using ONLY the records below for {patient}.
 
@@ -125,7 +145,7 @@ def build_context(
 def answer_question(question: str, records: List[dict], profile: dict) -> dict:
     """Answer a question grounded only in the provided records, with citations."""
     if not records:
-        return {"answer": NOT_IN_RECORDS, "sources": []}
+        return {"answer": NOT_IN_RECORDS, "sources": [], "found": False}
 
     context, sources = build_context(records, question)
     prompt = PROMPT_TEMPLATE.format(
@@ -146,8 +166,9 @@ def answer_question(question: str, records: List[dict], profile: dict) -> dict:
         answer = (response.choices[0].message.content or "").strip()
     except Exception as e:
         logger.error("RAG answer generation failed: %s", e)
-        return {"answer": "Sorry, I couldn't generate an answer right now.", "sources": sources}
+        raise AnswerUnavailable() from e
 
     if not answer:
-        return {"answer": NOT_IN_RECORDS, "sources": sources}
-    return {"answer": answer, "sources": sources}
+        return {"answer": NOT_IN_RECORDS, "sources": [], "found": False}
+    cited = cited_sources(answer, sources)
+    return {"answer": answer, "sources": cited, "found": bool(cited), "source_kind": "cited"}

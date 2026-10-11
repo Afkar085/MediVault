@@ -64,7 +64,8 @@ def test_stuck_records_are_marked_failed(fake_supabase):
 
     calls = fake.query.calls
     assert fake.query.table == "records"
-    assert calls["update"] == {"status": "failed"}
+    assert calls["update"]["status"] == "failed"
+    assert "updated_at" in calls["update"]  # the change itself is stamped
     assert ("profile_id", "p-1") in calls["eq"]
     assert calls["in_"] == ("status", ["processing", "extracting"])
 
@@ -76,7 +77,9 @@ def test_only_records_older_than_the_timeout_are_touched(fake_supabase):
     after = datetime.now(timezone.utc)
 
     column, cutoff = fake.query.calls["lt"]
-    assert column == "created_at"
+    # updated_at, not created_at: an old record that was retried or had a page
+    # added a moment ago is not stuck, and must not be failed on the next poll.
+    assert column == "updated_at"
     cutoff_at = datetime.fromisoformat(cutoff)
     # An upload started a moment ago must survive; only genuinely stale ones go.
     assert before - PROCESSING_TIMEOUT <= cutoff_at <= after - PROCESSING_TIMEOUT

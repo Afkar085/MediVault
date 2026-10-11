@@ -57,7 +57,7 @@ test('a suggested question is answered from the record it cites', async () => {
     question: 'What medicines was I prescribed recently?',
   });
   expect(await screen.findByText(/paracetamol 650mg twice daily/i)).toBeInTheDocument();
-  expect(screen.getByText('Based on these records')).toBeInTheDocument();
+  expect(screen.getByText(/sources cited in this answer/i)).toBeInTheDocument();
 });
 
 test('a citation opens the record it came from', async () => {
@@ -68,7 +68,7 @@ test('a citation opens the record it came from', async () => {
   const source = await screen.findByRole('button', { name: /open source record: dr\. kumar/i });
   fireEvent.click(source);
 
-  await waitFor(() => expect(document.querySelector('.modal')).toBeTruthy());
+  await waitFor(() => expect(document.querySelector('.record')).toBeTruthy());
 });
 
 test('a typed question is sent, and the answer is scoped to the selected member', async () => {
@@ -194,11 +194,13 @@ test('a citation already in the loaded records opens without a fetch', async () 
   fireEvent.click(screen.getByRole('button', { name: /which doctors have treated me/i }));
   const citation = await screen.findByRole('button', { name: /open source record: dr\. kumar/i });
 
-  const before = API.get.mock.calls.length;
+  const recordFetches = () => API.get.mock.calls.filter(([u]) => u === '/profiles/p-alice/records/r-1').length;
   fireEvent.click(citation);
 
   await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-  expect(API.get.mock.calls.length).toBe(before);
+  // The record is already loaded, so it is not fetched again (its edit
+  // history is, which is a separate, small request).
+  expect(recordFetches()).toBe(0);
 });
 
 test('the passage the answer came from is shown so it can be checked', async () => {

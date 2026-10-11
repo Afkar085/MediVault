@@ -28,6 +28,10 @@ export default function AskPanel() {
   const [asked, setAsked] = useState('');
   const [answer, setAnswer] = useState(null);
   const [sources, setSources] = useState([]);
+  // False when the records were read and simply don't contain the answer,
+  // which is a different thing from the service failing (that is `error`).
+  const [found, setFound] = useState(true);
+  const [sourceKind, setSourceKind] = useState('cited');
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
@@ -74,6 +78,8 @@ export default function AskPanel() {
         if (requestRef.current !== id) return;
         setAnswer(r.data.answer || '');
         setSources(r.data.sources || []);
+        setFound(r.data.found !== false);
+        setSourceKind(r.data.source_kind || 'cited');
         setThinking(false);
       })
       .catch(e => {
@@ -81,7 +87,7 @@ export default function AskPanel() {
         setError(
           e?.response?.status === 429
             ? 'That is a lot of questions at once. Give it a minute and try again.'
-            : "Couldn't get an answer right now. Please try again.",
+            : "Couldn't get an answer right now. That's a service problem, not a gap in your records.",
         );
         setThinking(false);
       });
@@ -101,14 +107,14 @@ export default function AskPanel() {
 
   return (
     <div>
-      <div className="sscope" role="group" aria-label="Whose records to ask about">
+      <div className="segmented segmented-sm" role="group" aria-label="Whose records to ask about">
         <button
-          className={'sscope-btn' + (!wholeFamily ? ' active' : '')}
+          className={'segmented-btn' + (!wholeFamily ? ' active' : '')}
           aria-pressed={!wholeFamily}
           onClick={() => setWholeFamily(false)}
         >{sel?.name || 'This member'}</button>
         <button
-          className={'sscope-btn' + (wholeFamily ? ' active' : '')}
+          className={'segmented-btn' + (wholeFamily ? ' active' : '')}
           aria-pressed={wholeFamily}
           onClick={() => setWholeFamily(true)}
         >Everyone</button>
@@ -119,13 +125,13 @@ export default function AskPanel() {
         onSubmit={e => { e.preventDefault(); ask(); }}
       >
         <input
-          className="sinput ask-input"
+          className="search-input ask-input"
           value={question}
           onChange={e => setQuestion(e.target.value)}
           placeholder={wholeFamily ? 'Ask about the family’s records…' : 'Ask about ' + (sel?.name || 'these') + '’s records…'}
           aria-label={wholeFamily ? 'Ask a question about the family’s records' : 'Ask a question about ' + (sel?.name || 'these') + '’s records'}
         />
-        <button className="btn-s ask-send" type="submit" disabled={thinking || !question.trim()}>
+        <button className="btn btn-primary ask-send" type="submit" disabled={thinking || !question.trim()}>
           {thinking ? 'Reading…' : 'Ask'}
         </button>
       </form>
@@ -149,14 +155,26 @@ export default function AskPanel() {
           </div>
         )}
 
-        {answer && !thinking && (
+        {answer && !thinking && !found && (
+          <div className="ask-card ask-card-empty">
+            <div className="ask-q">{asked}</div>
+            <div className="ask-empty">
+              <Icon name="search_off" size={20} />
+              <p>{answer}</p>
+            </div>
+          </div>
+        )}
+
+        {answer && !thinking && found && (
           <div className="ask-card">
             <div className="ask-q">{asked}</div>
             <AnswerText text={answer} sources={sources} onOpenSource={openSource} />
 
             {sources.length > 0 && (
               <>
-                <div className="ask-src-hdr">Based on these records</div>
+                <div className="ask-src-hdr">
+                  {sourceKind === 'consulted' ? 'Records looked at to answer' : 'Sources cited in this answer'}
+                </div>
                 {sources.map(src => {
                   const record = records.find(r => r.id === src.record_id);
                   const title = src.doctor_name

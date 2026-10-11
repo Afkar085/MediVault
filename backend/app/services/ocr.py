@@ -46,7 +46,45 @@ def _image_mime(image_bytes: bytes) -> str:
     return "image/jpeg"
 
 
+# Each image costs a fixed number of input tokens whatever its size, so pixels
+# beyond this only make the request slower to send. Large enough for small print.
+MAX_OCR_EDGE = 2400
+
+
+def prepare_image(image_bytes: bytes) -> bytes:
+    """The image as the model should see it: upright, and not needlessly huge.
+
+    Phone cameras store most photos sideways with an EXIF flag saying which way
+    is up. Viewers honour the flag; the model receives raw pixels, so a portrait
+    prescription arrived rotated 90 degrees. Applied only to what is sent for
+    reading: the stored original is never modified. If Pillow is unavailable or
+    the image cannot be decoded, the bytes are sent as they are.
+    """
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:  # pragma: no cover - optional at runtime
+        return image_bytes
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            orientation = (img.getexif() or {}).get(0x0112, 1)
+            too_big = max(img.size) > MAX_OCR_EDGE
+            if orientation in (None, 1) and not too_big:
+                return image_bytes
+            img = ImageOps.exif_transpose(img)
+            if too_big:
+                img.thumbnail((MAX_OCR_EDGE, MAX_OCR_EDGE))
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=90)
+            return out.getvalue()
+    except Exception as e:
+        logger.info("Image sent unprepared (%s)", type(e).__name__)
+        return image_bytes
+
+
 def _extract_from_image(image_bytes: bytes) -> str:
+    image_bytes = prepare_image(image_bytes)
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     response = client.chat.completions.create(
         model=VISION_MODEL,

@@ -37,6 +37,9 @@ CREATE TABLE records (
     bill_amount         DECIMAL(10,2) NULL,
     insurance_claimed   BOOLEAN      DEFAULT false,
     visit_group         VARCHAR(100) NULL,
+    bill_title          VARCHAR(200) NULL,
+    bill_category       VARCHAR(100) NULL,
+    bill_number         VARCHAR(100) NULL,
     created_at          TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at          TIMESTAMP    NOT NULL DEFAULT now()
 );
@@ -77,6 +80,8 @@ CREATE INDEX idx_records_document_category ON records(document_category);
 CREATE INDEX idx_records_visit_group   ON records(visit_group);
 CREATE INDEX idx_medicines_record_id   ON medicines(record_id);
 CREATE INDEX idx_record_files_record   ON record_files(record_id);
+CREATE UNIQUE INDEX uq_record_files_file_path ON record_files(file_path);
+CREATE INDEX idx_records_profile_status_updated ON records(profile_id, status, updated_at);
 
 -- Semantic search: 384-dim embedding (BAAI/bge-small-en-v1.5) + ANN index + RPC.
 ALTER TABLE records ADD COLUMN IF NOT EXISTS embedding vector(384);

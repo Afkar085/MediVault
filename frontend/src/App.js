@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
 import './index.css';
 import API, { setSessionExpiredHandler, setServerWakingHandler } from './api';
-import { buildDocGroups } from './utils/format';
+import { buildDocGroups, isPending } from './utils/format';
 import { validateFiles, describeRejections } from './utils/uploads';
 
 import AuthScreen from './components/auth/AuthScreen';
@@ -16,8 +16,8 @@ import SearchPage from './components/search/SearchPage';
 import FamilyPage from './components/family/FamilyPage';
 import ProfilePage from './components/profile/ProfilePage';
 import RecordModal from './components/records/RecordModal';
-import UploadSheet from './components/upload/UploadSheet';
-import UploadPreview from './components/upload/UploadPreview';
+import AddSheet from './components/upload/AddSheet';
+import ReviewPage from './components/review/ReviewPage';
 import Toast from './components/common/Toast';
 
 export const AppContext = createContext(null);
@@ -25,42 +25,69 @@ export const AppContext = createContext(null);
 const POLL = 4000;
 
 // Server rejections are phrased for developers; say what the person can do.
-const uploadErrorMessage = (e) => {
+export const uploadErrorMessage = (e) => {
   const status = e?.response?.status;
   if (status === 429) return 'That is a lot of uploads at once. Try again in a minute.';
   if (status === 413) return 'That file is too large to upload.';
-  if (!e?.response) return 'Upload failed. Check your connection and try again.';
+  if (!e?.response) {
+    // The request may well have reached the server. Uploads are recognised by
+    // their content, so sending the same file again cannot create a duplicate.
+    return 'We couldn’t confirm the upload. Check your connection and try again; the same document won’t be saved twice.';
+  }
   return e.response.data?.detail || 'Upload failed. Please try again.';
 };
+
 // The backend gives a background OCR job 10 minutes before declaring it failed.
 // Polling past that just burns battery and requests, so we stop and let the
 // user refresh, the server will have settled the record's status by then.
 const POLL_LIMIT = Math.ceil((11 * 60 * 1000) / POLL);
+
+const TOP_PAGES = new Set(['home', 'search', 'family', 'profile']);
+
+// What a history entry may carry: the page and small navigation params. Never
+// record contents (see the note on navigate below).
+const pageState = (page, params = {}) => ({ kind: 'page', page, params });
 
 function MainApp({ onLogout }) {
   const [profiles, setProfiles] = useState([]);
   const [sel, setSel] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [nav, setNav] = useState({ page: 'home' });
+  const [nav, setNav] = useState(() => {
+    // A reload keeps you where you were instead of dropping you on Home.
+    const s = window.history.state;
+    if (s && (s.kind === 'page' || s.kind === 'modal') && s.page) return { page: s.page, ...(s.params || {}) };
+    return { page: 'home' };
+  });
   const [selRec, setSelRec] = useState(null);
   const [toast, setToast] = useState(null);
-  const [upFiles, setUpFiles] = useState(null);
-  const [upDocType, setUpDocType] = useState('prescription');
-  const [upDocDate, setUpDocDate] = useState('');
-  const [upDrName, setUpDrName] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadPct, setUploadPct] = useState(0);
   const [visitUploading, setVisitUploading] = useState(false);
-  const [showUploadSheet, setShowUploadSheet] = useState(false);
+  // null when closed, otherwise the type to start the add sheet on.
+  const [addOpen, setAddOpen] = useState(null);
+  // Possible-duplicate groups someone has looked at and kept. Per device: it
+  // only hides a hint, and never changes a record.
+  const [dismissedDupes, setDismissedDupes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mv_kept_dupes') || '[]'); } catch (e) { return []; }
+  });
   const [loadError, setLoadError] = useState(false);
   const [waking, setWaking] = useState(false);
-  const pollRef = useRef(null);
   const pollCountRef = useRef(0);
   // The profile whose records the UI is currently showing. Used to discard
   // replies from a previous member's request.
   const activeProfileRef = useRef(null);
-  const visitDateEnforcements = useRef({}); // recordId → visitDate, applied after OCR finishes
+  // A second tap on Upload while the first request is in flight must not send
+  // the files again. State updates are async, so a ref is the real lock.
+  const uploadLockRef = useRef(false);
+  const navRef = useRef(nav);
+  const recordsRef = useRef(records);
+  // Records opened from outside the loaded list (a family-wide search result),
+  // so the back/forward buttons can reopen them too.
+  const openedRef = useRef({});
+  // A record that was open when the page was reloaded, reopened once loaded.
+  const pendingModalRef = useRef(window.history.state?.kind === 'modal' ? window.history.state.recordId : null);
+
+  useEffect(() => { navRef.current = nav; }, [nav]);
+  useEffect(() => { recordsRef.current = records; }, [records]);
 
   const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
 
@@ -68,24 +95,63 @@ function MainApp({ onLogout }) {
   // hardware/swipe back button (which knows nothing about in-app React state
   // on its own) correctly steps back through screens instead of falling
   // through to whatever was in browser history before the app loaded.
+  //
+  // Whatever goes in here is serialised into browser history state, so it
+  // must stay small and must never carry record data.
   const navigate = useCallback((page, params = {}) => {
-    // Whatever goes in here is serialised into browser history state, so it
-    // must stay small and must never carry record data.
-    const state = { kind: 'page', page, params };
+    setSelRec(null);
     setNav({ page, ...params });
-    window.history.pushState(state, '');
+    // Tapping the tab you are already on does not add a history step, so Back
+    // never has to be pressed several times to get anywhere.
+    const cur = navRef.current;
+    if (TOP_PAGES.has(page) && page === cur.page) {
+      window.history.replaceState(pageState(page, params), '');
+    } else {
+      window.history.pushState(pageState(page, params), '');
+    }
     window.scrollTo(0, 0);
   }, []);
 
-  const goBack = useCallback(() => window.history.back(), []);
+  // Remember a screen's own state (a search term, a filter) in its history
+  // entry, so coming Back to it restores what you were looking at.
+  const updateNavParams = useCallback((params) => {
+    const cur = navRef.current;
+    const { page, ...rest } = cur;
+    const next = { ...rest, ...params };
+    setNav({ page, ...next });
+    const s = window.history.state;
+    if (!s || s.kind === 'page') window.history.replaceState(pageState(page, next), '');
+  }, []);
 
+  const goBack = useCallback(() => {
+    // Opened straight from a reload with nothing behind it: go Home rather
+    // than leaving the app.
+    if (window.history.length <= 1) { navigate('home'); return; }
+    window.history.back();
+  }, [navigate]);
+
+  // Opening a record is a history step (so Back closes it). Updating the open
+  // record after a save is NOT: pushing again meant Back or Escape had to be
+  // pressed twice, and the first press appeared to do nothing.
   const openRecord = useCallback((record) => {
+    if (!record) return;
+    openedRef.current[record.id] = record;
     setSelRec(record);
-    window.history.pushState({ kind: 'modal', recordId: record.id }, '');
+    const { page, ...params } = navRef.current;
+    const s = window.history.state;
+    const modalState = { kind: 'modal', recordId: record.id, page, params };
+    if (s && s.kind === 'modal') window.history.replaceState(modalState, '');
+    else window.history.pushState(modalState, '');
+  }, []);
+
+  const showRecord = useCallback((record) => {
+    openedRef.current[record.id] = record;
+    setSelRec(record);
   }, []);
 
   useEffect(() => {
-    window.history.replaceState({ kind: 'page', page: 'home', params: {} }, '');
+    const s = window.history.state;
+    if (!s || !s.kind) window.history.replaceState(pageState('home'), '');
     const onPopState = (e) => {
       const state = e.state;
       if (!state) {
@@ -93,15 +159,12 @@ function MainApp({ onLogout }) {
         setNav({ page: 'home' });
         return;
       }
+      if (state.page) setNav({ page: state.page, ...(state.params || {}) });
       if (state.kind === 'modal') {
-        setRecords(prev => {
-          const rec = prev.find(r => r.id === state.recordId);
-          setSelRec(rec || null);
-          return prev;
-        });
+        const rec = recordsRef.current.find(r => r.id === state.recordId) || openedRef.current[state.recordId];
+        setSelRec(rec || null);
       } else {
         setSelRec(null);
-        setNav({ page: state.page, ...state.params });
       }
     };
     window.addEventListener('popstate', onPopState);
@@ -120,6 +183,12 @@ function MainApp({ onLogout }) {
         setLoadError(false);
         setWaking(false);
         setLoading(false);
+        if (pendingModalRef.current) {
+          const rec = sorted.find(x => x.id === pendingModalRef.current);
+          pendingModalRef.current = null;
+          if (rec) { openedRef.current[rec.id] = rec; setSelRec(rec); }
+          else window.history.replaceState(pageState(navRef.current.page), '');
+        }
         return sorted;
       })
       .catch(() => {
@@ -143,8 +212,11 @@ function MainApp({ onLogout }) {
       .then(r => {
         setWaking(false);
         setProfiles(r.data);
-        if (r.data.length > 0) setSel(r.data[0]);
-        else setLoading(false);
+        if (r.data.length > 0) {
+          let saved = null;
+          try { saved = localStorage.getItem('mv_member'); } catch (e) { /* storage unavailable */ }
+          setSel(r.data.find(p => p.id === saved) || r.data[0]);
+        } else setLoading(false);
       })
       .catch(() => { setLoadError(true); showToast('Could not load your family members', 'error'); setLoading(false); });
   }, [showToast]);
@@ -156,6 +228,7 @@ function MainApp({ onLogout }) {
       setLoading(false);
       return;
     }
+    try { localStorage.setItem('mv_member', sel.id); } catch (e) { /* storage unavailable */ }
     activeProfileRef.current = sel.id;
     setRecords([]);  // never leave the previous member's records on screen
     setLoadError(false);
@@ -166,33 +239,30 @@ function MainApp({ onLogout }) {
   // Reset the polling budget whenever the member changes or a new upload starts.
   useEffect(() => { pollCountRef.current = 0; }, [sel]);
 
+  const hasPending = records.some(isPending);
+
+  // While a document is being read, poll the narrow status endpoint and fetch
+  // the full list only when a status actually changed. The full list signs a
+  // URL for every page of every record; doing that every four seconds was most
+  // of the app's request volume during an upload.
   useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    const hasPending = records.some(r => r.status === 'processing' || r.status === 'extracting');
     if (!hasPending || !sel || pollCountRef.current >= POLL_LIMIT) return undefined;
-
-    pollRef.current = setInterval(() => {
+    const pid = sel.id;
+    const timer = setInterval(() => {
+      if (document.hidden) return;  // a backgrounded tab does not need live status
       pollCountRef.current += 1;
-      if (pollCountRef.current >= POLL_LIMIT) clearInterval(pollRef.current);
-      loadRecs(sel.id);
+      if (pollCountRef.current >= POLL_LIMIT) clearInterval(timer);
+      API.get('/profiles/' + pid + '/records/status')
+        .then(r => {
+          if (activeProfileRef.current !== pid) return;
+          const known = new Map(recordsRef.current.map(x => [x.id, x.status]));
+          const changed = r.data.length !== known.size || r.data.some(x => known.get(x.id) !== x.status);
+          if (changed) loadRecs(pid);
+        })
+        .catch(() => { /* the next tick tries again */ });
     }, POLL);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [records, sel, loadRecs]);
-
-  // After OCR finishes, re-enforce visit dates that OCR may have overridden
-  useEffect(() => {
-    if (!sel) return;
-    const toEnforce = records.filter(r => r.status === 'done' && visitDateEnforcements.current[r.id]);
-    if (!toEnforce.length) return;
-    toEnforce.forEach(async r => {
-      const forceDate = visitDateEnforcements.current[r.id];
-      delete visitDateEnforcements.current[r.id];
-      try {
-        await API.put('/profiles/' + sel.id + '/records/' + r.id, { document_date: forceDate });
-        loadRecs(sel.id);
-      } catch (e) {}
-    });
-  }, [records, sel, loadRecs]);
+    return () => clearInterval(timer);
+  }, [hasPending, sel, loadRecs]);
 
   const { docGroups, docNameMap, sortedDocs } = useMemo(() => buildDocGroups(records), [records]);
 
@@ -222,7 +292,7 @@ function MainApp({ onLogout }) {
     });
   }, []);
 
-  const showUpload = useCallback(() => setShowUploadSheet(true), []);
+  const showUpload = useCallback((type) => setAddOpen(typeof type === 'string' ? type : 'prescription'), []);
 
   const acceptFiles = useCallback((picked, existing = []) => {
     const { accepted, rejected } = validateFiles(picked, existing);
@@ -230,108 +300,141 @@ function MainApp({ onLogout }) {
     return accepted;
   }, [showToast]);
 
-  const onUploadSelect = useCallback((files, type) => {
-    const accepted = acceptFiles(files);
-    setShowUploadSheet(false);
-    if (!accepted.length) return;
-    setUpFiles(accepted);
-    setUpDocType(type);
-    setUpDocDate('');
-    setUpDrName('');
-  }, [acceptFiles]);
-
-  const startUpload = useCallback((files, type, doctorName) => {
-    setUpFiles(files);
-    setUpDocType(type || 'prescription');
-    setUpDocDate('');
-    setUpDrName(doctorName || '');
+  const keepDuplicates = useCallback((groupId) => {
+    setDismissedDupes(prev => {
+      const next = [...new Set([...prev, groupId])];
+      try { localStorage.setItem('mv_kept_dupes', JSON.stringify(next)); } catch (e) { /* storage unavailable */ }
+      return next;
+    });
   }, []);
 
-  // Direct upload from inside a visit, bypasses UploadPreview, forces visit date
+  // One request carries the files AND what the person told us about them.
+  // These used to be sent in a second request after the upload, which the
+  // background reader could overwrite, and which was lost if it failed.
+  const sendUpload = useCallback(async (files, details, onProgress, profileId = sel?.id) => {
+    const fd = new FormData();
+    files.forEach(f => fd.append('files', f));
+    Object.entries(details).forEach(([k, v]) => { if (v) fd.append(k, v); });
+    const res = await API.post('/upload/' + profileId, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180000,
+      onUploadProgress: onProgress,
+    });
+    pollCountRef.current = 0;
+    if (profileId !== sel?.id) return res.data;  // saved to someone else's file
+    const list = await loadRecs(profileId);
+    if (res.data.duplicate) {
+      const existing = list.find(r => r.id === res.data.record_id);
+      showToast('This document is already saved, so nothing new was added.');
+      if (existing) openRecord(existing);
+    }
+    return res.data;
+  }, [sel, loadRecs, showToast, openRecord]);
+
+  // The add sheet. Resolves true when the sheet can close, false to keep it
+  // open (with its pages) after a failure. The ref is the double-tap lock:
+  // state updates are async, so a second tap could otherwise send it twice.
+  const submitUpload = useCallback(async ({ profileId, files, details, onProgress }) => {
+    if (uploadLockRef.current) return false;
+    uploadLockRef.current = true;
+    try {
+      const data = await sendUpload(files, details, onProgress, profileId);
+      setAddOpen(null);
+      if (profileId !== sel?.id) {
+        const who = profiles.find(p => p.id === profileId)?.name || 'their';
+        showToast(data.duplicate ? 'Already in ' + who + '’s file.' : 'Saved to ' + who + '’s file. Reading it now.');
+      } else if (!data.duplicate) {
+        showToast('Saved. Reading the details now');
+      }
+      return true;
+    } catch (e) {
+      showToast(uploadErrorMessage(e), 'error');
+      if (!e?.response && sel) loadRecs(sel.id);
+      return false;
+    } finally {
+      uploadLockRef.current = false;
+    }
+  }, [sendUpload, sel, profiles, showToast, loadRecs]);
+
+  // Direct upload from inside a visit: the visit's date and doctor travel with
+  // the files, so the record lands in this visit and stays there.
   const uploadToVisit = useCallback(async (files, type, doctorName, visitDate) => {
-    if (!files.length || !sel) return;
+    if (!files.length || !sel || uploadLockRef.current) return;
     const accepted = acceptFiles(files);
     if (!accepted.length) return;
+    uploadLockRef.current = true;
+    setVisitUploading(true);
+    try {
+      const data = await sendUpload(accepted, {
+        document_category: type,
+        document_date: visitDate,
+        doctor_name: doctorName && doctorName !== 'Unassigned' ? doctorName : '',
+      });
+      if (!data.duplicate) showToast('Uploaded. Reading the details now');
+    } catch (e) {
+      showToast(uploadErrorMessage(e), 'error');
+      if (!e?.response && sel) loadRecs(sel.id);
+    } finally {
+      uploadLockRef.current = false;
+      setVisitUploading(false);
+    }
+  }, [sel, loadRecs, showToast, acceptFiles, sendUpload]);
 
+  // Attach documents to an EXISTING record (as extra pages of the same visit)
+  // rather than creating a second record. This is what stops a visit from
+  // accumulating duplicate records, and keeps one clean copy of the content
+  // for search / "Ask Your Records".
+  const attachDocuments = useCallback(async (recordId, files) => {
+    if (!files.length || !sel || uploadLockRef.current) return;
+    const accepted = acceptFiles(files);
+    if (!accepted.length) return;
+    uploadLockRef.current = true;
     setVisitUploading(true);
     const fd = new FormData();
     accepted.forEach(f => fd.append('files', f));
     try {
-      const res = await API.post('/upload/' + sel.id, fd, {
+      const res = await API.post('/profiles/' + sel.id + '/records/' + recordId + '/pages', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000,
+        timeout: 180000,
       });
-      const rid = res.data.record_id;
-      if (rid) {
-        const update = { document_category: type };
-        if (visitDate) {
-          update.document_date = visitDate;
-          visitDateEnforcements.current[rid] = visitDate; // re-enforce after OCR
-        }
-        if (doctorName) update.doctor_name = doctorName;
-        try { await API.put('/profiles/' + sel.id + '/records/' + rid, update); } catch (e) {}
-      }
       pollCountRef.current = 0;
       await loadRecs(sel.id);
-      showToast('Uploaded. Reading the details now');
+      showToast(res.data.duplicate ? 'Those pages are already saved.' : 'Added to this record. Reading the new page…');
     } catch (e) {
       showToast(uploadErrorMessage(e), 'error');
-    } finally { setVisitUploading(false); }
+    } finally {
+      uploadLockRef.current = false;
+      setVisitUploading(false);
+    }
   }, [sel, loadRecs, showToast, acceptFiles]);
 
-  const onAddMore = (e) => {
-    const picked = Array.from(e.target.files || []);
-    e.target.value = '';
-    if (!picked.length) return;
-    setUpFiles(prev => {
-      const current = prev || [];
-      const accepted = acceptFiles(picked, current);
-      return accepted.length ? [...current, ...accepted] : current;
-    });
-  };
-
-  const cancelUpload = () => { setUpFiles(null); setUploadPct(0); };
-
-  const onRemoveFile = (i) => setUpFiles(prev => {
-    const n = prev.filter((_, j) => j !== i);
-    return n.length ? n : null;
-  });
-
-  const doUpload = async () => {
-    if (!upFiles || !sel) return;
-    setUploading(true);
-    setUploadPct(0);
-    const fd = new FormData();
-    upFiles.forEach(f => fd.append('files', f));
+  // Read a failed document again from its original file. The server only
+  // starts one job however many times this is pressed.
+  const retryRecord = useCallback(async (record) => {
+    const pid = record.profile_id || sel?.id;
     try {
-      const res = await API.post('/upload/' + sel.id, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000,
-        onUploadProgress: (e) => {
-          if (e.total) setUploadPct(Math.round((e.loaded / e.total) * 100));
-        },
-      });
-      const rid = res.data.record_id;
-      if (rid) {
-        const update = { document_category: upDocType };
-        if (upDocDate) update.document_date = upDocDate;
-        if (upDrName) update.doctor_name = upDrName;
-        try { await API.put('/profiles/' + sel.id + '/records/' + rid, update); } catch (e) {}
-      }
-      setUpFiles(null);
+      const res = await API.post('/profiles/' + pid + '/records/' + record.id + '/retry');
+      setRecords(prev => prev.map(x => x.id === record.id ? { ...x, status: res.data.status } : x));
       pollCountRef.current = 0;
-      await loadRecs(sel.id);
-      showToast(upDrName ? 'Saved. Reading the details now' : 'Uploaded. Reading the details now');
+      showToast('Reading it again…');
+      return true;
     } catch (e) {
-      showToast(uploadErrorMessage(e), 'error');
-    } finally { setUploading(false); setUploadPct(0); }
-  };
+      const detail = e?.response?.data?.detail;
+      showToast(detail || 'Couldn’t start reading it again. Please try again.', 'error');
+      if (pid === sel?.id) loadRecs(pid);
+      return false;
+    }
+  }, [sel, showToast, loadRecs]);
 
   const deleteAccount = useCallback(async () => {
     await API.delete('/auth/account');
     localStorage.removeItem('token');
     onLogout();
   }, [onLogout]);
+
+  // The open record follows the live list, so a document finishing in the
+  // background, or a save, shows up in the open view without reopening it.
+  const liveRec = selRec ? (records.find(r => r.id === selRec.id) || selRec) : null;
 
   const ctx = {
     profiles,
@@ -352,12 +455,17 @@ function MainApp({ onLogout }) {
     sortedDocs,
     nav,
     navigate,
+    updateNavParams,
     goBack,
     openRecord,
+    showRecord,
+    retryRecord,
     showToast,
     showUpload,
-    startUpload,
+    dismissedDupes,
+    keepDuplicates,
     uploadToVisit,
+    attachDocuments,
     visitUploading,
     onLogout,
   };
@@ -365,11 +473,12 @@ function MainApp({ onLogout }) {
   const renderPage = () => {
     switch (nav.page) {
       case 'home': return <Dashboard />;
-      case 'search': return <SearchPage />;
+      case 'search': return <SearchPage key={sel?.id} />;
       case 'doctors': return <DoctorsPage />;
       case 'doctor-detail': return <DoctorDetailPage />;
       case 'visit-detail': return <VisitDetailPage />;
       case 'journey': return <HealthJourneyScreen />;
+      case 'review': return <ReviewPage />;
       case 'family': return <FamilyPage />;
       case 'profile': return <ProfilePage />;
       default: return <Dashboard />;
@@ -379,6 +488,7 @@ function MainApp({ onLogout }) {
   return (
     <AppContext.Provider value={ctx}>
       <div className="app">
+        <a className="skip-link" href="#main">Skip to content</a>
         <TopBar />
         {waking && (
           <div className="waking-banner" role="status">
@@ -386,42 +496,23 @@ function MainApp({ onLogout }) {
             Waking the server up. The first visit after a quiet spell can take a minute.
           </div>
         )}
-        <main className="page">{renderPage()}</main>
+        <main className="page" id="main" tabIndex={-1}>{renderPage()}</main>
         <BottomNav />
 
-        {showUploadSheet && (
-          <UploadSheet onSelect={onUploadSelect} onClose={() => setShowUploadSheet(false)} />
-        )}
-
-        {upFiles && (
-          <UploadPreview
-            files={upFiles}
-            onAdd={onAddMore}
-            onRemove={onRemoveFile}
-            onUpload={doUpload}
-            onCancel={cancelUpload}
-            uploading={uploading}
-            progress={uploadPct}
-            docType={upDocType}
-            setDocType={setUpDocType}
-            docDate={upDocDate}
-            setDocDate={setUpDocDate}
+        {addOpen && sel && (
+          <AddSheet
+            profiles={profiles}
+            defaultProfileId={sel.id}
+            initialType={addOpen}
+            onSubmit={submitUpload}
+            onClose={() => setAddOpen(null)}
+            onReject={(msg) => showToast(msg, 'error')}
           />
         )}
 
-        {uploading && !upFiles && (
-          <div className="overlay">
-            <div className="overlay-box">
-              <div className="spinner" />
-              <div style={{ fontWeight: 700, fontSize: 14 }}>Uploading</div>
-              <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>AI will extract everything</div>
-            </div>
-          </div>
-        )}
-
-        {selRec && (
+        {liveRec && (
           <RecordModal
-            record={selRec}
+            record={liveRec}
             onClose={goBack}
           />
         )}

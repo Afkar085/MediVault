@@ -1,101 +1,17 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import Gallery from '../common/Gallery';
-import { fmt, drN, cur, getRecordFiles, getRecordDate } from '../../utils/format';
+import { fmt, drN, cur, getRecordFiles, getRecordDate, dedupeMedicines, fmtRel } from '../../utils/format';
 import Icon from '../common/Icon';
+import { PageHeader, EmptyState, StatusPill, Banner } from '../common/ui';
 import API from '../../api';
 import { ACCEPT_ATTR } from '../../utils/uploads';
 
-function BillsTab({ bills, profileId, setRecords, showToast, openRecord, onAddFiles }) {
-  const [pendingBill, setPendingBill] = useState(null);
-  const total = bills.reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
-  const claimed = bills.filter(b => b.insurance_claimed).reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
-
-  const togIns = async (rid) => {
-    if (pendingBill) return;
-    setPendingBill(rid);
-    try {
-      const r = await API.put('/profiles/' + profileId + '/records/' + rid + '/insurance');
-      setRecords(prev => prev.map(x => x.id === rid ? { ...x, insurance_claimed: r.data.insurance_claimed } : x));
-    } catch (e) {
-      showToast('Could not update the insurance status. Please try again.', 'error');
-    } finally {
-      setPendingBill(null);
-    }
-  };
-
-  return (
-    <div>
-      {!bills.length && (
-        <div className="empty" style={{ paddingBottom: 8 }}>
-          <div className="empty-icon"><Icon name="receipt_long" size={30} /></div>
-          <div className="empty-title">No bills yet</div>
-          <div className="empty-sub">Add bills for this visit below.</div>
-        </div>
-      )}
-      {bills.length > 0 && (
-        <>
-          <div className="bsum" style={{ marginBottom: 16 }}>
-            <div className="bsum-card"><div className="bsum-val">{cur(total)}</div><div className="bsum-lbl">Total</div></div>
-            <div className="bsum-card"><div className="bsum-val" style={{ color: 'var(--success)' }}>{cur(claimed)}</div><div className="bsum-lbl">Claimed</div></div>
-            <div className="bsum-card"><div className="bsum-val" style={{ color: 'var(--error)' }}>{cur(total - claimed)}</div><div className="bsum-lbl">Unclaimed</div></div>
-          </div>
-          {bills.map(b => {
-            const bf = getRecordFiles(b);
-            const billTitle = b.bill_title || (b.doctor_name ? drN(b.doctor_name) : b.hospital_name || 'Medical Bill');
-            return (
-              <div key={b.id} className="bitem">
-                <div className="binfo" onClick={() => openRecord(b)} style={{ cursor: 'pointer', flex: 1 }}>
-                  <div className="bdoc">{billTitle}</div>
-                  {b.bill_category && (
-                    <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: 'var(--cat-bill-fg)', background: 'var(--cat-bill-bg)', borderRadius: 6, padding: '1px 7px', marginBottom: 3 }}>
-                      {b.bill_category}
-                    </div>
-                  )}
-                  <div className="bhosp">
-                    {b.hospital_name || ''}
-                    {b.document_date && fmt(b.document_date) ? (b.hospital_name ? ' · ' : '') + fmt(b.document_date) : ''}
-                  </div>
-                  {bf.length > 0 && (
-                    <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                      {bf.slice(0, 2).map((f, i) => (
-                        <img key={i} src={f.file_url} alt="" style={{ width: 40, height: 30, borderRadius: 6, objectFit: 'cover', border: '1px solid #e2e8f0' }} onError={e => e.target.style.display = 'none'} />
-                      ))}
-                      {bf.length > 2 && <span style={{ fontSize: 11, color: '#94a3b8', alignSelf: 'center' }}>+{bf.length - 2}</span>}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                  <div className="bright" style={{ textAlign: 'right' }}>
-                    <div className="bamt">{cur(b.bill_amount)}</div>
-                    <div className="bdate">{fmt(b.document_date) || ''}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <button
-                      className={'toggle' + (b.insurance_claimed ? ' on' : '')}
-                      onClick={e => { e.stopPropagation(); togIns(b.id); }}
-                      disabled={pendingBill === b.id}
-                      role="switch"
-                      aria-checked={Boolean(b.insurance_claimed)}
-                      aria-label={'Insurance claimed for ' + billTitle}
-                    />
-                    <span style={{ fontSize: 11, fontWeight: 600, color: b.insurance_claimed ? 'var(--success)' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {b.insurance_claimed ? 'Claimed' : 'Insurance'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </>
-      )}
-      <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
-        + Add Bill
-        <input type="file" hidden multiple accept={ACCEPT_ATTR} onChange={onAddFiles} />
-      </label>
-    </div>
-  );
-}
+const TABS = [
+  { key: 'prescription', label: 'Prescriptions', icon: 'description', noun: 'prescription' },
+  { key: 'lab_report', label: 'Lab reports', icon: 'science', noun: 'lab report' },
+  { key: 'bill', label: 'Bills', icon: 'receipt_long', noun: 'bill' },
+];
 
 function medSummary(m) {
   const parts = [];
@@ -115,183 +31,224 @@ function medSummary(m) {
   return parts.join(' · ');
 }
 
+/** One document of the visit, recognisable at a glance and opened as a whole. */
+function DocumentCard({ record, noun, onOpen, onOpenPage }) {
+  const files = getRecordFiles(record);
+  const pages = (record.files || []).length || files.length;
+  const subtitle = record.diagnosis || record.hospital_name || (record.document_category === 'bill' && record.bill_title) || '';
+  return (
+    <div className="doc-card">
+      <button className="doc-card-main" onClick={() => onOpen(record)} aria-label={'Open ' + noun + (subtitle ? ', ' + subtitle : '')}>
+        <span className="doc-card-title">
+          {record.document_category === 'bill' && record.bill_amount != null ? cur(record.bill_amount) : noun.charAt(0).toUpperCase() + noun.slice(1)}
+          <StatusPill status={record.status} />
+        </span>
+        <span className="doc-card-sub">
+          {[subtitle, pages ? pages + (pages === 1 ? ' page' : ' pages') : '', 'added ' + fmtRel(record.created_at)].filter(Boolean).join(' · ')}
+        </span>
+      </button>
+      {files.length > 0 && (
+        <div className="doc-card-pages">
+          {files.slice(0, 4).map((f, i) => (
+            <button key={f.id || i} className="doc-thumb doc-thumb-sm" onClick={() => onOpenPage(files, i)} aria-label={'View page ' + (i + 1)}>
+              <img src={f.file_url} alt="" onError={e => { e.target.style.visibility = 'hidden'; }} />
+            </button>
+          ))}
+          {files.length > 4 && <span className="doc-card-more">+{files.length - 4}</span>}
+        </div>
+      )}
+      <button className="doc-card-open" onClick={() => onOpen(record)} tabIndex={-1} aria-hidden="true">
+        <Icon name="chevron_right" size={20} />
+      </button>
+    </div>
+  );
+}
+
+function BillsSummary({ bills, profileId, setRecords, showToast }) {
+  const [pendingBill, setPendingBill] = useState(null);
+  const total = bills.reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
+  const claimed = bills.filter(b => b.insurance_claimed).reduce((s, b) => s + parseFloat(b.bill_amount || 0), 0);
+
+  const togIns = async (b) => {
+    if (pendingBill) return;
+    setPendingBill(b.id);
+    try {
+      const r = await API.put('/profiles/' + profileId + '/records/' + b.id + '/insurance');
+      setRecords(prev => prev.map(x => x.id === b.id ? { ...x, insurance_claimed: r.data.insurance_claimed } : x));
+    } catch (e) {
+      showToast('Could not update the insurance status. Please try again.', 'error');
+    } finally {
+      setPendingBill(null);
+    }
+  };
+
+  if (!bills.length) return null;
+  return (
+    <>
+      <div className="bsum">
+        <div className="bsum-card"><div className="bsum-val">{cur(total)}</div><div className="bsum-lbl">Total</div></div>
+        <div className="bsum-card"><div className="bsum-val tone-success">{cur(claimed)}</div><div className="bsum-lbl">Claimed</div></div>
+        <div className="bsum-card"><div className="bsum-val tone-danger">{cur(total - claimed)}</div><div className="bsum-lbl">Not claimed</div></div>
+      </div>
+      <div className="list-card">
+        {bills.map(b => {
+          const title = b.bill_title || b.hospital_name || 'Bill';
+          return (
+            <div key={b.id} className="list-row static">
+              <div className="list-row-body">
+                <div className="list-row-title">{title}</div>
+                <div className="list-row-sub">{b.bill_amount != null ? cur(b.bill_amount) : 'Amount not recorded'}</div>
+              </div>
+              <label className="switch-row">
+                <span className="switch-lbl">{b.insurance_claimed ? 'Claimed' : 'Claim'}</span>
+                <button
+                  className={'toggle' + (b.insurance_claimed ? ' on' : '')}
+                  onClick={() => togIns(b)}
+                  disabled={pendingBill === b.id}
+                  role="switch"
+                  aria-checked={Boolean(b.insurance_claimed)}
+                  aria-label={'Insurance claimed for ' + title}
+                />
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export default function VisitDetailPage() {
-  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, visitUploading } = useContext(AppContext);
+  const { nav, goBack, docGroups, setRecords, openRecord, showToast, sel, uploadToVisit, attachDocuments, visitUploading } = useContext(AppContext);
   const { visitDate, doctorKey, doctorName } = nav;
 
   const [vtab, setVtab] = useState('prescription');
   const [gal, setGal] = useState(null);
 
-  // Derive from the live docGroups (not a frozen nav snapshot) so edits made on this
-  // screen, insurance toggle, adding a document, show up immediately.
   // Derived from live state, so an edit made inside this visit is reflected
   // immediately rather than showing whatever was captured on navigation.
-  const visitRecords = (docGroups[doctorKey] || []).filter(r => getRecordDate(r) === visitDate);
+  const visitRecords = (docGroups[doctorKey] || []).filter(r => (getRecordDate(r) || 'unknown') === visitDate);
 
-  // Merge across every document in the visit, a lab report's diagnosis and a
+  // Merge across every document in the visit: a lab report's diagnosis and a
   // prescription's medicines are separate records but belong to one summary.
-  const visitDiagnosis = visitRecords?.find(r => r.diagnosis)?.diagnosis;
-  const visitMedicines = (visitRecords || []).flatMap(r => r.medicines || []);
-  const visitRecommendations = [...new Set((visitRecords || []).map(r => r.recommendations).filter(Boolean))];
+  const visitDiagnosis = visitRecords.find(r => r.diagnosis)?.diagnosis;
+  const visitMedicines = dedupeMedicines(visitRecords.flatMap(r => r.medicines || []));
+  const visitRecommendations = [...new Set(visitRecords.map(r => r.recommendations).filter(Boolean))];
 
-  const prescriptions = (visitRecords || []).filter(r => r.document_category === 'prescription' || (!r.document_category && r.document_type !== 'Lab Report'));
-  const labs = (visitRecords || []).filter(r => r.document_category === 'lab_report');
-  const bills = (visitRecords || []).filter(r => r.document_category === 'bill');
+  const byTab = {
+    prescription: visitRecords.filter(r => r.document_category === 'prescription' || (!r.document_category && r.document_type !== 'Lab Report')),
+    lab_report: visitRecords.filter(r => r.document_category === 'lab_report'),
+    bill: visitRecords.filter(r => r.document_category === 'bill'),
+  };
+  const active = TABS.find(t => t.key === vtab);
+  const shown = byTab[vtab];
 
-  const allFiles = prescriptions.flatMap(r => getRecordFiles(r));
-
-  const handleAddFiles = (e, type) => {
+  const handleAddFiles = (e, mode) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
-    // Upload directly into this visit, forces document_date = visitDate so it stays grouped here
-    uploadToVisit(files, type, doctorName, visitDate);
+    // More pages of a document this visit already has are attached to it, so
+    // the visit keeps one record per document instead of a near-copy. Bills are
+    // separate documents (each has its own amount), so they are always new.
+    if (mode === 'attach' && shown[0]) attachDocuments(shown[0].id, files);
+    else uploadToVisit(files, vtab, doctorName, visitDate === 'unknown' ? '' : visitDate);
   };
+
+  const canAttach = vtab !== 'bill' && shown.length > 0;
+
+  if (!visitRecords.length) {
+    return (
+      <div>
+        <PageHeader title="Visit" onBack={goBack} />
+        <EmptyState icon="event_busy" title="Nothing here any more"
+          action={<button className="btn btn-primary" onClick={goBack}>Go back</button>}>
+          The documents from this visit were moved or deleted.
+        </EmptyState>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div className="ph">
-        <button className="ph-back" onClick={goBack} aria-label="Go back">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <div className="ph-title">{fmt(visitDate) || visitDate}</div>
+      <PageHeader
+        title={visitDate === 'unknown' ? 'Undated visit' : fmt(visitDate) || visitDate}
+        sub={doctorName && doctorName !== 'Unassigned' ? drN(doctorName) : 'No doctor recorded'}
+        onBack={goBack}
+      />
+
+      {(visitDiagnosis || visitMedicines.length > 0 || visitRecommendations.length > 0) && (
+        <div className="card visit-summary">
+          {visitDiagnosis && (
+            <div className="vs-block">
+              <div className="eyebrow">Diagnosis</div>
+              <div className="vs-diag">{visitDiagnosis}</div>
+            </div>
+          )}
+          {visitMedicines.length > 0 && (
+            <div className="vs-block">
+              <div className="eyebrow">Medicines</div>
+              <ul className="vs-meds">
+                {visitMedicines.map((m, i) => {
+                  const info = medSummary(m);
+                  return (
+                    <li key={m.id || i} className="vs-med">
+                      <span className="vs-med-name">{m.name}</span>
+                      {info && <span className="vs-med-info">{info}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {visitRecommendations.length > 0 && (
+            <div className="vs-block">
+              <div className="eyebrow">Recommendations</div>
+              {visitRecommendations.map((rec, i) => <p key={i} className="vs-text">{rec}</p>)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {visitUploading && <Banner tone="info" busy>Uploading to this visit…</Banner>}
+
+      <div className="segmented" role="tablist" aria-label="Documents from this visit">
+        {TABS.map(t => (
+          <button key={t.key} role="tab" aria-selected={vtab === t.key}
+            className={'segmented-btn' + (vtab === t.key ? ' active' : '')} onClick={() => setVtab(t.key)}>
+            {t.label}{byTab[t.key].length > 0 && <span className="count-badge">{byTab[t.key].length}</span>}
+          </button>
+        ))}
       </div>
 
-      {visitDiagnosis && (
-        <div className="visit-info-card">
-          <div className="vi-label">Diagnosis</div>
-          <div className="vi-value" style={{ fontWeight: 600, fontSize: 15 }}>{visitDiagnosis}</div>
-        </div>
-      )}
+      {vtab === 'bill' && <BillsSummary bills={shown} profileId={sel?.id} setRecords={setRecords} showToast={showToast} />}
 
-      {visitMedicines.length > 0 && (
-        <div className="visit-info-card">
-          <div className="vi-label">Medicines</div>
-          {visitMedicines.map((m, i) => {
-            const info = medSummary(m);
-            return (
-              <div key={m.id || i} className="vi-med">
-                <div className="vi-med-dot" />
-                <div className="vi-med-name">{m.name}</div>
-                {info && <div className="vi-med-info">{info}</div>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {visitRecommendations.length > 0 && (
-        <div className="visit-info-card">
-          <div className="vi-label">Recommendations</div>
-          {visitRecommendations.map((rec, i) => (
-            <div key={i} className="vi-value" style={{ marginTop: i > 0 ? 8 : 0 }}>{rec}</div>
+      {shown.length === 0 ? (
+        <EmptyState icon={active.icon} title={'No ' + active.noun + 's from this visit'}>
+          Add one below and it will be kept with this visit.
+        </EmptyState>
+      ) : (
+        <div className="stack">
+          {shown.map(r => (
+            <DocumentCard key={r.id} record={r} noun={active.noun} onOpen={openRecord}
+              onOpenPage={(files, i) => setGal({ files, i })} />
           ))}
         </div>
       )}
 
-      {visitUploading && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'var(--primary-container)', borderRadius: 10, marginTop: 12, fontSize: 13, color: 'var(--primary)', fontWeight: 500 }}>
-          <div className="spinner" style={{ width: 16, height: 16, margin: 0, borderWidth: 2, borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
-          Uploading to this visit…
-        </div>
-      )}
-
-      <div className="vtabs" style={{ marginTop: 16 }}>
-        <button className={'vtab' + (vtab === 'prescription' ? ' active' : '')} onClick={() => setVtab('prescription')}>
-          Prescription{prescriptions.length > 0 && <span className="vtab-badge">{prescriptions.length}</span>}
-        </button>
-        <button className={'vtab' + (vtab === 'lab' ? ' active' : '')} onClick={() => setVtab('lab')}>
-          Lab Reports{labs.length > 0 && <span className="vtab-badge">{labs.length}</span>}
-        </button>
-        <button className={'vtab' + (vtab === 'bill' ? ' active' : '')} onClick={() => setVtab('bill')}>
-          Bills{bills.length > 0 && <span className="vtab-badge">{bills.length}</span>}
-        </button>
+      <div className="action-row">
+        {canAttach && (
+          <label className={'btn btn-secondary' + (visitUploading ? ' is-disabled' : '')}>
+            <Icon name="note_add" size={18} /> Add pages to this {active.noun}
+            <input type="file" hidden multiple accept={ACCEPT_ATTR} disabled={visitUploading} onChange={e => handleAddFiles(e, 'attach')} />
+          </label>
+        )}
+        <label className={'btn ' + (canAttach ? 'btn-ghost' : 'btn-primary') + (visitUploading ? ' is-disabled' : '')}>
+          <Icon name="add" size={18} /> {canAttach ? 'Add a separate ' + active.noun : 'Add a ' + active.noun}
+          <input type="file" hidden multiple accept={ACCEPT_ATTR} disabled={visitUploading} onChange={e => handleAddFiles(e, 'new')} />
+        </label>
       </div>
 
-      {vtab === 'prescription' && (
-        <div>
-          {prescriptions.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon"><Icon name="description" size={30} /></div>
-              <div className="empty-title">No prescriptions</div>
-              <div className="empty-sub">Upload a prescription for this visit.</div>
-            </div>
-          ) : (
-            <>
-              <div className="vd-docs">
-                {prescriptions.flatMap(r => getRecordFiles(r)).map((f, i) => (
-                  <div key={i} className="vd-doc" onClick={() => { setGal(i); }}>
-                    <img src={f.file_url} alt={'P' + (i + 1)} onError={e => e.target.style.display = 'none'} />
-                    <div className="vd-doc-lbl">Rx {i + 1}</div>
-                  </div>
-                ))}
-              </div>
-              {prescriptions.map(r => (
-                <div key={r.id} style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => openRecord(r)}>
-                    View full record →
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-          <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
-            + Add Prescription
-            <input type="file" hidden multiple accept={ACCEPT_ATTR} onChange={e => handleAddFiles(e, 'prescription')} />
-          </label>
-        </div>
-      )}
-
-      {vtab === 'lab' && (
-        <div>
-          {labs.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon"><Icon name="science" size={30} /></div>
-              <div className="empty-title">No lab reports</div>
-              <div className="empty-sub">Upload lab reports for this doctor.</div>
-            </div>
-          ) : (
-            labs.map(lv => {
-              const lf = getRecordFiles(lv);
-              return (
-                <div key={lv.id} style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} onClick={() => openRecord(lv)}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{fmt(lv.document_date) || fmt(lv.created_at)}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{lv.diagnosis || 'Lab Report'}</div>
-                  {lf.length > 0 && (
-                    <div className="vd-docs" style={{ marginTop: 6 }}>
-                      {lf.map((f, i) => (
-                        <div key={i} className="vd-doc" style={{ width: 70, height: 54 }} onClick={e => e.stopPropagation()}>
-                          <img src={f.file_url} alt="" onError={e => e.target.style.display = 'none'} />
-                          <div className="vd-doc-lbl">Lab</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-          <label className="vd-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 8 }}>
-            + Add Lab Report
-            <input type="file" hidden multiple accept={ACCEPT_ATTR} onChange={e => handleAddFiles(e, 'lab_report')} />
-          </label>
-        </div>
-      )}
-
-      {vtab === 'bill' && (
-        <BillsTab
-          bills={bills}
-          profileId={sel?.id}
-          setRecords={setRecords}
-          showToast={showToast}
-          openRecord={openRecord}
-          onAddFiles={e => handleAddFiles(e, 'bill')}
-        />
-      )}
-
-      {gal !== null && <Gallery files={allFiles} startIdx={gal} onClose={() => setGal(null)} />}
+      {gal && <Gallery files={gal.files} startIdx={gal.i} onClose={() => setGal(null)} />}
     </div>
   );
 }

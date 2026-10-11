@@ -8,12 +8,25 @@ const rejectionHandler = API.interceptors.response.handlers[0].rejected;
 const respond = (status, url) =>
   rejectionHandler({ config: { url }, response: { status } }).catch(e => e);
 
+// The cold-start path retries by re-issuing the request (API(config)). Stub the
+// transport so that retry resolves instantly instead of making a real network
+// call to the (possibly sleeping) backend — that real call is what made this
+// suite flaky in CI, hanging past Jest's timeout when the server was cold.
+const originalAdapter = API.defaults.adapter;
+
 beforeEach(() => {
   localStorage.setItem('token', 'a-token');
   setSessionExpiredHandler(() => {});
+  // Reject as the real adapter would — carrying the SAME config object through,
+  // so the retry-once guard (_retriedAfterColdStart) is seen on the second pass
+  // and the request is not retried forever.
+  API.defaults.adapter = (config) => Promise.reject({ code: 'ECONNABORTED', config });
 });
 
-afterEach(() => localStorage.clear());
+afterEach(() => {
+  localStorage.clear();
+  API.defaults.adapter = originalAdapter;
+});
 
 test('a 401 while signed in ends the session', async () => {
   const onExpired = jest.fn();
