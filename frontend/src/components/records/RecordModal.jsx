@@ -3,27 +3,32 @@ import { AppContext } from '../../App';
 import API from '../../api';
 import Gallery from '../common/Gallery';
 import Modal from '../common/Modal';
-import { fmt, fmtRel, fmtDt, dateVal, drN, getRecordFiles, hasStoredDocument } from '../../utils/format';
+import Icon from '../common/Icon';
+import { StatusPill } from '../common/ui';
+import { typeName } from '../common/Ledger';
+import { fmt, fmtRel, fmtDt, dateVal, drN, getRecordFiles, hasStoredDocument, isPending, reviewReasons } from '../../utils/format';
 import MedsTab from './MedsTab';
 import { DetailsForm, DetailsView } from './DetailsTab';
 
-
-
-const STATUS_NOTE = {
-  processing: 'Reading this document… details will fill in automatically.',
-  extracting: 'Pulling out the doctor, date and medicines…',
-  failed: 'We couldn’t read this document. Delete it and upload a clearer, well-lit photo of the whole page.',
+const FIELD_LABEL = {
+  document_category: 'Type', document_date: 'Date', doctor_name: 'Doctor', hospital_name: 'Hospital',
+  specialty: 'Specialty', diagnosis: 'Diagnosis', recommendations: 'Recommendations',
+  bill_amount: 'Amount', bill_title: 'Bill title', bill_category: 'Bill category', bill_number: 'Bill number',
+  medicines: 'Medicines', document_type: 'Document type',
 };
 
-const STATUS_TEXT = {
-  done: 'saved',
-  processing: 'reading…',
-  extracting: 'reading…',
-  failed: 'unreadable',
-};
+const UNSAVED_LABEL = { bill_title: 'bill title', bill_category: 'bill category', bill_number: 'bill number' };
+const REVIEW_TEXT = { date: 'date', doctor: 'doctor', amount: 'amount' };
 
+/**
+ * One record, read top to bottom like the document it came from: the pages,
+ * then what was read from them, then the prescription, then what has changed.
+ *
+ * It used to be four tabs, so checking a medicine against the photo meant
+ * switching back and forth, and the history of edits was hidden behind one.
+ */
 export default function RecordModal({ record, onClose }) {
-  const { sel, setRecords, showToast, openRecord } = useContext(AppContext);
+  const { sel, setRecords, showToast, showRecord, retryRecord } = useContext(AppContext);
   // A family-wide search result can belong to a member other than the selected
   // one, so trust the record rather than the current selection.
   const profileId = record.profile_id || sel?.id;
@@ -31,33 +36,52 @@ export default function RecordModal({ record, onClose }) {
   const cat = record.document_category || 'prescription';
   const isBill = cat === 'bill';
   const isLab = cat === 'lab_report';
-  const isPrescrip = cat === 'prescription';
-  const tabList = ['details', ...(isPrescrip ? ['medicines'] : []), 'documents', ...(!isBill ? ['history'] : [])];
 
-  const [tab, setTab] = useState('details');
   const [editing, setEditing] = useState(false);
-  const [hist, setHist] = useState([]);
-  const [hld, setHld] = useState(false);
+  const [hist, setHist] = useState(null);
   const [saving, setSaving] = useState(false);
   const [del, setDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [gal, setGal] = useState(null);
   const [form, setForm] = useState({});
-  // Raw OCR text is large and only shown on the Documents tab, so the list
-  // endpoint omits it and we fetch the full record the first time it's opened.
+  // The full scanned text is large, so it is fetched when someone opens it.
+  const [ocrOpen, setOcrOpen] = useState(false);
   const [ocr, setOcr] = useState(null);
 
-  // Form-based variants for edit form conditionals (reflect live category changes)
-  const formCat = form.document_category || cat;
-  const formIsBill = formCat === 'bill';
-  const formIsLab = formCat === 'lab_report';
+  const formIsBill = (form.document_category || cat) === 'bill';
+  const formIsLab = (form.document_category || cat) === 'lab_report';
 
   useEffect(() => {
     setEditing(false);
-    setHld(false);
     setGal(null);
     setOcr(null);
-    setTab(t => tabList.includes(t) ? t : 'details');
+    setOcrOpen(false);
+    setHist(null);
+  }, [record.id]);
+
+  // The edit history is what marks a value as "edited by you" rather than
+  // read from the page, so it loads with the record (one small request).
+  useEffect(() => {
+    if (!profileId || hist !== null) return undefined;
+    let cancelled = false;
+    API.get('/profiles/' + profileId + '/records/' + record.id + '/history')
+      .then(r => { if (!cancelled) setHist(Array.isArray(r.data) ? r.data : []); })
+      .catch(() => { if (!cancelled) setHist([]); });
+    return () => { cancelled = true; };
+  }, [profileId, record.id, hist]);
+
+  useEffect(() => {
+    if (!ocrOpen || ocr !== null || !profileId) return undefined;
+    let cancelled = false;
+    if (record.raw_ocr_text !== undefined) { setOcr(record.raw_ocr_text || ''); return undefined; }
+    API.get('/profiles/' + profileId + '/records/' + record.id)
+      .then(r => { if (!cancelled) setOcr(r.data.raw_ocr_text || ''); })
+      .catch(() => { if (!cancelled) setOcr(''); });
+    return () => { cancelled = true; };
+  }, [ocrOpen, ocr, profileId, record.id, record.raw_ocr_text]);
+
+  const startEditing = () => {
     setForm({
       document_category: record.document_category || 'prescription',
       bill_category: record.bill_category || '',
@@ -71,29 +95,20 @@ export default function RecordModal({ record, onClose }) {
       recommendations: record.recommendations || '',
       bill_amount: record.bill_amount != null ? String(record.bill_amount) : '',
     });
-    // Deliberately keyed on record.id only: this resets the edit form when a
-    // different record is opened. Re-running it on every field change would
-    // discard whatever the user is currently typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record.id]);
+    setEditing(true);
+  };
 
-  useEffect(() => {
-    if (tab !== 'documents' || ocr !== null || !profileId) return;
-    let cancelled = false;
-    if (record.raw_ocr_text !== undefined) { setOcr(record.raw_ocr_text || ''); return; }
-    API.get('/profiles/' + profileId + '/records/' + record.id)
-      .then(r => { if (!cancelled) setOcr(r.data.raw_ocr_text || ''); })
-      .catch(() => { if (!cancelled) setOcr(''); });
-    return () => { cancelled = true; };
-  }, [tab, ocr, profileId, record.id, record.raw_ocr_text]);
-
-  useEffect(() => {
-    if (tab === 'history' && !hld && profileId) {
-      API.get('/profiles/' + profileId + '/records/' + record.id + '/history')
-        .then(r => { setHist(r.data); setHld(true); })
-        .catch(() => setHld(true));
+  const applySaved = (saved) => {
+    setRecords(prev => prev.map(x => x.id === saved.id ? saved : x));
+    showRecord(saved);
+    setHist(null);  // reload: the change just made belongs in it
+    if (saved.unsaved_fields?.length) {
+      showToast('Saved, except the ' + saved.unsaved_fields.map(f => UNSAVED_LABEL[f] || f).join(', ')
+        + '. The database needs an update (migration 005) before those can be stored.', 'error');
+      return false;
     }
-  }, [tab, hld, profileId, record.id]);
+    return true;
+  };
 
   const doSave = async () => {
     setSaving(true);
@@ -105,155 +120,188 @@ export default function RecordModal({ record, onClose }) {
       });
       if (form.document_category) p.document_category = form.document_category;
       const r = await API.put('/profiles/' + profileId + '/records/' + record.id, p);
-      setRecords(prev => prev.map(x => x.id === r.data.id ? r.data : x));
-      openRecord(r.data);
       setEditing(false);
-      setHld(false);
-      showToast('Updated');
-    } catch (e) { showToast('Save failed', 'error'); }
-    finally { setSaving(false); }
+      if (applySaved(r.data)) showToast('Saved');
+    } catch (e) {
+      showToast(typeof e?.response?.data?.detail === 'string'
+        ? e.response.data.detail : 'Couldn’t save. Your changes are still here; try again.', 'error');
+    } finally { setSaving(false); }
   };
 
   const doDel = async () => {
+    if (deleting) return;
     setDeleting(true);
     try {
       await API.delete('/profiles/' + profileId + '/records/' + record.id);
-      setRecords(prev => prev.filter(x => x.id !== record.id));
-      showToast('Record deleted');
-      onClose();
     } catch (e) {
-      showToast('Could not delete this record. Please try again.', 'error');
-      setDeleting(false);
+      // Already gone (deleted in another tab) is the outcome that was asked for.
+      if (e?.response?.status !== 404) {
+        showToast('Could not delete this record. Please try again.', 'error');
+        setDeleting(false);
+        return;
+      }
     }
+    setRecords(prev => prev.filter(x => x.id !== record.id));
+    setDel(false);
+    showToast('Record deleted');
+    onClose();
   };
 
-  // Single-field edits made straight from the details view, without entering
-  // the full edit form. Previously one of these was an async call inlined in JSX.
+  const doRetry = async () => {
+    setRetrying(true);
+    await retryRecord(record);
+    setRetrying(false);
+  };
+
+  // Single-field edits made straight from the page, without the full form.
   const saveField = async (patch) => {
     if (!Object.values(patch).every(Boolean)) return;
     try {
       const r = await API.put('/profiles/' + profileId + '/records/' + record.id, patch);
-      setRecords(prev => prev.map(x => x.id === r.data.id ? r.data : x));
-      openRecord(r.data);
+      if (applySaved(r.data)) showToast('Saved');
     } catch (e) {
       showToast('Could not save that change', 'error');
     }
   };
 
   const files = getRecordFiles(record);
-  const medCount = (record.medicines || []).length;
+  const pending = isPending(record);
+  const failed = record.status === 'failed';
+  const missing = reviewReasons(record);
+  const edited = new Set((hist || []).map(h => h.field_name));
+  const title = (isBill && record.bill_title) ? record.bill_title
+    : record.doctor_name ? drN(record.doctor_name) : record.hospital_name || typeName(record);
 
   return (
     <>
-      <Modal
-        onClose={onClose}
-        className="mover"
-        boxClassName="modal"
-        label={'Record: ' + (record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical record')}
-      >
-        <div className="m-handle" />
-        <div className="m-hdr">
-          <button className="m-x" onClick={onClose}>&#x2715;</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '3px 10px', borderRadius: 14, fontSize: 11, fontWeight: 700 }}>
-              {record.document_category || record.document_type}
-            </span>
-            <span style={{ padding: '3px 8px', borderRadius: 14, fontSize: 11, fontWeight: 700, background: record.status === 'done' ? 'rgba(16,185,129,0.2)' : record.status === 'failed' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)', color: '#fff' }}>
-              {STATUS_TEXT[record.status] || record.status}
-            </span>
-          </div>
-          <div className="m-title">{(isBill && record.bill_title) ? record.bill_title : record.doctor_name ? drN(record.doctor_name) : record.hospital_name || 'Medical Record'}</div>
-          <div className="m-sub">{fmt(record.document_date) || fmtRel(record.created_at)}</div>
+      <Modal onClose={onClose} className="sheet-over sheet-over-full" boxClassName="sheet record" label={'Record: ' + title}>
+        <div className="record-bar">
+          <button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={22} /></button>
+          <span className="record-bar-type">{typeName(record)}</span>
+          <StatusPill status={record.status} />
         </div>
 
-        <div className="m-body">
-          {STATUS_NOTE[record.status] && (
-            <div className={record.status === 'failed' ? 'notice notice-error' : 'notice'} style={{ marginBottom: 14 }} role="status">
-              {STATUS_NOTE[record.status]}
+        <div className="record-body">
+          {files.length > 0 ? (
+            <div className="record-pages" aria-label="Pages of the original document">
+              {files.map((f, i) => (
+                <button key={f.id || i} className="record-page" onClick={() => setGal(i)} aria-label={'View page ' + (i + 1) + ' of ' + files.length}>
+                  <img src={f.file_url} alt="" onError={e => { e.target.style.visibility = 'hidden'; }} />
+                  <span>{i + 1}/{files.length}</span>
+                </button>
+              ))}
+            </div>
+          ) : hasStoredDocument(record) && (
+            <div className="notice">Preview unavailable right now. Your file is safe.</div>
+          )}
+
+          <h1 className="record-title">{title}</h1>
+          <p className="record-sub">
+            {fmt(record.document_date) || 'No date on record'}
+            {record.hospital_name && record.doctor_name ? ' · ' + record.hospital_name : ''}
+            {' · added '}{fmtRel(record.created_at)}
+          </p>
+
+          {failed && (
+            <div className="state state-failed" role="status">
+              <Icon name="error" size={20} />
+              <div>
+                <b>Couldn’t read this document</b>
+                <p>Try again, or delete it and add a clearer photo.</p>
+              </div>
             </div>
           )}
-          <div className="m-tabs">
-            {tabList.map(t => (
-              <button key={t} className={'mtab' + (tab === t ? ' active' : '')} onClick={() => { setTab(t); setEditing(false); }}>
-                {t === 'documents' ? 'Docs' + (files.length > 0 ? ' (' + files.length + ')' : '')
-                  : t === 'medicines' ? 'Meds' + (medCount > 0 ? ' (' + medCount + ')' : '')
-                    : t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          {tab === 'details' && !editing && (
-            <DetailsView
-              record={record}
-              isBill={isBill}
-              isLab={isLab}
-              onQuickDate={value => saveField({ document_date: value })}
-              onSetDoctor={value => saveField({ doctor_name: value })}
-            />
+          {pending && (
+            <div className="state state-pending" role="status">
+              <span className="spinner spinner-sm" aria-hidden="true" />
+              <div>
+                <b>Reading this document…</b>
+                <p>Usually under a minute.</p>
+              </div>
+            </div>
           )}
-
-          {tab === 'details' && editing && (
-            <DetailsForm record={record} form={form} setForm={setForm} formIsBill={formIsBill} formIsLab={formIsLab} />
-          )}
-
-          {tab === 'medicines' && (
-            <MedsTab
-              record={record}
-              profileId={profileId}
-              setRecords={setRecords}
-              openRecord={openRecord}
-              showToast={showToast}
-            />
-          )}
-
-          {tab === 'documents' && (
-            <div>
-              {files.length > 0 && (
-                <div className="vd-docs" style={{ marginBottom: 14 }}>
-                  {files.map((f, idx) => (
-                    <div key={idx} className="vd-doc" onClick={() => setGal(idx)}>
-                      <img src={f.file_url} alt={'Page ' + (f.page_number || idx + 1)} onError={e => e.target.style.display = 'none'} />
-                      <div className="vd-doc-lbl">Page {f.page_number || idx + 1}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {files.length === 0 && hasStoredDocument(record) && (
-                <div className="notice" style={{ marginBottom: 14 }}>
-                  Document previews couldn't be loaded right now. Your file is safe. Try reopening this record in a moment.
-                </div>
-              )}
-              <div className="drow-key" style={{ marginBottom: 8 }}>Raw OCR Text</div>
-              <div className="ocr">{ocr === null ? 'Loading…' : (ocr || 'No OCR text.')}</div>
+          {!editing && missing.length > 0 && (
+            <div className="state state-review" role="status">
+              <Icon name="edit_note" size={20} />
+              <div>
+                <b>Missing {missing.map(m => REVIEW_TEXT[m]).join(' and ')}</b>
+                <p>Tap Edit details to add {missing.length > 1 ? 'them' : 'it'}.</p>
+              </div>
             </div>
           )}
 
-          {tab === 'history' && (
-            !hld ? <div style={{ color: '#94a3b8', fontSize: 13 }}>Loading...</div>
-              : !hist.length ? <div style={{ color: '#94a3b8', fontSize: 13 }}>No edits.</div>
-                : hist.map(h => (
-                  <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 0', borderBottom: '1px solid #f1f5f9', fontSize: 12 }}>
-                    <span style={{ fontWeight: 700, color: '#0f172a', minWidth: 90 }}>{h.field_name}</span>
-                    <span style={{ color: 'var(--error)', textDecoration: 'line-through' }}>{h.old_value || 'empty'}</span>
-                    <span style={{ color: '#94a3b8', margin: '0 3px' }}>→</span>
-                    <span style={{ color: 'var(--success)' }}>{h.new_value}</span>
-                    <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: 11, whiteSpace: 'nowrap' }}>{fmtDt(h.edited_at)}</span>
-                  </div>
-                ))
+          <section className="record-section" aria-labelledby="sec-details">
+            <h2 id="sec-details" className="section-lbl">
+              {editing ? 'Edit details' : 'Details'}
+            </h2>
+            {editing
+              ? <DetailsForm record={record} form={form} setForm={setForm} formIsBill={formIsBill} formIsLab={formIsLab} />
+              : <DetailsView record={record} isBill={isBill} isLab={isLab} edited={edited}
+                  onQuickDate={value => saveField({ document_date: value })}
+                  onSetDoctor={value => saveField({ doctor_name: value })} />}
+          </section>
+
+          {cat === 'prescription' && !editing && (
+            <section className="record-section" aria-labelledby="sec-meds">
+              <h2 id="sec-meds" className="section-lbl">
+                Medicines{(record.medicines || []).length > 0 && <span className="section-count">{record.medicines.length}</span>}
+                {edited.has('medicines') && <i className="edited-tag">edited</i>}
+              </h2>
+              <MedsTab record={record} profileId={profileId} setRecords={setRecords} showRecord={showRecord} showToast={showToast} />
+            </section>
+          )}
+
+          {!editing && (
+            <details className="disclosure" onToggle={e => setOcrOpen(e.currentTarget.open)}>
+              <summary>Scanned text</summary>
+              <div className="ocr">{ocr === null ? 'Loading…' : (ocr || 'No text was read from this document.')}</div>
+            </details>
+          )}
+
+          {!editing && (
+            <details className="disclosure">
+              <summary>Changes{hist && hist.length > 0 ? ' (' + hist.length + ')' : ''}</summary>
+              {hist === null ? <div className="muted-line"><span className="spinner spinner-xs" aria-hidden="true" /> Loading…</div>
+                : !hist.length ? <p className="muted-line">No changes yet.</p>
+                  : (
+                    <ol className="history">
+                      {hist.map(h => (
+                        <li key={h.id} className="history-item">
+                          <div className="history-hdr">
+                            <span className="history-field">{FIELD_LABEL[h.field_name] || h.field_name}</span>
+                            <span className="history-when">{fmtDt(h.edited_at)}</span>
+                          </div>
+                          <div className="history-change">
+                            <span className="history-old">{h.old_value || 'empty'}</span>
+                            <Icon name="arrow_forward" size={14} />
+                            <span className="history-new">{h.new_value}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+            </details>
           )}
         </div>
 
-        <div className="m-ftr">
-          {tab === 'details' && editing ? (
+        <div className="record-actions">
+          {editing ? (
             <>
-              <button className="btn-c" onClick={() => setEditing(false)}>Cancel</button>
-              <button className="btn-s" onClick={doSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+              <button className="btn btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+              <span className="spacer" />
+              <button className="btn btn-primary" onClick={doSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </>
           ) : (
             <>
-              <button className="btn-d" onClick={() => setDel(true)}>Delete</button>
+              <button className="btn btn-danger-quiet" onClick={() => setDel(true)}>Delete</button>
+              <span className="spacer" />
+              {failed && (
+                <button className="btn btn-primary" onClick={doRetry} disabled={retrying}>
+                  {retrying ? 'Starting…' : 'Try reading again'}
+                </button>
+              )}
               {record.status === 'done' && (
-                <button className="btn-s" onClick={() => { setTab('details'); setEditing(true); }}>Edit Details</button>
+                <button className="btn btn-primary" onClick={startEditing}><Icon name="edit" size={18} /> Edit details</button>
               )}
             </>
           )}
@@ -263,11 +311,13 @@ export default function RecordModal({ record, onClose }) {
       {del && (
         <Modal onClose={() => !deleting && setDel(false)} className="overlay confirm-over" boxClassName="confirm-box" label="Delete record?">
           <div className="confirm-title">Delete record?</div>
-          <div className="confirm-text">This will permanently delete the record and its files.</div>
+          <div className="confirm-text">
+            This {typeName(record).toLowerCase()} and its pages will be removed for good.
+          </div>
           <div className="confirm-btns">
-            <button className="btn-c" onClick={() => setDel(false)} disabled={deleting}>Cancel</button>
-            <button className="btn-d" onClick={doDel} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete"}
+            <button className="btn btn-secondary" onClick={() => setDel(false)} disabled={deleting}>Cancel</button>
+            <button className="btn btn-danger" onClick={doDel} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete'}
             </button>
           </div>
         </Modal>
@@ -277,7 +327,7 @@ export default function RecordModal({ record, onClose }) {
           files={files}
           startIdx={gal}
           onClose={() => setGal(null)}
-          title={[cat, record.doctor_name ? drN(record.doctor_name) : record.hospital_name, fmt(record.document_date)].filter(Boolean).join('-')}
+          title={[cat, record.doctor_name ? drN(record.doctor_name) : record.hospital_name, fmt(record.document_date) || fmtRel(record.created_at)].filter(Boolean).join('-')}
         />
       )}
     </>

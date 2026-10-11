@@ -83,7 +83,7 @@ test('searching everyone drops the member filter and labels whose record it is',
 
   const last = searchCalls().at(-1)[1].params;
   expect(last).toEqual({ q: 'knee' });
-  expect(screen.getByText('Bob')).toBeInTheDocument();
+  expect(screen.getByText('Bob', { selector: '.owner-tag' })).toBeInTheDocument();
 });
 
 test('clearing the query stops searching and shows the suggestions again', async () => {

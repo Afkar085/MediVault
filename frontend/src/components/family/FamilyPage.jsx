@@ -1,43 +1,56 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
 import { clickable } from '../../utils/interaction';
 import Modal from '../common/Modal';
+import Icon from '../common/Icon';
+import { PageHeader } from '../common/ui';
 
 const RELATIONSHIPS = ['Self', 'Father', 'Mother', 'Spouse', 'Son', 'Daughter', 'Brother', 'Sister', 'Other'];
 
 export default function FamilyPage() {
-  const { profiles, sel, setSel, addProfile, updateProfile, removeProfile, showToast, navigate } = useContext(AppContext);
+  const { profiles, sel, setSel, addProfile, updateProfile, removeProfile, showToast, navigate, nav, updateNavParams } = useContext(AppContext);
   const [modal, setModal] = useState(null); // null | 'add' | profile object being edited
   const [form, setForm] = useState({ name: '', relationship: '' });
   const [ld, setLd] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
 
-  const handleSelect = (p) => {
-    setSel(p);
-    navigate('home');
-  };
-
   const openAdd = () => { setForm({ name: '', relationship: '' }); setModal('add'); };
   const openEdit = (p) => { setForm({ name: p.name, relationship: p.relationship }); setModal(p); };
   const closeModal = () => { setModal(null); setConfirmDel(null); };
 
+  // The "+" folder tab lands here asking to add someone straight away.
+  useEffect(() => {
+    if (nav.add) {
+      setForm({ name: '', relationship: '' });
+      setModal('add');
+      updateNavParams({ add: false });
+    }
+  }, [nav.add, updateNavParams]);
+
+  const errorText = (e) => {
+    const detail = e?.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg.replace(/^Value error, /, '');
+    return 'Please check your connection and try again.';
+  };
+
   const handleSave = async () => {
-    if (!form.name || !form.relationship) return;
+    if (!form.name.trim() || !form.relationship) return;
     setLd(true);
     try {
       if (modal === 'add') {
-        const r = await API.post('/profiles', form);
+        const r = await API.post('/profiles', { ...form, name: form.name.trim() });
         addProfile(r.data);
         showToast('Family member added');
       } else {
-        const r = await API.put('/profiles/' + modal.id, form);
+        const r = await API.put('/profiles/' + modal.id, { ...form, name: form.name.trim() });
         updateProfile(modal.id, r.data);
         showToast('Family member updated');
       }
       closeModal();
     } catch (e) {
-      showToast('Failed: ' + (e?.response?.data?.detail || e.message), 'error');
+      showToast('Couldn’t save: ' + errorText(e), 'error');
     } finally { setLd(false); }
   };
 
@@ -50,7 +63,7 @@ export default function FamilyPage() {
       closeModal();
       navigate('home');
     } catch (e) {
-      showToast('Failed: ' + (e?.response?.data?.detail || e.message), 'error');
+      showToast('Couldn’t delete: ' + errorText(e), 'error');
     } finally { setLd(false); }
   };
 
@@ -58,64 +71,62 @@ export default function FamilyPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.03em' }}>Family Members</div>
-        <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Tap a member to switch their records</div>
+      <PageHeader title="Family" />
+
+      <div className="list-card">
+        {profiles.map(p => (
+          <div key={p.id} className={'list-row' + (sel?.id === p.id ? ' selected' : '')}
+            {...clickable(() => setSel(p), 'Show records for ' + p.name + ', ' + p.relationship)}
+            aria-current={sel?.id === p.id ? 'true' : undefined}>
+            <div className={'avatar' + (sel?.id === p.id ? ' avatar-teal' : '')}>{p.name[0].toUpperCase()}</div>
+            <div className="list-row-body">
+              <div className="list-row-title">{p.name}</div>
+              <div className="list-row-sub">{p.relationship}</div>
+            </div>
+            {sel?.id === p.id && <span className="pill pill-success">Viewing</span>}
+            <button className="icon-btn" onClick={e => { e.stopPropagation(); openEdit(p); }} aria-label={'Edit ' + p.name}>
+              <Icon name="edit" size={18} />
+            </button>
+          </div>
+        ))}
       </div>
 
-      {profiles.map(p => (
-        <div key={p.id} className={'family-member' + (sel?.id === p.id ? ' active' : '')} {...clickable(() => handleSelect(p), 'Show records for ' + p.name + ', ' + p.relationship)}>
-          <div className="family-av">{p.name[0].toUpperCase()}</div>
-          <div className="family-info">
-            <div className="family-name">{p.name}</div>
-            <div className="family-rel">{p.relationship}</div>
-          </div>
-          {sel?.id === p.id && <span className="family-active-badge">Active</span>}
-          <button className="family-edit-btn" onClick={e => { e.stopPropagation(); openEdit(p); }} aria-label="Edit family member">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
-      ))}
-
-      <button className="family-add-btn" onClick={openAdd}>+ Add Family Member</button>
+      <button className="dashed-btn" onClick={openAdd}><Icon name="person_add" size={18} /> Add a family member</button>
 
       {modal && !confirmDel && (
         <Modal onClose={closeModal} boxClassName="add-modal" label={editing ? 'Edit family member' : 'Add family member'}>
-            <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 20, color: '#0f172a', marginBottom: 18 }}>
-              {editing ? 'Edit Family Member' : 'Add Family Member'}
-            </div>
-            <div className="fg">
-              <label className="fl">Name</label>
-              <input className="fi" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Full name" />
-            </div>
-            <div className="fg">
-              <label className="fl">Relationship</label>
-              <select className="fi" value={form.relationship} onChange={e => setForm({ ...form, relationship: e.target.value })}>
-                <option value="">Select...</option>
-                {RELATIONSHIPS.map(r => <option key={r}>{r}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-              {editing && (
-                <button className="btn-d" onClick={() => setConfirmDel(true)} disabled={ld}>Delete</button>
-              )}
-              <button className="btn-c" style={{ flex: 1 }} onClick={closeModal}>Cancel</button>
-              <button className="btn-s" style={{ flex: 1 }} onClick={handleSave} disabled={ld}>{ld ? 'Saving...' : 'Save'}</button>
-            </div>
+          <div className="dialog-title">{editing ? 'Edit family member' : 'Add a family member'}</div>
+          <label className="field">
+            <span className="field-lbl">Name</span>
+            <input className="field-inp" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Full name" maxLength={100} autoFocus />
+          </label>
+          <label className="field">
+            <span className="field-lbl">Relationship</span>
+            <select className="field-inp" value={form.relationship} onChange={e => setForm({ ...form, relationship: e.target.value })}>
+              <option value="">Select…</option>
+              {RELATIONSHIPS.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </label>
+          <div className="dialog-btns">
+            {editing && (
+              <button className="btn btn-danger-quiet" onClick={() => setConfirmDel(true)} disabled={ld}>Delete</button>
+            )}
+            <span className="m-ftr-spacer" />
+            <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={ld || !form.name.trim() || !form.relationship}>{ld ? 'Saving…' : 'Save'}</button>
+          </div>
         </Modal>
       )}
 
       {modal && confirmDel && (
-        <Modal onClose={() => setConfirmDel(false)} boxClassName="confirm-box" label={'Delete ' + modal.name + '?'}>
-            <div className="confirm-title">Delete {modal.name}?</div>
-            <div className="confirm-text">This will permanently delete this family member and all of their medical records, documents, and bills.</div>
-            <div className="confirm-btns">
-              <button className="btn-c" onClick={() => setConfirmDel(false)}>Cancel</button>
-              <button className="btn-d" onClick={handleDelete} disabled={ld}>{ld ? 'Deleting...' : 'Delete'}</button>
-            </div>
+        <Modal onClose={() => !ld && setConfirmDel(false)} boxClassName="confirm-box" label={'Delete ' + modal.name + '?'}>
+          <div className="confirm-icon"><Icon name="person_remove" size={22} /></div>
+          <div className="confirm-title">Delete {modal.name}?</div>
+          <div className="confirm-text">This permanently deletes this family member and all of their medical records, documents, and bills.</div>
+          <div className="confirm-btns">
+            <button className="btn btn-secondary" onClick={() => setConfirmDel(false)} disabled={ld}>Cancel</button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={ld}>{ld ? 'Deleting…' : 'Delete'}</button>
+          </div>
         </Modal>
       )}
     </div>

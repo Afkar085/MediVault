@@ -1,241 +1,215 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
-import { drN, drInitial, fmt, fmtRel, getRecordDate, getActivityLabel, catIcon } from '../../utils/format';
+import {
+  fmt, fmtRel, drN, drInitial, isPending, isFailed, needsReview,
+  uniqueMedicines, getRecordFiles, possibleDuplicates,
+} from '../../utils/format';
 import Icon from '../common/Icon';
+import Ledger, { typeName } from '../common/Ledger';
+import { EmptyState } from '../common/ui';
 import { clickable } from '../../utils/interaction';
 
-function Greeting({ name }) {
-  const hour = new Date().getHours();
-  const timeStr = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-  const firstName = (name || '').split(' ')[0];
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+/**
+ * Only what needs the person, one line each, with the action that resolves it.
+ * Every line is computed from the records, so fixing the record removes it.
+ */
+function Attention({ records, openRecord, retryRecord, navigate, dismissedDupes }) {
+  const [retrying, setRetrying] = useState(null);
+  const pending = records.filter(isPending);
+  const failed = records.filter(isFailed);
+  const review = records.filter(needsReview);
+  const dupes = possibleDuplicates(records, dismissedDupes);
+  if (!pending.length && !failed.length && !review.length && !dupes.length) return null;
+
+  const retry = async (r) => { setRetrying(r.id); await retryRecord(r); setRetrying(null); };
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
   return (
-    <div className="greeting">
-      <div className="greeting-time">{timeStr}</div>
-      <div className="greeting-hello">Hello, <span>{firstName || 'there'}</span> 👋</div>
-    </div>
+    <section className="attention" aria-label="Needs attention">
+      {pending.length > 0 && (
+        <div className="att-row" role="status">
+          <span className="att-icon"><span className="spinner spinner-sm" aria-hidden="true" /></span>
+          <span className="att-text">Reading {plural(pending.length, 'document', 'documents')}…</span>
+        </div>
+      )}
+      {failed.length > 0 && (
+        <div className="att-block">
+          <div className="att-row">
+            <span className="att-icon tone-error"><Icon name="error" size={20} /></span>
+            <span className="att-text"><b>{plural(failed.length, 'document', 'documents')} couldn’t be read</b></span>
+          </div>
+          {failed.map(r => {
+            const thumb = getRecordFiles(r)[0];
+            return (
+              <div key={r.id} className="att-doc">
+                <button className="att-doc-open" onClick={() => openRecord(r)}
+                  aria-label={'Open the ' + typeName(r).toLowerCase() + ' uploaded ' + fmtRel(r.created_at)}>
+                  <span className="att-thumb">{thumb ? <img src={thumb.file_url} alt="" /> : <Icon name="description" size={18} />}</span>
+                  <span><b>{typeName(r)}</b><small>Added {fmtRel(r.created_at)}</small></span>
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => retry(r)} disabled={retrying === r.id}>
+                  {retrying === r.id ? 'Starting…' : 'Try again'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {review.length > 0 && (
+        <div className="att-row">
+          <span className="att-icon tone-warning"><Icon name="edit_note" size={20} /></span>
+          <span className="att-text"><b>{plural(review.length, 'record is', 'records are')} missing details</b></span>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('review')}>Fix</button>
+        </div>
+      )}
+      {dupes.length > 0 && (
+        <div className="att-row">
+          <span className="att-icon tone-warning"><Icon name="content_copy" size={20} /></span>
+          <span className="att-text"><b>{dupes.length === 1 ? '2 records may be duplicates' : dupes.length + ' possible duplicates'}</b></span>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('review')}>Compare</button>
+        </div>
+      )}
+    </section>
   );
 }
 
-function MedicalOverviewCard({ records, docGroups, profiles, navigate }) {
-  const doneRecs = records.filter(r => r.status === 'done');
-  const doctorCount = Object.keys(docGroups).filter(k => k !== 'unassigned').length;
-  const prescCount = doneRecs.filter(r => r.document_category === 'prescription').length;
-  const labCount = doneRecs.filter(r => r.document_category === 'lab_report').length;
-  const billCount = doneRecs.filter(r => r.document_category === 'bill').length;
-  const medCount = doneRecs.reduce((s, r) => s + (r.medicines || []).length, 0);
-  const famCount = profiles.length;
-
+function Stats({ records, docGroups, navigate }) {
+  const saved = records.filter(r => !isFailed(r));
+  const byCat = c => saved.filter(r => r.document_category === c).length;
   const tiles = [
-    { icon: 'stethoscope', label: 'Doctors', unit: 'doctor', val: doctorCount, action: () => navigate('doctors') },
-    { icon: 'description', label: 'Prescriptions', unit: 'prescription', val: prescCount, action: () => navigate('search', { initialFilter: 'Prescriptions' }) },
-    { icon: 'science', label: 'Lab Reports', unit: 'lab report', val: labCount, action: () => navigate('search', { initialFilter: 'Lab Reports' }) },
-    { icon: 'receipt_long', label: 'Bills', unit: 'bill', val: billCount, action: () => navigate('search', { initialFilter: 'Bills' }) },
-    { icon: 'medication', label: 'Medicines', unit: 'medicine', val: medCount, action: () => navigate('search', { initialFilter: 'Medicines' }) },
-    { icon: 'group', label: 'Family', unit: 'family member', val: famCount, action: () => navigate('family') },
+    { icon: 'stethoscope', label: 'Doctors', unit: 'doctor', n: Object.keys(docGroups).filter(k => k !== 'unassigned').length, go: () => navigate('doctors') },
+    { icon: 'description', label: 'Prescriptions', unit: 'prescription', n: byCat('prescription'), go: () => navigate('search', { filter: 'Prescriptions' }) },
+    { icon: 'science', label: 'Lab reports', unit: 'lab report', n: byCat('lab_report'), go: () => navigate('search', { filter: 'Lab Reports' }) },
+    { icon: 'receipt_long', label: 'Bills', unit: 'bill', n: byCat('bill'), go: () => navigate('search', { filter: 'Bills' }) },
+    { icon: 'medication', label: 'Medicines', unit: 'medicine', n: uniqueMedicines(records).length, go: () => navigate('search', { filter: 'Medicines' }) },
   ];
-
   return (
-    <div className="ov-grid">
+    <div className="stats">
       {tiles.map(t => (
-        <button key={t.label} className="ov-tile" onClick={t.action} aria-label={t.val + ' ' + t.unit + (t.val === 1 ? '' : 's')}>
-          <Icon name={t.icon} size={20} style={{ marginBottom: 3, color: 'var(--primary)' }} />
-          <span className="ov-tile-val">{t.val}</span>
-          <span className="ov-tile-label">{t.label}</span>
+        <button key={t.label} className="stat" onClick={t.go} aria-label={t.n + ' ' + t.unit + (t.n === 1 ? '' : 's')}>
+          <Icon name={t.icon} size={22} />
+          <span className="stat-n">{t.n}</span>
+          <span className="stat-l">{t.label}</span>
         </button>
       ))}
-    </div>
-  );
-}
-
-function RecentActivity({ records, openRecord }) {
-  const [open, setOpen] = useState(() => localStorage.getItem('mv_activity_open') !== 'false');
-
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    localStorage.setItem('mv_activity_open', String(next));
-  };
-
-  const recent = records.slice(0, 5);
-  if (!recent.length) return null;
-
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <button className="sec-hdr sec-hdr-btn" onClick={toggle} aria-expanded={open}>
-        <span className="sec-title">Recent Activity</span>
-        <span className="activity-toggle" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-            style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </span>
+      <button className="stat stat-journey" onClick={() => navigate('journey')} aria-label="Health timeline">
+        <Icon name="timeline" size={22} />
+        <span className="stat-n"><Icon name="arrow_forward" size={20} /></span>
+        <span className="stat-l">Timeline</span>
       </button>
-      {open && recent.map(r => {
-        const label = getActivityLabel(r);
-        const sub = r.doctor_name ? drN(r.doctor_name) : r.hospital_name || '';
-        const pending = r.status === 'processing' || r.status === 'extracting';
-        const failed = r.status === 'failed';
-        return (
-          <div key={r.id} className="activity-item" {...clickable(() => openRecord(r), failed ? "Couldn't read this document, uploaded " + fmtRel(r.created_at) : label + (sub ? ', ' + sub : ''))}>
-            <div className={'activity-icon ' + (r.document_category || 'other')}>
-              <Icon name={failed ? 'error' : catIcon(r.document_category)} size={17} />
-            </div>
-            <div className="activity-body">
-              <div className="activity-title">{failed ? 'Couldn’t read this document' : label}</div>
-              {failed
-                ? <div className="activity-sub">Tap to remove it and try a clearer photo</div>
-                : pending
-                  ? <div className="activity-sub">Reading it now…</div>
-                  : sub && <div className="activity-sub">{sub}</div>}
-            </div>
-            <div className="activity-time">{fmtRel(r.created_at)}</div>
-          </div>
-        );
-      })}
     </div>
   );
 }
 
-function DoctorsPreview({ docGroups, docNameMap, sortedDocs, navigate }) {
-  const topDocs = sortedDocs.slice(0, 3);
-  if (!topDocs.length) return null;
+function Doctors({ docGroups, docNameMap, sortedDocs, navigate }) {
+  const top = sortedDocs.filter(k => k !== 'unassigned').slice(0, 3);
+  if (!top.length) return null;
   return (
-    <div style={{ marginBottom: 24 }}>
-      <div className="sec-hdr">
-        <div className="sec-title">Doctors</div>
-        <button className="sec-link" onClick={() => navigate('doctors')}>
-          See All
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
+    <section className="block">
+      <div className="block-head">
+        <h2>Doctors</h2>
+        <button className="link-btn" onClick={() => navigate('doctors')}>See all</button>
       </div>
-      {topDocs.map(key => {
-        const visits = docGroups[key] || [];
-        const specialty = visits.find(v => v.specialty)?.specialty || '';
-        const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
-        const displayName = docNameMap[key] || key;
-        const last = visits[0];
-        const lastDate = last ? (fmt(getRecordDate(last)) || fmtRel(last.created_at)) : '';
-        const openDr = () => navigate('doctor-detail', { doctorKey: key, doctorName: displayName, specialty, hospital });
-        return (
-          <div key={key} className="dr-row" {...clickable(openDr, "Visits with " + drN(displayName))}>
-            <div className="dr-av">
-              {drInitial(displayName)}
-            </div>
-            <div className="dr-info">
-              <div className="dr-name">{(!displayName || displayName === 'Unassigned') ? 'Unassigned' : drN(displayName)}</div>
-              <div className="dr-meta">
-                {specialty}{specialty && hospital ? ' · ' : ''}{hospital}
-                {!specialty && !hospital && lastDate ? 'Last: ' + lastDate : ''}
+      <ul className="plain-list">
+        {top.map(key => {
+          const visits = docGroups[key] || [];
+          const name = docNameMap[key] || key;
+          const specialty = visits.find(v => v.specialty)?.specialty || '';
+          const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
+          const lastVisit = visits.map(v => v.document_date).filter(Boolean).sort().pop();
+          const open = () => navigate('doctor-detail', { doctorKey: key, doctorName: name, specialty, hospital });
+          return (
+            <li key={key}>
+              <div className="person-row" {...clickable(open, 'Visits with ' + drN(name))}>
+                <span className="avatar">{drInitial(name)}</span>
+                <span className="person-body">
+                  <b>{drN(name)}</b>
+                  <small>{[specialty, hospital].filter(Boolean).join(' · ') || (lastVisit ? 'Last visit ' + fmt(lastVisit) : 'No visit date')}</small>
+                </span>
+                <span className="person-count" aria-label={visits.length + ' records'}>{visits.length}</span>
+                <Icon name="chevron_right" size={20} />
               </div>
-              {(specialty || hospital) && lastDate && (
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Last: {lastDate}</div>
-              )}
-            </div>
-            <div className="dr-right">
-              <div className="dr-count">{visits.length}</div>
-              <svg className="dr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
 export default function Dashboard() {
   const {
-    sel, profiles, records, loading, loadError,
-    docGroups, docNameMap, sortedDocs,
-    navigate, openRecord, refreshRecords,
+    sel, records, loading, loadError, docGroups, docNameMap, sortedDocs, dismissedDupes,
+    navigate, openRecord, refreshRecords, retryRecord, showUpload,
   } = useContext(AppContext);
-
-  const processing = records.filter(r => r.status === 'processing' || r.status === 'extracting').length;
-  const unreadable = records.filter(r => r.status === 'failed').length;
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 60 }}>
-        <div className="spinner" />
+      <div className="page-loading" aria-busy="true" aria-label="Loading records">
+        <div className="skeleton" style={{ width: '55%', height: 28 }} />
+        <div className="skeleton-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="skeleton" style={{ height: 92 }} />)}</div>
+        {Array.from({ length: 3 }, (_, i) => <div key={i} className="skeleton" style={{ height: 56, marginTop: 12 }} />)}
       </div>
     );
   }
 
   if (!sel) {
     return (
-      <div className="empty">
-        <div className="empty-icon"><Icon name="health_and_safety" size={30} /></div>
-        <div className="empty-title">Welcome to MediVault</div>
-        <div className="empty-sub">Add a family member to start managing medical records.</div>
-        <button className="btn-s" style={{ marginTop: 16 }} onClick={() => navigate('family')}>Add a family member</button>
-      </div>
+      <EmptyState icon="group" title="Add a family member"
+        action={<button className="btn btn-primary" onClick={() => navigate('family', { add: true })}>Add member</button>}>
+        Each person gets their own records.
+      </EmptyState>
     );
   }
 
   if (loadError) {
     return (
-      <div className="empty">
-        <div className="empty-icon"><Icon name="cloud_off" size={30} /></div>
-        <div className="empty-title">Couldn't load these records</div>
-        <div className="empty-sub">Check your connection. Your records are safe and nothing was lost.</div>
-        <button className="btn-s" style={{ marginTop: 16 }} onClick={refreshRecords}>Try again</button>
-      </div>
+      <EmptyState icon="cloud_off" title="Couldn't load these records"
+        action={<button className="btn btn-primary" onClick={refreshRecords}>Try again</button>}>
+        Check your connection. Nothing was lost.
+      </EmptyState>
     );
   }
 
+  const saved = records.filter(r => !isFailed(r));
+  const last = saved.map(r => r.document_date).filter(Boolean).sort().pop();
+
   return (
-    <div>
-      <Greeting name={sel.name} />
+    <div className="home">
+      <header className="hello">
+        <h1>{greeting()}, {sel.name.split(' ')[0]}</h1>
+        {saved.length > 0 && (
+          <p>{saved.length} {saved.length === 1 ? 'record' : 'records'}{last ? ' · last visit ' + fmt(last) : ''}</p>
+        )}
+      </header>
 
-      {processing > 0 && (
-        <div className="process-banner" role="status">
-          <div className="process-spin" />
-          Reading {processing} document{processing > 1 ? 's' : ''}… this usually takes under a minute
-        </div>
-      )}
+      <Attention records={records} openRecord={openRecord} retryRecord={retryRecord} navigate={navigate} dismissedDupes={dismissedDupes} />
 
-      {unreadable > 0 && (
-        <div className="process-banner error" role="status">
-          <Icon name="error" size={16} />
-          {unreadable} document{unreadable > 1 ? 's' : ''} couldn’t be read. Open it below to remove it and try a clearer photo.
-        </div>
-      )}
+      {records.length === 0 ? (
+        <EmptyState icon="add_a_photo" title="No records yet"
+          action={<button className="btn btn-primary" onClick={() => showUpload()}><Icon name="add" size={18} /> Add a document</button>}>
+          Snap a prescription, report or bill. We’ll read the details.
+        </EmptyState>
+      ) : (
+        <>
+          <Stats records={records} docGroups={docGroups} navigate={navigate} />
 
-      <div className="journey-banner" {...clickable(() => navigate('journey'), 'Health Journey, your complete medical timeline')}>
-        <div className="jb-left">
-          <div className="jb-icon"><Icon name="route" size={20} /></div>
-          <div>
-            <div className="jb-title">Health Journey</div>
-            <div className="jb-sub">Your complete medical timeline</div>
-          </div>
-        </div>
-        <div className="jb-arrow">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </div>
-      </div>
+          <section className="block">
+            <div className="block-head">
+              <h2>Recent</h2>
+              {records.length > 5 && <button className="link-btn" onClick={() => navigate('journey')}>See all</button>}
+            </div>
+            {/* Failed documents are already listed above, with their actions. */}
+            <Ledger records={records.filter(r => !isFailed(r))} onOpen={openRecord} grouped={false} limit={5} paged={false} />
+          </section>
 
-      <MedicalOverviewCard
-        records={records}
-        docGroups={docGroups}
-        profiles={profiles}
-        navigate={navigate}
-      />
-
-      <RecentActivity records={records} openRecord={openRecord} />
-
-      <DoctorsPreview docGroups={docGroups} docNameMap={docNameMap} sortedDocs={sortedDocs} navigate={navigate} />
-
-      {records.length === 0 && (
-        <div className="empty">
-          <div className="empty-icon"><Icon name="description" size={30} /></div>
-          <div className="empty-title">No records yet</div>
-          <div className="empty-sub">Tap the + button to upload your first medical document.</div>
-        </div>
+          <Doctors docGroups={docGroups} docNameMap={docNameMap} sortedDocs={sortedDocs} navigate={navigate} />
+        </>
       )}
     </div>
   );

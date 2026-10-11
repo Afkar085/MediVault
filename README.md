@@ -202,6 +202,24 @@ echo REACT_APP_API_URL=http://localhost:8000/api/v1 > .env.local
 npm start
 ```
 
+**Without any credentials (recommended for development)**
+
+`backend/scripts/dev_server.py` runs the real API against an in-memory database and storage
+and a deterministic stand-in for the OCR and language models, so the whole app can be
+exercised without touching a real Supabase project or Groq quota. It never reads your
+`.env`. Data is lost on restart.
+
+```bash
+cd backend && python scripts/dev_server.py           # API on http://localhost:8787
+```
+
+Point the frontend at it with `REACT_APP_API_URL=http://localhost:8787/api/v1` and sign in
+with the dev account named at the top of that script. A second family member and a
+document that failed OCR are seeded; `scripts/make_dev_documents.py` writes readable and
+unreadable test documents to upload. `GET /__dev/stats` reports query and model-call counts, and
+`POST /__dev/models?fail=true` simulates the OCR/LLM service being down.
+`scripts/e2e-journeys.mjs` clicks through the 16 core journeys in headless Chrome against it.
+
 **Checks**
 
 ```bash
@@ -236,13 +254,56 @@ These need the Supabase and hosting dashboards:
    literal rather than semantic. Applying them later is safe: records without stored
    passages continue to be searched.
 
+### Deploying the record-integrity and case-file release
+
+None of this has been run against the real Supabase project or Groq yet: every
+check so far used the local dev stack. Deploy in this order:
+
+1. **Back up first.** Supabase → Database → Backups: confirm a recent backup exists (or
+   take one) before any migration. Note the time.
+2. **Check the migration on a throwaway Postgres** (optional, needs Docker):
+   `bash backend/scripts/verify_migrations.sh`. It loads the previous schema, applies
+   001–005, then 005 again to prove it is idempotent.
+3. **Run `backend/database/migrations/005_bill_details_and_upload_dedup.sql`** in the
+   Supabase SQL editor. Additive only: three nullable bill columns and indexes. It creates
+   a unique index on `record_files.file_path` only if no file is already shared between
+   records; if it prints a NOTICE instead, nothing was changed and the app still works
+   (concurrent identical uploads then rely on the application check alone).
+4. **Redeploy the backend** with `pip install -r requirements.txt`. **Pillow** is now a
+   runtime dependency (turns sideways phone photos upright before OCR; the stored original
+   is never modified). Without it, images are sent as they are.
+5. **Redeploy the frontend.**
+6. **Smoke test with a non-medical test document**, on a test family member, not real
+   records:
+   - Upload a photo of any printed page; it shows "Reading…", then appears once in the file.
+   - Upload the same photo again; you are told it is already saved and no second row appears.
+   - Upload a blank or dark photo; it appears under *Needs you*; *Try again* re-reads it;
+     deleting it removes the warning, also after a refresh.
+   - Edit a field, refresh: the change and its *edited* mark persist; it is in *Changes*.
+   - Open a bill, set a title, refresh: the title persists (needs step 3).
+   - Search for a word on the page; Ask a question about it and check the cited source.
+   - Delete the test member: Supabase Storage no longer holds their files.
+7. **Rollback:** the frontend and backend can be reverted to the previous deployment at
+   any time. Migration 005 is additive and safe to leave in place after a rollback.
+
 **Not implemented:** password reset by email. It needs an email provider, which is a paid
 infrastructure decision. The sign-in screen says so plainly rather than pretending to send
 a link.
 
 ## Design System
 
-A deliberate visual identity rather than default styling: deep navy primary with a restrained teal secondary, a consistent 4-color semantic system for document categories (prescriptions, lab reports, bills, discharge summaries) used identically across every screen, and real iconography (Google Material Symbols) throughout instead of emoji.
+One typeface (Inter), the navy brand band, and white grouped surfaces on a soft background.
+
+- **Home** answers "what's new and what needs me": a greeting with a one-line summary, a
+  *Needs attention* card only when something does (failed documents with *Try again*, records
+  missing details, possible duplicates), icon stat tiles that each open the list they count,
+  recent records with document previews, and doctors.
+- **Records look the same everywhere** (home, timeline, search, review): a page preview or
+  type icon, who or what it is, what it was for, and the date.
+- **A record** is one scrolling page: the original pages, the details (values a person
+  changed are tagged *Edited*), medicines, then the scanned text and change history.
+- **Adding** is one sheet: who, type, pages, Save. The member chip switches person in place.
+- Colour is reserved for meaning: document-type tints and record status. Copy is kept short.
 
 ---
 

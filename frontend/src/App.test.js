@@ -55,8 +55,9 @@ test("a slow reply for the previous member never overwrites the current member's
   await screen.findByText('Alice');
 
   // Switch to Bob before Alice's records come back.
-  userEvent.click(screen.getByRole('button', { name: /switch family member/i }));
-  userEvent.click(await screen.findByText('Bob'));
+  // The member chip opens the switcher in place.
+  userEvent.click(await screen.findByRole('button', { name: /switch family member/i }));
+  userEvent.click(await screen.findByRole('button', { name: /switch to bob's records/i }));
   expect((await screen.findAllByText('Dr. Bob Doc')).length).toBeGreaterThan(0);
 
   // Alice's request finally lands. It must be discarded.
@@ -93,8 +94,10 @@ test('polling for a stuck upload stops instead of running for the whole session'
   render(<App />);
   await act(async () => { await Promise.resolve(); });
 
+  // While a document is being read the app polls the narrow status endpoint,
+  // not the full list (which signs a URL for every page).
   const recordCalls = () =>
-    API.get.mock.calls.filter(([url]) => url === '/profiles/p-alice/records').length;
+    API.get.mock.calls.filter(([url]) => url === '/profiles/p-alice/records/status').length;
 
   // It polls while the document is still being read.
   const initial = recordCalls();
