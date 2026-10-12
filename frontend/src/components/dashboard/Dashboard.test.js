@@ -102,3 +102,16 @@ test('possible duplicates are compared, and keeping both only hides the hint', a
   expect(screen.queryByText(/possible duplicates/i)).not.toBeInTheDocument();
   expect(API.delete).not.toHaveBeenCalled();
 });
+
+test('the summary line never shows "null" when no record has a date', async () => {
+  await load([rec('a', { document_date: null }), rec('b', { document_date: null })]);
+  const summary = await screen.findByText((_, el) => el.tagName === 'P' && el.textContent.trim().startsWith('2 records'));
+  expect(summary.textContent.trim()).toBe('2 records');
+  expect(document.body.textContent).not.toMatch(/null|undefined|NaN/);
+});
+
+test('a lab report without a doctor is not flagged as missing details', async () => {
+  await load([rec('lab', { document_category: 'lab_report', doctor_name: null, hospital_name: null })]);
+  await screen.findByText(/1 record/);
+  expect(screen.queryByText(/missing details/i)).not.toBeInTheDocument();
+});

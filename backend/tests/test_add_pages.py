@@ -7,8 +7,8 @@ so the behaviour that keeps retrieval/RAG content clean can't silently regress.
 """
 import pytest
 
-from app.api.v1.endpoints import upload as upload_endpoint
-from app.api.v1.endpoints.upload import _norm_med, process_added_pages
+from app.services import record_pipeline as pipeline
+from app.services.record_pipeline import norm_med as _norm_med, process_added_pages
 
 
 # --- _norm_med ---------------------------------------------------------------
@@ -110,14 +110,14 @@ def db(monkeypatch):
         "medicines": [{"id": "m1", "record_id": "r1", "name": "AZEE 500"}],
     }
     monkeypatch.setattr(
-        upload_endpoint, "supabase",
+        pipeline, "supabase",
         type("S", (), {"table": staticmethod(lambda n: _Table(n, store))})(),
     )
     # New page reads as some text; skip the network OCR entirely.
-    monkeypatch.setattr(upload_endpoint, "read_pages", lambda *a, **k: ["printed page"])
+    monkeypatch.setattr(pipeline, "read_pages", lambda *a, **k: ["printed page"])
     # Record what gets re-indexed for retrieval without touching a real store.
     indexed = {}
-    monkeypatch.setattr(upload_endpoint, "index_passages",
+    monkeypatch.setattr(pipeline, "index_passages",
                         lambda rid, text: indexed.update({"rid": rid, "text": text}))
     # Deterministic extraction from the new page.
     import app.services.ai_extractor as ai

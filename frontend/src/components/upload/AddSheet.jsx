@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../common/Icon';
 import Modal from '../common/Modal';
+import { todayISO } from '../../utils/format';
 import { ACCEPT_ATTR, formatBytes, isPdf, validateFiles, describeRejections } from '../../utils/uploads';
 
 const TYPES = [
@@ -65,6 +66,8 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
         <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Close"><Icon name="close" size={22} /></button>
       </div>
 
+      <div className="sheet-scroll">
+
       {profiles.length > 1 && (
         <fieldset className="choice">
           <legend className="choice-lbl">For</legend>
@@ -117,7 +120,7 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
       <div className="field-pair">
         <label className="field">
           <span className="field-lbl">Date <span className="optional">optional</span></span>
-          <input className="field-inp" type="date" value={docDate} max={new Date().toISOString().slice(0, 10)}
+          <input className="field-inp" type="date" value={docDate} max={todayISO()}
             onChange={e => setDocDate(e.target.value)} disabled={busy} />
         </label>
         {type !== 'bill' && (
@@ -135,6 +138,8 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
           <span>{progress >= 100 ? 'Saving…' : 'Uploading ' + progress + '%'}</span>
         </div>
       )}
+
+      </div>
 
       <div className="sheet-actions">
         <button className="btn btn-primary btn-block" onClick={save} disabled={busy || !files.length}>

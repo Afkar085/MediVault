@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { AppContext } from '../../App';
-import { fmt, fmtRel, drN, drInitial, getRecordDate } from '../../utils/format';
+import { fmt, fmtRel, drN, drInitial, getRecordDate, parseDate } from '../../utils/format';
 import Icon from '../common/Icon';
 import { PageHeader, EmptyState } from '../common/ui';
 import { clickable } from '../../utils/interaction';
@@ -72,7 +72,7 @@ export default function DoctorDetailPage() {
                 <div className="date-chip">
                   {date === 'unknown' ? <Icon name="event" size={18} /> : (
                     <>
-                      <span className="date-chip-mon">{new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short' })}</span>
+                      <span className="date-chip-mon">{parseDate(date)?.toLocaleDateString('en-IN', { month: 'short' })}</span>
                       <span className="date-chip-day">{Number(date.slice(8, 10))}</span>
                     </>
                   )}

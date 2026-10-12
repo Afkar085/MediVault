@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * The keyboard and screen-reader behaviour every overlay in this app needs.
@@ -17,6 +18,23 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+// How many overlays are open; the page behind stays still while any is.
+let openCount = 0;
+let savedOverflow = '';
+
+function lockPageScroll() {
+  if (openCount++ === 0) {
+    savedOverflow = document.documentElement.style.overflow;
+    // overflow:hidden keeps the scroll position, so closing returns you to
+    // exactly where you were.
+    document.documentElement.style.overflow = 'hidden';
+  }
+}
+
+function unlockPageScroll() {
+  if (--openCount === 0) document.documentElement.style.overflow = savedOverflow;
+}
+
 const focusableWithin = (root) =>
   [...root.querySelectorAll(FOCUSABLE)].filter(
     (el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement,
@@ -32,6 +50,11 @@ export default function Modal({
 }) {
   const boxRef = useRef(null);
   const returnFocusTo = useRef(null);
+
+  useEffect(() => {
+    lockPageScroll();
+    return unlockPageScroll;
+  }, []);
 
   useEffect(() => {
     returnFocusTo.current = document.activeElement;
@@ -73,12 +96,25 @@ export default function Modal({
     }
   }, [onClose]);
 
-  return (
+  // When the on-screen keyboard opens it shrinks the visible area; keep the
+  // field being typed into in view rather than behind the keyboard.
+  const onFocus = useCallback((e) => {
+    const el = e.target;
+    if (!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || !el.scrollIntoView) return;
+    setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+  }, []);
+
+  // Rendered into <body>, not where the component sits. A fixed overlay
+  // inside a transformed or animated ancestor is positioned against that
+  // ancestor instead of the screen, which is what pushed the document viewer
+  // up the page and let the header and tab bar show through it.
+  return createPortal(
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       className={className}
       onKeyDown={onKeyDown}
-      onClick={closeOnBackdrop ? onClose : undefined}
+      onFocus={onFocus}
+      onClick={(e) => { e.stopPropagation(); if (closeOnBackdrop) onClose(); }}
     >
       <div
         ref={boxRef}
@@ -91,6 +127,7 @@ export default function Modal({
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

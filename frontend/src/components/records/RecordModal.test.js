@@ -362,3 +362,76 @@ test('a record already deleted elsewhere is removed instead of reported as a fai
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 })
 ;
+
+// --- found on a real iPhone ---------------------------------------------------
+
+test('a bill is titled by its bill details, never by a doctor it was filed under', async () => {
+  await openRecord({ ...BILL, bill_title: null, doctor_name: 'Patel', hospital_name: 'Boda Sheera' });
+  expect(within(modal()).getByRole('heading', { level: 1 })).toHaveTextContent('Boda Sheera');
+  expect(within(modal()).queryByText('Dr. Patel')).not.toBeInTheDocument();
+});
+
+test('the record renders at the top level, outside any transformed page content', async () => {
+  await openRecord(PRESCRIPTION);
+  // A portal into <body>: fixed positioning is then relative to the screen.
+  expect(document.querySelector('.sheet-over').parentElement).toBe(document.body);
+});
+
+test('closing with unsaved edits asks first, and keeps them if you say no', async () => {
+  const confirm = jest.spyOn(window, 'confirm').mockReturnValue(false);
+  await openRecord(PRESCRIPTION);
+  fireEvent.click(within(modal()).getByRole('button', { name: /edit details/i }));
+  fireEvent.change(within(modal()).getByDisplayValue('Osteoarthritis of the right knee'), { target: { value: 'Changed' } });
+  fireEvent.click(within(modal()).getByRole('button', { name: /^close$/i }));
+  expect(confirm).toHaveBeenCalled();
+  expect(within(modal()).getByDisplayValue('Changed')).toBeInTheDocument();
+
+  confirm.mockReturnValue(true);
+  fireEvent.click(within(modal()).getByRole('button', { name: /^close$/i }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(confirm).toHaveBeenCalledTimes(2);  // once per close: the Back it triggers does not ask again
+  confirm.mockRestore();
+});
+
+test('the Back button (or swipe) with unsaved edits asks too, and staying keeps them', async () => {
+  const confirm = jest.spyOn(window, 'confirm').mockReturnValue(false);
+  await openRecord(PRESCRIPTION);
+  fireEvent.click(within(modal()).getByRole('button', { name: /edit details/i }));
+  fireEvent.change(within(modal()).getByDisplayValue('Osteoarthritis of the right knee'), { target: { value: 'Changed' } });
+
+  act(() => window.history.back());
+  await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+  expect(within(modal()).getByDisplayValue('Changed')).toBeInTheDocument();
+  expect(window.history.state.kind).toBe('modal');  // the next Back still has the record to leave
+
+  confirm.mockReturnValue(true);
+  act(() => window.history.back());
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  confirm.mockRestore();
+});
+
+test('Back without unsaved edits closes the record without asking', async () => {
+  const confirm = jest.spyOn(window, 'confirm');
+  await openRecord(PRESCRIPTION);
+  act(() => window.history.back());
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(confirm).not.toHaveBeenCalled();
+  confirm.mockRestore();
+});
+
+test('closing without changes does not ask', async () => {
+  const confirm = jest.spyOn(window, 'confirm');
+  await openRecord(PRESCRIPTION);
+  fireEvent.click(within(modal()).getByRole('button', { name: /edit details/i }));
+  fireEvent.click(within(modal()).getByRole('button', { name: /^close$/i }));
+  expect(confirm).not.toHaveBeenCalled();
+  confirm.mockRestore();
+});
+
+test('a prescription with no medicines can have them read from its scanned text', async () => {
+  API.post.mockResolvedValue({ data: { record_id: 'r-presc', medicines_added: 1, fields_filled: [] } });
+  await openRecord({ ...PRESCRIPTION, medicines: [] });
+  fireEvent.click(within(modal()).getByRole('button', { name: /find medicines in scanned text/i }));
+  await waitFor(() => expect(API.post).toHaveBeenCalledWith('/profiles/p-alice/records/r-presc/reextract'));
+  expect(await screen.findByText(/found 1 medicine/i)).toBeInTheDocument();
+});

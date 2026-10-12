@@ -1,4 +1,4 @@
-import { validateFiles, describeRejections, MAX_FILE_BYTES, formatBytes } from './uploads';
+import { validateFiles, describeRejections, MAX_FILE_BYTES, MAX_FILES, formatBytes } from './uploads';
 
 const file = (name, type, size = 1024, lastModified = 1) => ({ name, type, size, lastModified });
 
@@ -74,4 +74,19 @@ test('sizes read the way a person expects', () => {
   expect(formatBytes(512)).toBe('512 B');
   expect(formatBytes(2048)).toBe('2 KB');
   expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB');
+});
+
+test('no more pages than the server accepts in one upload', () => {
+  const pages = Array.from({ length: MAX_FILES + 2 }, (_, i) => file('p' + i + '.jpg', 'image/jpeg', 1000 + i));
+  const { accepted, rejected } = validateFiles(pages);
+  expect(accepted).toHaveLength(MAX_FILES);
+  expect(rejected).toHaveLength(2);
+  expect(rejected[0].reason).toMatch(/up to 20 pages/);
+});
+
+test('pages already in the sheet count towards the limit', () => {
+  const existing = Array.from({ length: MAX_FILES - 1 }, (_, i) => file('e' + i + '.jpg', 'image/jpeg', 500 + i));
+  const { accepted, rejected } = validateFiles([file('a.jpg', 'image/jpeg', 1), file('b.jpg', 'image/jpeg', 2)], existing);
+  expect(accepted).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
 });

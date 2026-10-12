@@ -167,6 +167,10 @@ label.btn { cursor: pointer; }
 .field-inp:disabled { background: var(--fill); color: var(--ink-3); }
 .field-inp::placeholder { color: var(--ink-3); opacity: 0.85; }
 textarea.field-inp { resize: vertical; line-height: 1.5; }
+/* iOS gives date inputs a wide intrinsic size and centred text, which pushed
+   the field out of its card. */
+input[type=date].field-inp { display: block; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
+input[type=date].field-inp::-webkit-date-and-time-value { text-align: left; }
 .field-inp-inline { min-height: 40px; max-width: 240px; padding: 7px 10px; }
 .field-pair, .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .edit-grid .full { grid-column: 1 / -1; }
@@ -202,7 +206,9 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 .waking-banner { display: flex; align-items: center; gap: 10px; max-width: var(--measure); width: calc(100% - 32px); margin: 12px auto 0; padding: 10px 14px; border-radius: var(--r); background: var(--navy-50); color: var(--navy-800); font-size: 14px; }
 
 .page { flex: 1; width: 100%; max-width: var(--measure); margin: 0 auto; padding: 20px 16px calc(100px + env(safe-area-inset-bottom, 0)); outline: none; }
-.page > * { animation: rise 0.22s ease both; }
+/* backwards, not both: a finished animation must not leave a transform behind,
+   or fixed-position children would be laid out against it. */
+.page > * { animation: rise 0.22s ease backwards; }
 
 .tabbar { position: fixed; right: 0; bottom: 0; left: 0; z-index: 60; padding-bottom: env(safe-area-inset-bottom, 0); border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.95); backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px); }
 .tabbar-inner { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; max-width: 520px; height: 64px; margin: 0 auto; padding: 0 6px; }
@@ -367,19 +373,28 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 .ask-switch { min-height: 44px; margin-top: 18px; }
 
 /* ── Sheets and dialogs ───────────────────────────────────────────────── */
-.sheet-over, .overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 13, 41, 0.4); animation: fade 0.18s ease; }
+/* Sized to the part of the screen actually visible (see useVisibleViewport),
+   so nothing ends up behind Safari's toolbars or the keyboard. */
+.sheet-over, .overlay { position: fixed; inset: 0; top: var(--vvt, 0); bottom: auto; height: var(--vvh, 100dvh); z-index: 300; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 13, 41, 0.4); animation: fade 0.18s ease; }
 .overlay { z-index: 200; align-items: center; padding: 16px; }
 /* A confirm opened from inside a record sits above it; below the viewer (400) and toasts (500). */
 .confirm-over { z-index: 350; }
-.sheet { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 600px; max-height: 94vh; overflow-y: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom, 0); border-radius: 20px 20px 0 0; outline: none; background: var(--card); box-shadow: 0 -10px 40px rgba(0, 16, 48, 0.2); animation: sheetUp 0.32s var(--ease); }
+/* A sheet is a fixed header, a scrolling middle (.sheet-scroll) and a fixed
+   footer. The footer is a normal flex item, not sticky: a sticky footer
+   inside a padded scroll box stuck above the padding, and content showed
+   through underneath it. */
+.sheet { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 600px; max-height: calc(var(--vvh, 100dvh) - 24px); overflow: hidden; border-radius: 20px 20px 0 0; outline: none; background: var(--card); box-shadow: 0 -10px 40px rgba(0, 16, 48, 0.2); animation: sheetUp 0.32s var(--ease); }
+.sheet-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .sheet-grip { width: 36px; height: 5px; flex-shrink: 0; margin: 8px auto 0; border-radius: 3px; background: var(--line-strong); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 8px 0 20px; }
 .sheet-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.sheet-actions { position: sticky; bottom: 0; margin-top: 18px; padding: 12px 20px 16px; border-top: 1px solid var(--line); background: var(--card); }
-.switcher .sheet-actions { margin-top: 8px; }
+.sheet-actions { flex-shrink: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--line); background: var(--card); }
+.sheet-scroll > :last-child { margin-bottom: 18px; }
+.switcher-list { padding-bottom: 8px; }
 @media (min-width: 700px) {
   .sheet-over { align-items: center; padding: 24px; }
-  .sheet { max-height: 90vh; border-radius: 20px; animation: pop 0.24s var(--ease); }
+  .sheet { max-height: min(90vh, calc(var(--vvh, 100dvh) - 48px)); border-radius: 20px; animation: pop 0.24s var(--ease); }
+  .sheet-actions { padding-bottom: 14px; }
   .sheet-grip { display: none; }
   .sheet-head { padding-top: 16px; }
   .switcher { max-width: 420px; }
@@ -412,8 +427,10 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 
 /* A record */
 .record { max-width: 720px; background: var(--bg); }
-@media (max-width: 699px) { .sheet-over-full .sheet { height: 100%; max-height: 100%; border-radius: 0; } }
-.record-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; min-height: 56px; padding: max(6px, env(safe-area-inset-top, 0)) 14px 6px 6px; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.sheet-over-full { align-items: stretch; }
+@media (max-width: 699px) { .sheet-over-full .sheet { height: 100%; max-height: none; border-radius: 0; } }
+@media (min-width: 700px) { .sheet-over-full { align-items: center; } }
+.record-bar { flex-shrink: 0; display: flex; align-items: center; gap: 8px; min-height: 56px; padding: max(6px, env(safe-area-inset-top, 0)) 14px 6px 6px; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .record-bar-type { flex: 1; font-size: 15px; font-weight: 600; color: var(--ink-2); }
 .record-body { flex: 1; padding: 18px 16px 24px; }
 .record-pages { display: flex; gap: 10px; margin: 0 -16px 18px; padding: 2px 16px 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; }
@@ -427,7 +444,7 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 .record-section { margin-top: 20px; }
 .section-lbl { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; font-size: 15px; font-weight: 700; }
 .section-count { padding: 0 7px; border-radius: 10px; background: var(--line); font-size: 12px; font-weight: 600; line-height: 20px; color: var(--ink-2); }
-.record-actions { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.97); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.record-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.97); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 
 .dl { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
 .dl-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 12px 14px; }
@@ -471,6 +488,8 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 .history-old { color: var(--danger); text-decoration: line-through; overflow-wrap: anywhere; }
 .history-new { color: var(--success); overflow-wrap: anywhere; }
 
+.meds-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: var(--r-lg); background: var(--card); }
+.meds-empty p { font-size: 14px; color: var(--ink-3); }
 .med-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
 .med-form .field-lbl { display: block; margin-bottom: 6px; }
 .med-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -503,11 +522,12 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 @media (min-width: 960px) { .toast { bottom: 28px; } }
 
 /* ── Document viewer ──────────────────────────────────────────────────── */
-.gal { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.94); animation: fade 0.18s ease; }
+.gal { position: fixed; inset: 0; top: var(--vvt, 0); bottom: auto; height: var(--vvh, 100dvh); z-index: 400; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.94); animation: fade 0.18s ease; }
 .gal-box { display: flex; align-items: center; justify-content: center; outline: none; }
 /* touch-action:none so a pinch zooms the document, not the app. */
-.gal-frame { display: flex; align-items: center; justify-content: center; width: 94vw; height: 84vh; overflow: hidden; touch-action: none; }
-.gal-img { max-width: 94vw; max-height: 84vh; object-fit: contain; border-radius: 4px; user-select: none; -webkit-user-drag: none; will-change: transform; }
+/* The image fits the visible screen whatever its shape: contained, never cropped. */
+.gal-frame { display: flex; align-items: center; justify-content: center; width: 94vw; height: calc(var(--vvh, 100dvh) - 150px); overflow: hidden; touch-action: none; }
+.gal-img { width: auto; height: auto; max-width: 94vw; max-height: calc(var(--vvh, 100dvh) - 150px); object-fit: contain; border-radius: 4px; user-select: none; -webkit-user-drag: none; will-change: transform; }
 .gal-img:not(.dragging) { transition: transform 0.15s ease-out; }
 .gal-top { position: fixed; top: calc(12px + env(safe-area-inset-top, 0)); right: 12px; z-index: 401; display: flex; gap: 10px; }
 .gal-icon-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.14); color: #fff; }
@@ -651,6 +671,12 @@ textarea.field-inp { resize: vertical; line-height: 1.5; }
 .fi { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--r); outline: none; background: var(--card); color: var(--ink); font-size: 16px; transition: border-color 0.15s, box-shadow 0.15s; }
 .fi:focus { border-color: var(--navy-700); box-shadow: var(--focus); }
 .fi::placeholder { color: var(--ink-3); opacity: 0.85; }
+/* Password with a show/hide eye: the button sits inside the field's right edge. */
+.pw-wrap { position: relative; }
+.pw-wrap .fi { padding-right: 52px; }
+.pw-toggle { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: var(--r); background: transparent; color: var(--ink-3); cursor: pointer; }
+.pw-toggle:hover { color: var(--ink); }
+.pw-toggle:focus-visible { outline: none; box-shadow: var(--focus); }
 .btn-auth { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; margin-top: 4px; border-radius: var(--r); background: var(--navy-800); color: #fff; font-size: 16px; font-weight: 600; }
 .btn-auth:hover { background: var(--navy-900); }
 .btn-auth:disabled { opacity: 0.5; }

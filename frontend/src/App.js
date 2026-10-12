@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
 import './index.css';
 import API, { setSessionExpiredHandler, setServerWakingHandler } from './api';
-import { buildDocGroups, isPending } from './utils/format';
-import { validateFiles, describeRejections } from './utils/uploads';
+import { buildDocGroups, isPending, timeOf } from './utils/format';
+import { validateFiles, describeRejections, uploadErrorMessage } from './utils/uploads';
+import useVisibleViewport from './hooks/useVisibleViewport';
 
 import AuthScreen from './components/auth/AuthScreen';
 import TopBar from './components/layout/TopBar';
@@ -24,17 +25,13 @@ export const AppContext = createContext(null);
 
 const POLL = 4000;
 
-// Server rejections are phrased for developers; say what the person can do.
-export const uploadErrorMessage = (e) => {
-  const status = e?.response?.status;
-  if (status === 429) return 'That is a lot of uploads at once. Try again in a minute.';
-  if (status === 413) return 'That file is too large to upload.';
-  if (!e?.response) {
-    // The request may well have reached the server. Uploads are recognised by
-    // their content, so sending the same file again cannot create a duplicate.
-    return 'We couldn’t confirm the upload. Check your connection and try again; the same document won’t be saved twice.';
-  }
-  return e.response.data?.detail || 'Upload failed. Please try again.';
+// Files plus any non-empty details, as one multipart request. Uploads can be
+// several large photos on mobile data, hence the long timeout.
+const postFiles = (url, files, details = {}, onUploadProgress) => {
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+  Object.entries(details).forEach(([k, v]) => { if (v) fd.append(k, v); });
+  return API.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 180000, onUploadProgress });
 };
 
 // The backend gives a background OCR job 10 minutes before declaring it failed.
@@ -85,6 +82,12 @@ function MainApp({ onLogout }) {
   const openedRef = useRef({});
   // A record that was open when the page was reloaded, reopened once loaded.
   const pendingModalRef = useRef(window.history.state?.kind === 'modal' ? window.history.state.recordId : null);
+  // Set by the open record while it has unsaved edits: asked before Back
+  // (the phone's gesture included) is allowed to close it.
+  const leaveGuardRef = useRef(null);
+  // The history entry of the record that is open, if one is.
+  const openStateRef = useRef(window.history.state?.kind === 'modal' ? window.history.state : null);
+  const setLeaveGuard = useCallback((guard) => { leaveGuardRef.current = guard; }, []);
 
   useEffect(() => { navRef.current = nav; }, [nav]);
   useEffect(() => { recordsRef.current = records; }, [records]);
@@ -100,6 +103,7 @@ function MainApp({ onLogout }) {
   // must stay small and must never carry record data.
   const navigate = useCallback((page, params = {}) => {
     setSelRec(null);
+    openStateRef.current = null;
     setNav({ page, ...params });
     // Tapping the tab you are already on does not add a history step, so Back
     // never has to be pressed several times to get anywhere.
@@ -142,6 +146,7 @@ function MainApp({ onLogout }) {
     const modalState = { kind: 'modal', recordId: record.id, page, params };
     if (s && s.kind === 'modal') window.history.replaceState(modalState, '');
     else window.history.pushState(modalState, '');
+    openStateRef.current = modalState;
   }, []);
 
   const showRecord = useCallback((record) => {
@@ -154,8 +159,19 @@ function MainApp({ onLogout }) {
     if (!s || !s.kind) window.history.replaceState(pageState('home'), '');
     const onPopState = (e) => {
       const state = e.state;
+      const open = openStateRef.current;
+      const leavingRecord = open && !(state && state.kind === 'modal' && state.recordId === open.recordId);
+      if (leavingRecord && leaveGuardRef.current) {
+        if (!leaveGuardRef.current()) {
+          // Stay: put the record's history entry back, so the next Back asks again.
+          window.history.pushState(open, '');
+          return;
+        }
+        leaveGuardRef.current = null;
+      }
       if (!state) {
         setSelRec(null);
+        openStateRef.current = null;
         setNav({ page: 'home' });
         return;
       }
@@ -163,8 +179,10 @@ function MainApp({ onLogout }) {
       if (state.kind === 'modal') {
         const rec = recordsRef.current.find(r => r.id === state.recordId) || openedRef.current[state.recordId];
         setSelRec(rec || null);
+        openStateRef.current = rec ? state : null;
       } else {
         setSelRec(null);
+        openStateRef.current = null;
       }
     };
     window.addEventListener('popstate', onPopState);
@@ -178,7 +196,7 @@ function MainApp({ onLogout }) {
     API.get('/profiles/' + pid + '/records')
       .then(r => {
         if (activeProfileRef.current !== pid) return [];
-        const sorted = [...r.data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        const sorted = [...r.data].sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at));
         setRecords(sorted);
         setLoadError(false);
         setWaking(false);
@@ -187,7 +205,7 @@ function MainApp({ onLogout }) {
           const rec = sorted.find(x => x.id === pendingModalRef.current);
           pendingModalRef.current = null;
           if (rec) { openedRef.current[rec.id] = rec; setSelRec(rec); }
-          else window.history.replaceState(pageState(navRef.current.page), '');
+          else { openStateRef.current = null; window.history.replaceState(pageState(navRef.current.page), ''); }
         }
         return sorted;
       })
@@ -312,14 +330,7 @@ function MainApp({ onLogout }) {
   // These used to be sent in a second request after the upload, which the
   // background reader could overwrite, and which was lost if it failed.
   const sendUpload = useCallback(async (files, details, onProgress, profileId = sel?.id) => {
-    const fd = new FormData();
-    files.forEach(f => fd.append('files', f));
-    Object.entries(details).forEach(([k, v]) => { if (v) fd.append(k, v); });
-    const res = await API.post('/upload/' + profileId, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 180000,
-      onUploadProgress: onProgress,
-    });
+    const res = await postFiles('/upload/' + profileId, files, details, onProgress);
     pollCountRef.current = 0;
     if (profileId !== sel?.id) return res.data;  // saved to someone else's file
     const list = await loadRecs(profileId);
@@ -390,13 +401,8 @@ function MainApp({ onLogout }) {
     if (!accepted.length) return;
     uploadLockRef.current = true;
     setVisitUploading(true);
-    const fd = new FormData();
-    accepted.forEach(f => fd.append('files', f));
     try {
-      const res = await API.post('/profiles/' + sel.id + '/records/' + recordId + '/pages', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 180000,
-      });
+      const res = await postFiles('/profiles/' + sel.id + '/records/' + recordId + '/pages', accepted);
       pollCountRef.current = 0;
       await loadRecs(sel.id);
       showToast(res.data.duplicate ? 'Those pages are already saved.' : 'Added to this record. Reading the new page…');
@@ -460,6 +466,7 @@ function MainApp({ onLogout }) {
     openRecord,
     showRecord,
     retryRecord,
+    setLeaveGuard,
     showToast,
     showUpload,
     dismissedDupes,
@@ -526,6 +533,7 @@ function MainApp({ onLogout }) {
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
   const [expired, setExpired] = useState(false);
+  useVisibleViewport();
 
   // A token lasts a day. When it runs out, drop to the sign-in screen and say
   // why, rather than reloading the page and leaving the user to guess.

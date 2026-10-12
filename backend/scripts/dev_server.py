@@ -161,6 +161,57 @@ def seed():
         "document_category": "prescription",
     }, meds=[{"name": "SECRETMED 1MG"}], ocr="Should never leak")
 
+    if os.environ.get("MEDIVAULT_DEV_PHONE") == "1":
+        seed_phone_fixtures(add, asha, me)
+
+
+def _page(size, label):
+    """An invented document page of a given shape, as PNG bytes."""
+    import io
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", size, "white")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((8, 8, size[0] - 9, size[1] - 9), outline="navy", width=6)
+    for y in range(40, size[1] - 40, 60):
+        draw.text((40, y), f"{label} line {y // 60}", fill="black")
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
+
+
+def seed_phone_fixtures(add, profile_id, owner):
+    """Long, awkward documents for checking the phone layout (MEDIVAULT_DEV_PHONE=1).
+
+    Off by default so the end-to-end journeys see the seed they were written for.
+    All content is invented.
+    """
+    meds = [{"name": f"TESTMED {i} 10MG", "dosage": "10mg", "frequency": "1-0-1", "duration": "7 days"}
+            for i in range(1, 9)]
+    ocr = "\n".join(["Dr. Long Example", "Example Multispeciality Hospital"]
+                    + [f"Rx: {m['name']}" for m in meds]
+                    + [f"Note {i}: follow the advice written on this line of the prescription." for i in range(40)]
+                    + ["END OF SCANNED TEXT"])
+    rec = add(profile_id, owner, "done", {
+        "doctor_name": "Dr. Long Example", "hospital_name": "Example Multispeciality Hospital",
+        "document_date": "2026-09-01", "diagnosis": "Long prescription for layout checks",
+        "document_category": "prescription", "recommendations": "Review after a week. " * 8,
+    }, meds=meds, file_bytes=_page((900, 1300), "portrait"), ocr=ocr)
+    for n, (size, label) in enumerate([((1800, 1000), "landscape"), ((800, 4200), "long")], start=2):
+        path = f"{owner}/{profile_id}/seed-{len(DB.storage_objects)}.png"
+        DB.storage.from_("medical-records").upload(path, _page(size, label), {"content-type": "image/png"})
+        DB.table("record_files").insert({"record_id": rec["id"], "file_path": path, "file_url": "",
+                                         "page_number": n}).execute()
+    # A receipt that was filed under a doctor's visit: its title must not be the doctor.
+    add(profile_id, owner, "done", {
+        "document_type": "Other", "document_category": "bill", "hospital_name": "Example Food Court",
+        "doctor_name": "Dr. Long Example", "document_date": "2026-09-02", "bill_amount": 412.0,
+    }, file_bytes=_page((900, 1300), "receipt"), ocr="Example Food Court\nTotal: 412.00\nThank you")
+    # Medicines visible in the scanned text but never extracted.
+    add(profile_id, owner, "done", {
+        "doctor_name": "Dr. Long Example", "document_date": "2026-09-03", "document_category": "prescription",
+        "diagnosis": "Medicines only in the scanned text",
+    }, ocr="Dr. Long Example\nRx: TESTMED A 5MG | 5mg | 1-0-0 | 5 days\nRx: TESTMED B 20MG | 20mg | 0-0-1 | 10 days")
+
 
 if __name__ == "__main__":
     import uvicorn

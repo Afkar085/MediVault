@@ -18,8 +18,8 @@ Return ONLY a JSON object with these fields (use null if not found):
 {{
     "document_type": "Prescription or Lab Report or Medical Certificate or Discharge Summary or Other",
     "document_category": "prescription or lab_report or bill or discharge_summary or other",
-    "doctor_name": "name of doctor",
-    "hospital_name": "name of hospital or clinic",
+    "doctor_name": "name of the doctor, or null",
+    "hospital_name": "name of the hospital, clinic, lab, pharmacy or business that issued it",
     "document_date": "date in YYYY-MM-DD format or null",
     "specialty": "medical specialty",
     "diagnosis": "diagnosis or condition",
@@ -41,6 +41,18 @@ Rules for document_category:
 - If it's a bill, invoice, receipt with amounts: "bill"
 - If it's a discharge summary from hospital: "discharge_summary"
 - Otherwise: "other"
+
+Rules for doctor_name:
+- Only a person identified as a doctor (for example "Dr.", "MBBS", "MD", "Consultant", or a doctor's signature block).
+- Never a shop, restaurant, pharmacy, hospital or lab name. If no doctor is named, use null.
+
+Rules for medicines:
+- List every medicine written on the document, including brand names and abbreviations (e.g. "Azee 500mg BD x 5 days" gives name "Azee 500mg", frequency "BD", duration "5 days").
+- Copy dosage, frequency and duration only as written. If one is not written, use null. Never guess them.
+- Each entry is an object with name, dosage, frequency and duration.
+
+Rules for document_date:
+- The date printed or written on the document, converted to YYYY-MM-DD. If no date is written, use null. Never use today's date.
 
 Rules for bill_amount:
 - If this is a bill/invoice/receipt, extract the total amount as a number (no currency symbol)

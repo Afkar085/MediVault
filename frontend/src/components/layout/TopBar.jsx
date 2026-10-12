@@ -10,7 +10,7 @@ function MemberSwitcher({ profiles, sel, onPick, onManage, onClose }) {
     <Modal onClose={onClose} className="sheet-over" boxClassName="sheet switcher" label="Switch family member">
       <div className="sheet-grip" />
       <div className="sheet-head"><h2 className="sheet-title">Family</h2></div>
-      <ul className="switcher-list">
+      <ul className="switcher-list sheet-scroll">
         {profiles.map(p => (
           <li key={p.id}>
             <button className={'switcher-row' + (p.id === sel?.id ? ' on' : '')} onClick={() => onPick(p)}

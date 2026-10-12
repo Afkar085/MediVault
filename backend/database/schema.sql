@@ -104,3 +104,23 @@ LANGUAGE sql STABLE AS $$
     ORDER BY r.embedding <=> query_embedding
     LIMIT match_count;
 $$;
+
+-- ── Access rules ────────────────────────────────────────────────────────────
+-- The backend authenticates users itself and connects with the service_role
+-- key, which bypasses RLS. Everyone else (the public anon key, any signed-in
+-- Supabase user) is denied everything: RLS on with no policies, and the
+-- default grants revoked. Same as migrations 002, 004 and 006, so a fresh
+-- install is locked down from the start instead of after a later migration.
+ALTER TABLE public.users        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.records      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.medicines    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.record_edits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.record_files ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.users        FROM anon, authenticated;
+REVOKE ALL ON public.profiles     FROM anon, authenticated;
+REVOKE ALL ON public.records      FROM anon, authenticated;
+REVOKE ALL ON public.medicines    FROM anon, authenticated;
+REVOKE ALL ON public.record_edits FROM anon, authenticated;
+REVOKE ALL ON public.record_files FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.match_records(vector, uuid[], int, float) FROM PUBLIC, anon, authenticated;

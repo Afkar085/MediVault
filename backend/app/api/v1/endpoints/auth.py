@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core import login_guard
+from app.core.security import hash_password, verify_password, create_access_token, DUMMY_HASH
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.limiter import limiter
@@ -38,14 +39,24 @@ def register(request: Request, body: RegisterRequest):
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login(request: Request, body: LoginRequest):
-    result = supabase.table("users").select("*").eq("email", body.email).execute()
-    if not result.data:
+    wait = login_guard.seconds_locked(body.email)
+    if wait:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many wrong passwords for this account. Try again in a few minutes.",
+            headers={"Retry-After": str(wait)},
+        )
+
+    result = supabase.table("users").select("id, hashed_password").eq("email", body.email).execute()
+    user = result.data[0] if result.data else None
+    # An unknown email still costs one bcrypt check, so the response time does
+    # not reveal which addresses have an account.
+    ok = verify_password(body.password, user["hashed_password"] if user else DUMMY_HASH)
+    if not (user and ok):
+        login_guard.record_failure(body.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user = result.data[0]
-    if not verify_password(body.password, user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
+    login_guard.record_success(body.email)
     token = create_access_token(user["id"])
     return TokenResponse(access_token=token)
 

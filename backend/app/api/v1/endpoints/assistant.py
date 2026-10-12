@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_current_user
 from app.database import supabase
-from app.limiter import limiter
+from app.limiter import AI_QUESTIONS_PER_DAY, limiter
 from app.logger import logger
 from app.services import agent, rag
 from app.services.rag import CONTEXT_RECORD_LIMIT, NOT_IN_RECORDS, AnswerUnavailable
@@ -53,6 +53,7 @@ def _fallback(question: str, profiles: list) -> dict:
 
 @router.post("/ask")
 @limiter.limit("15/minute")
+@limiter.limit(AI_QUESTIONS_PER_DAY)
 def ask_family(request: Request, body: AskRequest, user_id: str = Depends(get_current_user)):
     question = body.question.strip()
     if not question:

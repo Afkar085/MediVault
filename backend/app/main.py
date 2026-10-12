@@ -1,9 +1,12 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.limiter import limiter
+from app.logger import logger
+from app.services.document_files import MAX_FILES, MAX_SIZE
 from app.api.v1.endpoints import assistant, auth, profile, records, search, upload
 
 app = FastAPI(
@@ -28,13 +31,33 @@ def parse_origins(raw: str) -> list[str]:
 
 allowed_origins = parse_origins(settings.ALLOWED_ORIGINS)
 
+# Production must run with DEBUG off (it publishes the API docs) and with the
+# real frontend origin only. Say so loudly at startup rather than silently.
+if settings.DEBUG:
+    logger.warning("DEBUG is on: API docs are public at /docs. Turn it off in production.")
+if "*" in allowed_origins:
+    logger.warning("ALLOWED_ORIGINS contains '*': any website may call this API from a browser.")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,  # JWT is in Authorization header, not a cookie
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Only what the frontend actually sends.
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# A request larger than the most an upload may be is refused before its body is
+# read. Uploads are checked file by file as well (services.document_files).
+MAX_REQUEST_BYTES = MAX_FILES * MAX_SIZE + 1024 * 1024
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > MAX_REQUEST_BYTES:
+        return JSONResponse({"detail": "That upload is too large."}, status_code=413)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -45,6 +68,10 @@ async def security_headers(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
     response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # Responses carry medical records: never keep them in a browser or proxy cache.
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 

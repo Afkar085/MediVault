@@ -21,9 +21,9 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    # Deliberately unconstrained: accounts created before the rule existed must
-    # still be able to sign in.
-    password: str
+    # No minimum: accounts created before the rule existed must still be able to
+    # sign in. The maximum only stops absurd payloads (bcrypt reads 72 bytes).
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class TokenResponse(BaseModel):
