@@ -578,7 +578,7 @@ input[type=date].field-inp::-webkit-date-and-time-value { text-align: left; }
 /* ── Summary (timeline) ───────────────────────────────────────────────── */
 .summary { margin-bottom: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
 .summary-head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px; font-weight: 600; color: var(--navy-800); text-align: left; }
-.summary-head span { flex: 1; }
+.summary-head .summary-title { flex: 1; }
 .summary-body { padding: 0 14px 12px; }
 .summary-list { padding-left: 18px; list-style: disc; }
 .summary-list li { margin-bottom: 8px; font-size: 15px; line-height: 1.55; }

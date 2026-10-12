@@ -140,3 +140,16 @@ describe('todayISO', () => {
     expect(todayISO()).toBe('2026-01-05');
   });
 });
+
+describe('doctorHospital', () => {
+  const { doctorHospital } = require('./format');
+  test('a bill filed under a doctor does not become their hospital', () => {
+    expect(doctorHospital([
+      { document_category: 'bill', hospital_name: 'Example Food Court' },
+      { document_category: 'prescription', hospital_name: 'City ENT Centre' },
+    ])).toBe('City ENT Centre');
+  });
+  test('only bills means no hospital rather than a wrong one', () => {
+    expect(doctorHospital([{ document_category: 'bill', hospital_name: 'Example Food Court' }])).toBe('');
+  });
+});

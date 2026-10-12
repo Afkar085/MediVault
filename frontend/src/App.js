@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
 import './index.css';
-import API, { setSessionExpiredHandler, setServerWakingHandler } from './api';
+import API, { setSessionExpiredHandler, setServerWakingHandler, setServerAwakeHandler } from './api';
 import { buildDocGroups, isPending, timeOf } from './utils/format';
 import { validateFiles, describeRejections, uploadErrorMessage } from './utils/uploads';
 import useVisibleViewport from './hooks/useVisibleViewport';
@@ -222,7 +222,8 @@ function MainApp({ onLogout }) {
   // wake. Say that, instead of letting it look like the app is broken.
   useEffect(() => {
     setServerWakingHandler(() => setWaking(true));
-    return () => setServerWakingHandler(() => {});
+    setServerAwakeHandler(() => setWaking(false));
+    return () => { setServerWakingHandler(() => {}); setServerAwakeHandler(() => {}); };
   }, []);
 
   useEffect(() => {

@@ -208,6 +208,14 @@ export const possibleDuplicates = (records, dismissed = []) => {
 };
 export const duplicateGroupId = group => group.map(r => r.id).sort().join(',');
 
+/**
+ * The hospital a doctor works at, from their own documents. A bill filed under
+ * a doctor's visit was issued by whoever sold something (a pharmacy, a
+ * canteen), so it says nothing about where the doctor practises.
+ */
+export const doctorHospital = records =>
+  (records || []).find(r => r.hospital_name && r.document_category !== 'bill')?.hospital_name || '';
+
 export const getRecordDate = r => r.document_date?.slice(0, 10) || r.created_at?.slice(0, 10) || null;
 
 export const getActivityLabel = r => {

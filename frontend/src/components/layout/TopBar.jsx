@@ -47,6 +47,12 @@ export default function TopBar() {
           <button className={'band-link' + (nav.page === 'search' ? ' on' : '')} onClick={() => navigate('search')} aria-label="Search the records">
             <Icon name="search" size={20} /> Search
           </button>
+          <button className={'band-link' + (nav.page === 'family' ? ' on' : '')} onClick={() => navigate('family')} aria-label="Family members">
+            <Icon name="group" size={20} /> Family
+          </button>
+          <button className={'band-link' + (nav.page === 'profile' ? ' on' : '')} onClick={() => navigate('profile')} aria-label="Your account and sign out">
+            <Icon name="person" size={20} /> Account
+          </button>
           <button className="band-add" onClick={() => showUpload()} aria-label="Add a document to the records">
             <Icon name="add" size={20} /> Add document
           </button>

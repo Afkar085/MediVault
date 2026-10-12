@@ -2,8 +2,7 @@ import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import {
   fmt, fmtRel, drN, drInitial, isPending, isFailed, needsReview,
-  uniqueMedicines, getRecordFiles, possibleDuplicates,
-} from '../../utils/format';
+  uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital } from '../../utils/format';
 import Icon from '../common/Icon';
 import Ledger, { typeName } from '../common/Ledger';
 import { EmptyState } from '../common/ui';
@@ -120,7 +119,7 @@ function Doctors({ docGroups, docNameMap, sortedDocs, navigate }) {
           const visits = docGroups[key] || [];
           const name = docNameMap[key] || key;
           const specialty = visits.find(v => v.specialty)?.specialty || '';
-          const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
+          const hospital = doctorHospital(visits);
           const lastVisit = visits.map(v => v.document_date).filter(Boolean).sort().pop();
           const open = () => navigate('doctor-detail', { doctorKey: key, doctorName: name, specialty, hospital });
           return (

@@ -19,7 +19,8 @@ function Summary({ sel }) {
     let cancelled = false;
     setLoading(true);
     setError(false);
-    API.get('/profiles/' + sel.id + '/health-journey')
+    // Writing the summary can take a while; that is not a sleeping server.
+    API.get('/profiles/' + sel.id + '/health-journey', { timeout: 90000 })
       .then(r => {
         if (cancelled) return;
         setLines((r.data.summary || '').split('\n').filter(l => l.trim()).map(l => l.replace(/^[-*•]\s*/, '').trim()));
@@ -33,7 +34,7 @@ function Summary({ sel }) {
     <div className={'summary' + (open ? ' open' : '')}>
       <button className="summary-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <Icon name="auto_awesome" size={20} />
-        <span>AI summary</span>
+        <span className="summary-title">AI summary</span>
         <Icon name={open ? 'expand_less' : 'expand_more'} size={22} />
       </button>
       {open && (

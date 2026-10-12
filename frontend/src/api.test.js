@@ -75,7 +75,7 @@ test('the original error still reaches the caller', async () => {
 
 // --- a sleeping free-tier backend -------------------------------------------
 
-import { setServerWakingHandler } from './api';
+import { setServerWakingHandler, setServerAwakeHandler } from './api';
 
 const timeoutError = (url, method = 'get') => ({
   config: { url, method },
@@ -127,4 +127,25 @@ test('a real server error is not mistaken for a cold start', async () => {
   await respond(500, '/profiles');
 
   expect(onWaking).not.toHaveBeenCalled();
+});
+
+// The banner used to stay up for good once any slow read (the AI summary) had
+// tripped it, because only reloading the record list cleared it.
+test('the waking banner clears once the wake-up retry is over, whatever its result', async () => {
+  const onWaking = jest.fn();
+  const onAwake = jest.fn();
+  setServerWakingHandler(onWaking);
+  setServerAwakeHandler(onAwake);
+
+  await rejectionHandler(timeoutError('/profiles/p1/health-journey')).catch(() => {});
+
+  expect(onWaking).toHaveBeenCalledTimes(1);
+  expect(onAwake).toHaveBeenCalled();
+});
+
+test('any answer from the server, even an error, clears the waking banner', async () => {
+  const onAwake = jest.fn();
+  setServerAwakeHandler(onAwake);
+  await respond(500, '/profiles');
+  expect(onAwake).toHaveBeenCalled();
 });

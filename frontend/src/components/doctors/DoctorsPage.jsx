@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { AppContext } from '../../App';
-import { drN, drInitial, fmt, fmtRel, getRecordDate } from '../../utils/format';
+import { drN, drInitial, fmt, fmtRel, getRecordDate, doctorHospital } from '../../utils/format';
 import Icon from '../common/Icon';
 import { PageHeader, EmptyState } from '../common/ui';
 import { clickable } from '../../utils/interaction';
@@ -25,7 +25,7 @@ export default function DoctorsPage() {
       doctorKey: key,
       doctorName: docNameMap[key],
       specialty: visits.find(v => v.specialty)?.specialty || '',
-      hospital: visits.find(v => v.hospital_name)?.hospital_name || '',
+      hospital: doctorHospital(visits),
     });
   };
 
@@ -47,7 +47,7 @@ export default function DoctorsPage() {
             const visits = docGroups[key] || [];
             const last = visits[0];
             const specialty = visits.find(v => v.specialty)?.specialty || '';
-            const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
+            const hospital = doctorHospital(visits);
             const displayName = docNameMap[key] || key;
             const unassigned = key === 'unassigned';
             const lastDate = last ? (fmt(getRecordDate(last)) || fmtRel(last.created_at)) : '';
