@@ -2,7 +2,7 @@
 import pytest
 
 from app.services import storage
-from app.api.v1.endpoints.upload import ALLOWED_TYPES, _EXTENSION_BY_TYPE
+from app.services.document_files import ALLOWED_TYPES, _EXTENSION_BY_TYPE
 
 
 class _Bucket:

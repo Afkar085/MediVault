@@ -26,7 +26,8 @@ from app.core.security import create_access_token, hash_password  # noqa: E402
 
 # Every module that bound `supabase` or a Groq client at import time.
 _DB_MODULES = [
-    "app.api.v1.endpoints.upload", "app.api.v1.endpoints.records", "app.api.v1.endpoints.search",
+    "app.api.v1.endpoints.upload", "app.services.document_files", "app.services.record_pipeline",
+    "app.api.v1.endpoints.records", "app.api.v1.endpoints.search",
     "app.api.v1.endpoints.auth", "app.api.v1.endpoints.profile", "app.api.v1.endpoints.assistant",
     "app.services.storage", "app.services.record_assembly", "app.services.passages",
     "app.services.retrieval", "app.services.agent_tools",
@@ -187,8 +188,8 @@ def test_adding_a_page_to_an_old_record_is_not_declared_stuck(env):
     env.db.table("records").update({"created_at": month_ago, "updated_at": month_ago}).eq("id", rid).execute()
 
     # Simulate the moment between "pages attached" and "pages read".
-    from app.api.v1.endpoints import upload as upload_endpoint
-    env.db.table("records").update({"status": "processing", "updated_at": upload_endpoint._now()}).eq("id", rid).execute()
+    from app.services.record_pipeline import now
+    env.db.table("records").update({"status": "processing", "updated_at": now()}).eq("id", rid).execute()
     statuses = env.client.get(f"/api/v1/profiles/{env.asha}/records/status", headers=env.auth).json()
     assert statuses[0]["status"] == "processing"           # not flipped to failed
 
@@ -334,18 +335,69 @@ def test_ask_distinguishes_no_match_from_a_failure(env, monkeypatch):
 def test_two_identical_uploads_racing_create_one_record_and_keep_the_file(env, monkeypatch):
     """Both requests pass the 'already saved?' check before either writes."""
     first = upload(env, env.asha, "rx_readable.png").json()
-    from app.api.v1.endpoints import upload as upload_endpoint
-    real = upload_endpoint._records_holding
+    from app.services import document_files
+    real = document_files.records_holding
     calls = {"n": 0}
 
     def racing(paths, profile_id):
         calls["n"] += 1
         return {} if calls["n"] == 1 else real(paths, profile_id)  # the first check misses
 
-    monkeypatch.setattr(upload_endpoint, "_records_holding", racing)
+    monkeypatch.setattr(document_files, "records_holding", racing)
     second = upload(env, env.asha, "rx_readable.png").json()
     assert second["duplicate"] is True and second["record_id"] == first["record_id"]
     assert len(records(env, env.asha)) == 1
     rec = records(env, env.asha)[0]
     assert rec["file_path"] in env.db.storage_objects   # the loser did not delete the winner's file
     assert rec["files"][0]["file_url"]
+
+
+# ── extraction gaps found on a real phone ──────────────────────────────────
+
+def _extract_returning(monkeypatch, data):
+    import app.services.ai_extractor as ai
+    monkeypatch.setattr(ai, "extract_medical_data", lambda text: data)
+
+
+def test_medicines_listed_as_plain_strings_are_kept(env, monkeypatch):
+    _extract_returning(monkeypatch, {"doctor_name": "Dr. Anusha Shetty",
+                                     "medicines": ["Azee 500mg BD x 5 days", "Yustile Forte OD", ""]})
+    rid = upload(env, env.asha, "rx_readable.png").json()["record_id"]
+    assert meds(env, rid) == ["Azee 500mg BD x 5 days", "Yustile Forte OD"]
+
+
+def test_a_bill_does_not_get_a_business_as_its_doctor(env, monkeypatch):
+    _extract_returning(monkeypatch, {"doctor_name": "Boda Sheera", "hospital_name": "Boda Sheera",
+                                     "document_category": "bill", "bill_amount": 40})
+    upload(env, env.asha, "bill_readable.png", document_category="bill")
+    rec = records(env, env.asha)[0]
+    assert rec["doctor_name"] is None
+    assert rec["hospital_name"] == "Boda Sheera"
+
+
+def test_a_real_doctor_on_a_bill_is_kept(env, monkeypatch):
+    _extract_returning(monkeypatch, {"doctor_name": "Dr. Kiran Rao", "document_category": "bill"})
+    upload(env, env.asha, "bill_readable.png", document_category="bill")
+    assert records(env, env.asha)[0]["doctor_name"] == "Dr. Kiran Rao"
+
+
+def test_reading_medicines_again_fills_the_gap_once(env, monkeypatch):
+    _extract_returning(monkeypatch, {"doctor_name": "Dr. Anusha Shetty", "medicines": []})
+    rid = upload(env, env.asha, "rx_readable.png").json()["record_id"]
+    assert meds(env, rid) == []
+
+    _extract_returning(monkeypatch, {"medicines": [{"name": "Azee 500mg", "frequency": "BD"}]})
+    url = f"/api/v1/profiles/{env.asha}/records/{rid}/reextract"
+    first = env.client.post(url, headers=env.auth).json()
+    second = env.client.post(url, headers=env.auth).json()
+    assert first["medicines_added"] == 1 and second["medicines_added"] == 0
+    assert meds(env, rid) == ["Azee 500mg"]
+    # Nothing it already had was overwritten.
+    assert records(env, env.asha)[0]["doctor_name"] == "Dr. Anusha Shetty"
+
+
+def test_reading_again_is_refused_for_another_account_and_for_unread_records(env):
+    rid = upload(env, env.asha, "unreadable.png").json()["record_id"]
+    url = f"/api/v1/profiles/{env.asha}/records/{rid}/reextract"
+    assert env.client.post(url, headers=env.other_auth).status_code == 404
+    assert env.client.post(url, headers=env.auth).status_code == 409

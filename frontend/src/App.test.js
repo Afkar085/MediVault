@@ -7,6 +7,7 @@ jest.mock('./api', () => ({
   __esModule: true,
   setSessionExpiredHandler: jest.fn(),
   setServerWakingHandler: jest.fn(),
+  setServerAwakeHandler: jest.fn(),
   default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
 

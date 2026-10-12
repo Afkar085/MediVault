@@ -70,6 +70,21 @@ UNIQUE = {"users": [("email",)], "document_passages": [("record_id", "chunk_inde
 TIMESTAMP_COLUMNS = {"created_at", "updated_at", "edited_at"}
 
 
+
+def _like_regex(pattern: str) -> str:
+    """Postgres LIKE: % and _ are wildcards, and a backslash makes the next character literal."""
+    out, i = [], 0
+    while i < len(pattern):
+        ch = pattern[i]
+        if ch == "\\" and i + 1 < len(pattern):
+            out.append(re.escape(pattern[i + 1]))
+            i += 2
+            continue
+        out.append(".*" if ch == "%" else "." if ch == "_" else re.escape(ch))
+        i += 1
+    return "^" + "".join(out) + "$"
+
+
 class FakeAPIError(Exception):
     """Mirrors postgrest.exceptions.APIError closely enough for `except Exception`."""
 
@@ -219,8 +234,7 @@ class _Query:
             elif kind == "in":
                 ok = cell is not None and str(cell) in {str(v) for v in value}
             elif kind == "ilike":
-                pattern = "^" + re.escape(str(value)).replace("%", ".*").replace("_", ".") + "$"
-                ok = cell is not None and re.match(pattern, str(cell), re.I | re.S) is not None
+                ok = cell is not None and re.match(_like_regex(str(value)), str(cell), re.I | re.S) is not None
             elif kind in ("gte", "lte", "lt", "gt"):
                 if cell is None:
                     ok = False

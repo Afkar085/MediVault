@@ -27,8 +27,10 @@ const REVIEW_TEXT = { date: 'date', doctor: 'doctor', amount: 'amount' };
  * It used to be four tabs, so checking a medicine against the photo meant
  * switching back and forth, and the history of edits was hidden behind one.
  */
+const DISCARD = 'Discard your unsaved changes?';
+
 export default function RecordModal({ record, onClose }) {
-  const { sel, setRecords, showToast, showRecord, retryRecord } = useContext(AppContext);
+  const { sel, setRecords, showToast, showRecord, retryRecord, setLeaveGuard } = useContext(AppContext);
   // A family-wide search result can belong to a member other than the selected
   // one, so trust the record rather than the current selection.
   const profileId = record.profile_id || sel?.id;
@@ -45,6 +47,7 @@ export default function RecordModal({ record, onClose }) {
   const [retrying, setRetrying] = useState(false);
   const [gal, setGal] = useState(null);
   const [form, setForm] = useState({});
+  const [initialForm, setInitialForm] = useState(null);
   // The full scanned text is large, so it is fetched when someone opens it.
   const [ocrOpen, setOcrOpen] = useState(false);
   const [ocr, setOcr] = useState(null);
@@ -82,7 +85,7 @@ export default function RecordModal({ record, onClose }) {
   }, [ocrOpen, ocr, profileId, record.id, record.raw_ocr_text]);
 
   const startEditing = () => {
-    setForm({
+    const values = {
       document_category: record.document_category || 'prescription',
       bill_category: record.bill_category || '',
       bill_title: record.bill_title || '',
@@ -94,8 +97,29 @@ export default function RecordModal({ record, onClose }) {
       diagnosis: record.diagnosis || '',
       recommendations: record.recommendations || '',
       bill_amount: record.bill_amount != null ? String(record.bill_amount) : '',
-    });
+    };
+    setForm(values);
+    setInitialForm(values);
     setEditing(true);
+  };
+
+  // Closing with unsaved edits asks first, so a stray tap on the backdrop or X
+  // cannot throw away a correction.
+  const dirty = editing && initialForm && JSON.stringify(form) !== JSON.stringify(initialForm);
+  // Back (including the phone's gesture) and closing the tab ask too, not only
+  // the close button: either used to drop unsaved edits without a word.
+  useEffect(() => {
+    if (!dirty) return undefined;
+    setLeaveGuard?.(() => window.confirm(DISCARD));
+    const onUnload = e => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onUnload);
+    return () => { setLeaveGuard?.(null); window.removeEventListener('beforeunload', onUnload); };
+  }, [dirty, setLeaveGuard]);
+
+  const requestClose = () => {
+    if (dirty && !window.confirm(DISCARD)) return;
+    setLeaveGuard?.(null);  // already asked: the Back this triggers must not ask again
+    onClose();
   };
 
   const applySaved = (saved) => {
@@ -169,19 +193,22 @@ export default function RecordModal({ record, onClose }) {
   const failed = record.status === 'failed';
   const missing = reviewReasons(record);
   const edited = new Set((hist || []).map(h => h.field_name));
-  const title = (isBill && record.bill_title) ? record.bill_title
+  // A bill is titled by what it is or who issued it, never by a doctor: a
+  // bill added from a visit carries that visit's doctor for grouping, and a
+  // restaurant receipt was being shown as "Dr. Patel".
+  const title = isBill ? (record.bill_title || record.hospital_name || 'Bill')
     : record.doctor_name ? drN(record.doctor_name) : record.hospital_name || typeName(record);
 
   return (
     <>
-      <Modal onClose={onClose} className="sheet-over sheet-over-full" boxClassName="sheet record" label={'Record: ' + title}>
+      <Modal onClose={requestClose} className="sheet-over sheet-over-full" boxClassName="sheet record" label={'Record: ' + title}>
         <div className="record-bar">
-          <button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={22} /></button>
+          <button className="icon-btn" onClick={requestClose} aria-label="Close"><Icon name="close" size={22} /></button>
           <span className="record-bar-type">{typeName(record)}</span>
           <StatusPill status={record.status} />
         </div>
 
-        <div className="record-body">
+        <div className="record-body sheet-scroll">
           {files.length > 0 ? (
             <div className="record-pages" aria-label="Pages of the original document">
               {files.map((f, i) => (
@@ -197,8 +224,8 @@ export default function RecordModal({ record, onClose }) {
 
           <h1 className="record-title">{title}</h1>
           <p className="record-sub">
-            {fmt(record.document_date) || 'No date on record'}
-            {record.hospital_name && record.doctor_name ? ' · ' + record.hospital_name : ''}
+            {fmt(record.document_date) || 'No date'}
+            {!isBill && record.hospital_name && record.doctor_name ? ' · ' + record.hospital_name : ''}
             {' · added '}{fmtRel(record.created_at)}
           </p>
 

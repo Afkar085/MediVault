@@ -67,3 +67,22 @@ Pull these from wherever you saved them when you first set up Railway (or from S
 
 - Removed `backend/backend/`, an unused, git-tracked duplicate of `profile.py` left over from an earlier mistake.
 - Removed `backend/requirements-prod.txt`, wasn't referenced by any build config and pulled in unused heavy deps (numpy, opencv).
+
+## Security settings that live in dashboards (check these once)
+
+Code can't set these, so they are listed here. None of them needs a code change.
+
+| Where | Setting | Why |
+|---|---|---|
+| Render → Environment | `DEBUG` = `false` (or unset) | With it on, `/docs` publishes the whole API. The server logs a warning at startup if it is on. |
+| Render → Environment | `ALLOWED_ORIGINS` = the exact Vercel URL, no `*` | Only your site may call the API from a browser. A `*` is logged as a warning at startup. |
+| Render → Environment | `JWT_SECRET` at least 32 random characters | Enforced: the server refuses to start with a shorter one. |
+| Groq console → Settings → Billing / Limits | Set a monthly spend limit | The app caps AI calls per account per day (uploads 200, questions 150, re-reads 100), but those counters reset when the server restarts. The hard cap on the bill is Groq's. |
+| Supabase → Storage → `medical-records` | Public bucket **off** | Documents are only ever served through short-lived signed links. |
+| Supabase → SQL editor | Run `database/migrations/006_lock_search_functions.sql` | Removes the public entry point to the two search functions. Safe to run twice; changes no data. |
+
+HTTPS is enforced by both hosts. The frontend's security headers (Content-Security-Policy and friends) are in [`frontend/vercel.json`](../frontend/vercel.json) and deploy with it. **If the API moves to a new URL, add it to `connect-src` there**, or the site will be blocked from calling it.
+
+### Rate limits behind Render's proxy
+
+Requests that carry a sign-in token are limited per account, so users never share a limit even if Render's proxy makes them all appear to come from one address. Sign-in itself is protected per account too: five wrong passwords lock that account's sign-in for 15 minutes, whatever address they come from. Only sign-up is limited by address.

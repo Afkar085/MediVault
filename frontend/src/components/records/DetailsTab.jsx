@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fmt, dateVal, cur } from '../../utils/format';
+import { fmt, dateVal, cur, todayISO } from '../../utils/format';
 
 // The two faces of the Details tab. Split out of RecordModal so the shell shows
 // all four tabs at a glance instead of 150 lines of one of them.
@@ -30,7 +30,7 @@ function QuickDate({ record, onCommit }) {
       className="field-inp field-inp-inline"
       aria-label="Date on the document"
       value={value}
-      max={new Date().toISOString().slice(0, 10)}
+      max={todayISO()}
       onChange={e => setValue(e.target.value)}
       onBlur={commit}
       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
@@ -119,7 +119,7 @@ export function DetailsForm({ record, form, setForm, formIsBill, formIsLab }) {
         </select>
       </Field>
       <Field label="Date">
-        <input className="field-inp" type="date" value={dateVal(form.document_date)} max={new Date().toISOString().slice(0, 10)} onChange={set('document_date')} />
+        <input className="field-inp" type="date" value={dateVal(form.document_date)} max={todayISO()} onChange={set('document_date')} />
       </Field>
       {formIsBill && (
         <Field label="Bill title" full>

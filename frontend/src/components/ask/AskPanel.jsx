@@ -126,6 +126,7 @@ export default function AskPanel() {
       >
         <input
           className="search-input ask-input"
+          maxLength={500}
           value={question}
           onChange={e => setQuestion(e.target.value)}
           placeholder={wholeFamily ? 'Ask about the family’s records…' : 'Ask about ' + (sel?.name || 'these') + '’s records…'}

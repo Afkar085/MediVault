@@ -22,7 +22,8 @@ def _records_mentioning(profile_ids, term):
     Postgres does the matching and returns ids only, so the document text never
     leaves the database.
     """
-    escaped = term.replace("%", r"%").replace("_", r"_")
+    # A literal %, _ or \ in the search is that character, not a wildcard.
+    escaped = term.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
     try:
         rows = (
             supabase.table("records")
@@ -125,7 +126,7 @@ def _hybrid_rank(records, q, q_lower, medicines_map, profiles_map, profile_ids, 
 
 @router.get("/search")
 def search_records(
-    q: Optional[str] = Query(None, description="Smart search query"),
+    q: Optional[str] = Query(None, max_length=200, description="Smart search query"),
     document_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     profile_id: Optional[str] = Query(None),

@@ -20,12 +20,16 @@ const CREDENTIAL_PATHS = ['/auth/login', '/auth/register'];
 
 let handleSessionExpired = () => {};
 let handleServerWaking = () => {};
+let handleServerAwake = () => {};
 
 /** Called when a signed-in request comes back 401, i.e. the token is no longer good. */
 export const setSessionExpiredHandler = (fn) => { handleSessionExpired = fn; };
 
 /** Called when a request is being retried because the server looks asleep. */
 export const setServerWakingHandler = (fn) => { handleServerWaking = fn; };
+
+/** Called when the server answers, or a wake-up retry is over either way. */
+export const setServerAwakeHandler = (fn) => { handleServerAwake = fn; };
 
 /** No response at all, and not because we gave up deliberately. */
 const looksLikeASleepingServer = (error) =>
@@ -40,10 +44,12 @@ API.interceptors.request.use((config) => {
 });
 
 API.interceptors.response.use(
-  (response) => response,
+  (response) => { handleServerAwake(); return response; },
   (error) => {
     const config = error.config || {};
     const url = config.url || '';
+    // Any answer at all, even an error, means the server is up.
+    if (error.response) handleServerAwake();
 
     if (error.response?.status === 401 && !CREDENTIAL_PATHS.some((p) => url.endsWith(p))) {
       localStorage.removeItem('token');
@@ -58,7 +64,9 @@ API.interceptors.response.use(
       config._retriedAfterColdStart = true;
       config.timeout = COLD_START_TIMEOUT;
       handleServerWaking();
-      return API(config);
+      // Whatever the retry's outcome, stop saying the server is waking: the
+      // screen that asked shows its own result or error.
+      return API(config).finally(() => handleServerAwake());
     }
 
     return Promise.reject(error);

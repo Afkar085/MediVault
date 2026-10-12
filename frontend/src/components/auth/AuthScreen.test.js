@@ -6,6 +6,7 @@ jest.mock('../../api', () => ({
   __esModule: true,
   setSessionExpiredHandler: jest.fn(),
   setServerWakingHandler: jest.fn(),
+  setServerAwakeHandler: jest.fn(),
   default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
 
@@ -119,4 +120,30 @@ test('an already-registered email points to signing in', async () => {
   fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
   expect(await screen.findByRole('alert')).toHaveTextContent(/already has an account/i);
+});
+
+test('the eye shows and hides the password, and is a labelled button', () => {
+  render(<App />);
+  const input = screen.getByLabelText('Password');
+  expect(input).toHaveAttribute('type', 'password');
+  const eye = screen.getByRole('button', { name: 'Show password' });
+  expect(eye).toHaveAttribute('type', 'button');  // never submits the form
+
+  fireEvent.click(eye);
+  expect(input).toHaveAttribute('type', 'text');
+  expect(screen.getByRole('button', { name: 'Hide password' })).toHaveAttribute('aria-pressed', 'true');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Hide password' }));
+  expect(input).toHaveAttribute('type', 'password');
+});
+
+test('a shown password is hidden again when the form is sent', async () => {
+  API.post.mockRejectedValue({ response: { status: 401, data: {} } });
+  render(<App />);
+  fill('Email', 'a@b.com');
+  fill('Password', 'wrong-password');
+  fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+  fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
+  expect(await screen.findByRole('alert')).toBeInTheDocument();
+  expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
 });

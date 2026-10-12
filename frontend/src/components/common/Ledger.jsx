@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon';
-import { drN, fmt, getRecordDate, getRecordFiles, isFailed, isPending, needsReview, catIcon } from '../../utils/format';
+import { drN, fmt, parseDate, getRecordDate, getRecordFiles, isFailed, isPending, needsReview, catIcon } from '../../utils/format';
 
 export const MARK = { prescription: 'Rx', lab_report: 'Lab', bill: 'Bill', discharge_summary: 'Discharge', other: 'Doc' };
 const TYPE_NAME = { prescription: 'Prescription', lab_report: 'Lab report', bill: 'Bill', discharge_summary: 'Discharge summary', other: 'Document' };
@@ -20,6 +20,9 @@ function subtitle(r) {
   if (r.document_category === 'bill') {
     return 'Bill' + (r.bill_amount != null ? ' · ₹' + Number(r.bill_amount).toLocaleString('en-IN') : '');
   }
+  // When the title is already just the type ("Document"), repeating it below
+  // says nothing; say what is missing instead.
+  if (recordTitle(r) === typeName(r)) return r.diagnosis || 'No details yet';
   return [typeName(r), r.diagnosis].filter(Boolean).join(' · ');
 }
 
@@ -59,7 +62,7 @@ export function LedgerRow({ r, onOpen, note, owner }) {
 
 const monthKey = r => (getRecordDate(r) || '').slice(0, 7) || 'undated';
 const monthLabel = key => key === 'undated' ? 'No date'
-  : new Date(key + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  : parseDate(key + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
 /** Records newest first, optionally under month headings, paged. */
 export default function Ledger({ records, onOpen, grouped = true, limit = PAGE, paged = true }) {

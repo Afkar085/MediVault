@@ -2,9 +2,10 @@
 //
 // The server enforces all of this again (it must, a client can lie), but
 // finding out that a 40MB photo is too big *after* uploading it over mobile
-// data is a bad way to learn. These limits mirror backend/app/api/v1/endpoints/upload.py.
+// data is a bad way to learn. These limits mirror backend/app/services/document_files.py.
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_FILES = 20;
 
 export const ACCEPTED_TYPES = {
   'image/jpeg': 'JPEG',
@@ -58,6 +59,10 @@ export function validateFiles(picked, existing = []) {
       rejected.push({ name: file.name, reason: 'already added' });
       continue;
     }
+    if (existing.length + accepted.length >= MAX_FILES) {
+      rejected.push({ name: file.name, reason: 'up to ' + MAX_FILES + ' pages can be added at once' });
+      continue;
+    }
     seen.add(key);
     accepted.push(file);
   }
@@ -71,3 +76,16 @@ export function describeRejections(rejected) {
   if (rejected.length === 1) return rejected[0].name + ': ' + rejected[0].reason;
   return rejected.length + ' files were skipped. ' + rejected[0].name + ': ' + rejected[0].reason;
 }
+
+// Server rejections are phrased for developers; say what the person can do.
+export const uploadErrorMessage = (e) => {
+  const status = e?.response?.status;
+  if (status === 429) return 'That is a lot of uploads at once. Try again in a minute.';
+  if (status === 413) return 'That file is too large to upload.';
+  if (!e?.response) {
+    // The request may well have reached the server. Uploads are recognised by
+    // their content, so sending the same file again cannot create a duplicate.
+    return 'We couldn’t confirm the upload. Check your connection and try again; the same document won’t be saved twice.';
+  }
+  return e.response.data?.detail || 'Upload failed. Please try again.';
+};

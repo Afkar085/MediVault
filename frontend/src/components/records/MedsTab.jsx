@@ -236,6 +236,26 @@ function MedicineFormPanel({ initial, onSave, onCancel, onDelete, busy }) {
 export default function MedsTab({ record, profileId, setRecords, showRecord, showToast }) {
   const [editIdx, setEditIdx] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [finding, setFinding] = useState(false);
+
+  // Read the medicines again from the text already scanned (no new upload).
+  // Only adds what is missing, so pressing it twice cannot duplicate anything.
+  const findMedicines = async () => {
+    setFinding(true);
+    try {
+      const r = await API.post('/profiles/' + profileId + '/records/' + record.id + '/reextract');
+      const fresh = await API.get('/profiles/' + profileId + '/records/' + record.id);
+      setRecords(prev => prev.map(x => x.id === record.id ? { ...x, ...fresh.data } : x));
+      showRecord(fresh.data);
+      showToast(r.data.medicines_added
+        ? 'Found ' + r.data.medicines_added + (r.data.medicines_added === 1 ? ' medicine' : ' medicines') + '. Check them against the page.'
+        : 'No medicines could be read from the text. Add them below.');
+    } catch (e) {
+      showToast(e?.response?.data?.detail || 'Couldn’t read the medicines right now.', 'error');
+    } finally {
+      setFinding(false);
+    }
+  };
   const meds = record.medicines || [];
   const editable = record.status === 'done';
 
@@ -292,9 +312,13 @@ export default function MedsTab({ record, profileId, setRecords, showRecord, sho
   return (
     <div>
       {meds.length === 0 && (
-        <div className="muted-line center">
-          {editable ? 'No medicines were found on this document. Add them below if it lists any.'
-            : 'Medicines appear here once the document has been read.'}
+        <div className="meds-empty">
+          <p>{editable ? 'No medicines read yet.' : 'Medicines appear once the document is read.'}</p>
+          {editable && (
+            <button className="btn btn-secondary btn-sm" onClick={findMedicines} disabled={finding}>
+              {finding ? 'Reading…' : 'Find medicines in scanned text'}
+            </button>
+          )}
         </div>
       )}
 

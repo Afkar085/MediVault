@@ -63,7 +63,8 @@ def main():
 
     # The upload path is the real peak: MAX_SIZE per file, read concurrently,
     # each one base64-encoded for the vision API.
-    from app.api.v1.endpoints.upload import MAX_CONCURRENT_PAGES, MAX_SIZE
+    from app.services.document_files import MAX_SIZE
+    from app.services.record_pipeline import MAX_CONCURRENT_PAGES
     print(f"\n  worst case the API permits: {MAX_CONCURRENT_PAGES} pages x "
           f"{MAX_SIZE // 1024 // 1024}MB, each base64-encoded")
 

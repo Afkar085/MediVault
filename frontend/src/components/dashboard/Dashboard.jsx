@@ -2,8 +2,7 @@ import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import {
   fmt, fmtRel, drN, drInitial, isPending, isFailed, needsReview,
-  uniqueMedicines, getRecordFiles, possibleDuplicates,
-} from '../../utils/format';
+  uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital } from '../../utils/format';
 import Icon from '../common/Icon';
 import Ledger, { typeName } from '../common/Ledger';
 import { EmptyState } from '../common/ui';
@@ -120,7 +119,7 @@ function Doctors({ docGroups, docNameMap, sortedDocs, navigate }) {
           const visits = docGroups[key] || [];
           const name = docNameMap[key] || key;
           const specialty = visits.find(v => v.specialty)?.specialty || '';
-          const hospital = visits.find(v => v.hospital_name)?.hospital_name || '';
+          const hospital = doctorHospital(visits);
           const lastVisit = visits.map(v => v.document_date).filter(Boolean).sort().pop();
           const open = () => navigate('doctor-detail', { doctorKey: key, doctorName: name, specialty, hospital });
           return (
@@ -129,7 +128,7 @@ function Doctors({ docGroups, docNameMap, sortedDocs, navigate }) {
                 <span className="avatar">{drInitial(name)}</span>
                 <span className="person-body">
                   <b>{drN(name)}</b>
-                  <small>{[specialty, hospital].filter(Boolean).join(' · ') || (lastVisit ? 'Last visit ' + fmt(lastVisit) : 'No visit date')}</small>
+                  <small>{[specialty, hospital].filter(Boolean).join(' · ') || (fmt(lastVisit) ? 'Last visit ' + fmt(lastVisit) : 'No visit date')}</small>
                 </span>
                 <span className="person-count" aria-label={visits.length + ' records'}>{visits.length}</span>
                 <Icon name="chevron_right" size={20} />
@@ -177,14 +176,14 @@ export default function Dashboard() {
   }
 
   const saved = records.filter(r => !isFailed(r));
-  const last = saved.map(r => r.document_date).filter(Boolean).sort().pop();
+  const lastVisit = fmt(saved.map(r => r.document_date).filter(Boolean).sort().pop());
 
   return (
     <div className="home">
       <header className="hello">
         <h1>{greeting()}, {sel.name.split(' ')[0]}</h1>
         {saved.length > 0 && (
-          <p>{saved.length} {saved.length === 1 ? 'record' : 'records'}{last ? ' · last visit ' + fmt(last) : ''}</p>
+          <p>{saved.length} {saved.length === 1 ? 'record' : 'records'}{lastVisit ? ' · last visit ' + lastVisit : ''}</p>
         )}
       </header>
 

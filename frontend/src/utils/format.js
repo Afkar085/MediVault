@@ -1,11 +1,46 @@
 export const isNil = d => !d || d === 'null' || d === 'undefined';
 
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A Date from what the API sends, parsed the same way in every browser.
+ *
+ * It used to append "Z" to anything without a zone. Chrome accepts
+ * "2024-01-25Z"; iOS Safari does not, so on an iPhone every document date
+ * came back invalid: a record said "No date on record" while its edit form
+ * showed the date, and the dashboard printed "last visit null".
+ *
+ * A document date (YYYY-MM-DD) is a calendar day, not an instant, so it is
+ * built as a local date: no timezone can move it to the day before. Timestamps
+ * are stored in UTC without a zone, so they are read as UTC, normalised to a
+ * form Safari parses (a "T" separator, at most millisecond precision).
+ */
 export const parseDate = d => {
   if (isNil(d)) return null;
-  const s = String(d);
-  const dt = new Date(s.endsWith('Z') || s.includes('+') ? s : s + 'Z');
+  const s = String(d).trim();
+  const day = s.match(DATE_ONLY);
+  if (day) {
+    const dt = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  let iso = s.replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1');
+  if (!/(Z|[+-]\d{2}:?\d{2})$/.test(iso)) iso += 'Z';
+  const dt = new Date(iso);
   return isNaN(dt.getTime()) ? null : dt;
 };
+
+/**
+ * Today's date as YYYY-MM-DD in the person's own timezone: the latest date a
+ * document can carry. toISOString() is UTC, so in India until 05:30 it still
+ * said yesterday, and a document dated today could not be picked.
+ */
+export const todayISO = () => {
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+};
+
+/** Milliseconds for sorting; an unparseable value sorts as oldest instead of breaking the order. */
+export const timeOf = d => parseDate(d)?.getTime() || 0;
 
 export const fmt = d => {
   if (isNil(d)) return null;
@@ -74,11 +109,11 @@ export const buildDocGroups = records => {
     docGroups[key].push(r);
   });
   Object.values(docGroups).forEach(a =>
-    a.sort((a, b) => new Date(b.document_date || b.created_at) - new Date(a.document_date || a.created_at))
+    a.sort((a, b) => timeOf(b.document_date || b.created_at) - timeOf(a.document_date || a.created_at))
   );
   const sortedDocs = Object.keys(docGroups)
     .filter(k => k !== 'unassigned')
-    .sort((a, b) => new Date(docGroups[b][0].created_at) - new Date(docGroups[a][0].created_at));
+    .sort((a, b) => timeOf(docGroups[b][0].created_at) - timeOf(docGroups[a][0].created_at));
   if (docGroups['unassigned']) sortedDocs.push('unassigned');
   return { docGroups, docNameMap, sortedDocs };
 };
@@ -143,7 +178,9 @@ export const reviewReasons = r => {
   if (r.status !== 'done') return [];
   const reasons = [];
   if (!r.document_date) reasons.push('date');
-  if (r.document_category !== 'bill' && !r.doctor_name && !r.hospital_name) reasons.push('doctor');
+  // Only what the record cannot do without: a prescription is from someone;
+  // a lab report or general document may have neither, and that is fine.
+  if (r.document_category === 'prescription' && !r.doctor_name && !r.hospital_name) reasons.push('doctor');
   if (r.document_category === 'bill' && r.bill_amount == null) reasons.push('amount');
   return reasons;
 };
@@ -170,6 +207,14 @@ export const possibleDuplicates = (records, dismissed = []) => {
     .filter(g => !dismissed.includes(g.map(r => r.id).sort().join(',')));
 };
 export const duplicateGroupId = group => group.map(r => r.id).sort().join(',');
+
+/**
+ * The hospital a doctor works at, from their own documents. A bill filed under
+ * a doctor's visit was issued by whoever sold something (a pharmacy, a
+ * canteen), so it says nothing about where the doctor practises.
+ */
+export const doctorHospital = records =>
+  (records || []).find(r => r.hospital_name && r.document_category !== 'bill')?.hospital_name || '';
 
 export const getRecordDate = r => r.document_date?.slice(0, 10) || r.created_at?.slice(0, 10) || null;
 

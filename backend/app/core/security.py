@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import secrets
+
 import bcrypt
 from jose import JWTError, jwt
 from app.config import settings
@@ -16,6 +18,11 @@ def _to_bytes(password: str) -> bytes:
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(_to_bytes(password), bcrypt.gensalt()).decode("utf-8")
+
+
+# Checked against when the email is unknown, so that path takes as long as a
+# real one. Its password is random and discarded: nothing can match it.
+DUMMY_HASH = bcrypt.hashpw(secrets.token_bytes(16), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:

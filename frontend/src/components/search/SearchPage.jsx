@@ -165,6 +165,7 @@ export default function SearchPage() {
           <Icon name="search" size={20} />
           <input
             className="search-input"
+            maxLength={200}
             type="text"
             inputMode="search"
             placeholder="Doctor, medicine, diagnosis, hospital, year…"

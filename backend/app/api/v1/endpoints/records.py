@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.schemas.record import RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
@@ -9,7 +9,7 @@ from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
 from app.services.rag import CONTEXT_RECORD_LIMIT, AnswerUnavailable
 from app.services.storage import BUCKET
-from app.limiter import limiter
+from app.limiter import AI_QUESTIONS_PER_DAY, limiter
 from app.logger import logger
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -35,7 +35,8 @@ def _now() -> str:
 
 
 class AskRequest(BaseModel):
-    question: str
+    # Bounded: the question goes into a paid model prompt.
+    question: str = Field(min_length=1, max_length=500)
 
 
 # OCR runs as a background task, so a worker restart, redeploy or hung upstream
@@ -391,6 +392,7 @@ def get_bills(profile_id: str, user_id: str = Depends(get_current_user)):
 # Both of these call the LLM on every request.
 @router.get("/{profile_id}/health-journey")
 @limiter.limit("10/minute")
+@limiter.limit(AI_QUESTIONS_PER_DAY)
 def get_health_journey(request: Request, profile_id: str, user_id: str = Depends(get_current_user)):
     _assert_profile_owned(profile_id, user_id)
 
@@ -474,6 +476,7 @@ Return ONLY the bullet points, no intro or outro."""
 
 @router.post("/{profile_id}/ask")
 @limiter.limit("15/minute")
+@limiter.limit(AI_QUESTIONS_PER_DAY)
 def ask_records(request: Request, profile_id: str, body: AskRequest, user_id: str = Depends(get_current_user)):
     """Answer a question about this profile's records, grounded in them (RAG).
 

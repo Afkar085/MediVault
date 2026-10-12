@@ -59,6 +59,9 @@ describe('review and possible duplicates', () => {
     expect(reviewReasons(rec('a', { doctor_name: null, hospital_name: 'City Clinic' }))).toEqual([]);
     expect(reviewReasons(rec('a', { document_category: 'bill', bill_amount: null }))).toEqual(['amount']);
     expect(reviewReasons(rec('a', { status: 'failed', document_date: null }))).toEqual([]);
+    // Optional details are not 'missing': a lab report needs no doctor.
+    expect(reviewReasons(rec('a', { document_category: 'lab_report', doctor_name: null }))).toEqual([]);
+    expect(reviewReasons(rec('a', { document_category: 'other', doctor_name: null }))).toEqual([]);
   });
 
   test('the same document saved twice is found', () => {
@@ -75,5 +78,78 @@ describe('review and possible duplicates', () => {
   test('a pair someone kept is not raised again', () => {
     const pair = [rec('a'), rec('b')];
     expect(possibleDuplicates(pair, [duplicateGroupId(pair)])).toEqual([]);
+  });
+});
+
+describe('dates parse the same way in Safari as in Chrome', () => {
+  const { parseDate, fmt, timeOf } = require('./format');
+  const RealDate = Date;
+  // iOS Safari rejects strings Chrome tolerates. Emulate exactly those
+  // rejections, which is what made every date invalid on an iPhone.
+  class SafariDate extends RealDate {
+    constructor(...args) {
+      const s = args[0];
+      if (args.length === 1 && typeof s === 'string'
+        && (/^\d{4}-\d{2}-\d{2}Z$/.test(s) || / /.test(s) || /\.\d{4,}/.test(s))) {
+        super(NaN);
+        return;
+      }
+      super(...args);
+    }
+    static now() { return RealDate.now(); }
+  }
+  beforeAll(() => { global.Date = SafariDate; });
+  afterAll(() => { global.Date = RealDate; });
+
+  test('a document date is shown, not reported missing', () => {
+    expect(fmt('2024-01-25')).toBe('25 Jan 2024');
+  });
+
+  test('a document date is a calendar day and never shifts with the timezone', () => {
+    const d = parseDate('2024-01-25');
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2024, 0, 25]);
+  });
+
+  test('database timestamps with microseconds or a space still parse', () => {
+    expect(parseDate('2026-06-29T10:00:00.123456')).not.toBeNull();
+    expect(parseDate('2026-06-29 10:00:00')).not.toBeNull();
+    expect(parseDate('2026-06-29T10:00:00+00:00')).not.toBeNull();
+    expect(timeOf('2026-06-29T10:00:00.123456')).toBeGreaterThan(timeOf('2026-06-28T10:00:00'));
+  });
+
+  test('missing or invalid values never become the text "null"', () => {
+    expect(fmt(null)).toBeNull();
+    expect(fmt('not a date')).toBeNull();
+    expect(timeOf(undefined)).toBe(0);
+  });
+});
+
+describe('todayISO', () => {
+  const { todayISO } = require('./format');
+  afterEach(() => jest.useRealTimers());
+
+  test('is the local calendar day, not the UTC one', () => {
+    // 00:30 on 13 Oct in the local zone. In India that is still 12 Oct in UTC,
+    // which is what the date pickers used to cap at.
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 13, 0, 30));
+    expect(todayISO()).toBe('2026-10-13');
+  });
+
+  test('pads month and day', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 5, 12, 0));
+    expect(todayISO()).toBe('2026-01-05');
+  });
+});
+
+describe('doctorHospital', () => {
+  const { doctorHospital } = require('./format');
+  test('a bill filed under a doctor does not become their hospital', () => {
+    expect(doctorHospital([
+      { document_category: 'bill', hospital_name: 'Example Food Court' },
+      { document_category: 'prescription', hospital_name: 'City ENT Centre' },
+    ])).toBe('City ENT Centre');
+  });
+  test('only bills means no hospital rather than a wrong one', () => {
+    expect(doctorHospital([{ document_category: 'bill', hospital_name: 'Example Food Court' }])).toBe('');
   });
 });

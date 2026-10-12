@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import API from '../../api';
 import Logo from '../common/Logo';
+import Icon from '../common/Icon';
 
 // Mirrors backend/app/schemas/auth.py so the requirement is stated up front
 // rather than after a failed submit.
@@ -29,6 +30,7 @@ export default function AuthScreen({ onLogin, notice = '' }) {
   const [showHelp, setShowHelp] = useState(false);
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
   const [ld, setLd] = useState(false);
@@ -49,6 +51,7 @@ export default function AuthScreen({ onLogin, notice = '' }) {
 
     setLd(true);
     setErr('');
+    setShowPw(false);
     try {
       const r = await API.post('/auth/' + (isRegister ? 'register' : 'login'), {
         email: email.trim(),
@@ -138,17 +141,32 @@ export default function AuthScreen({ onLogin, notice = '' }) {
 
             <div className="fg">
               <label className="fl" htmlFor="auth-password">Password</label>
+              <div className="pw-wrap">
               <input
                 className="fi"
                 id="auth-password"
                 name="password"
-                type="password"
+                type={showPw ? 'text' : 'password'}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
                 autoComplete={isRegister ? 'new-password' : 'current-password'}
                 value={pw}
                 onChange={e => setPw(e.target.value)}
                 placeholder={isRegister ? `At least ${MIN_PASSWORD_LENGTH} characters` : 'Password'}
                 aria-describedby={isRegister ? 'auth-password-hint' : undefined}
               />
+              <button
+                type="button"
+                className="pw-toggle"
+                onClick={() => setShowPw(v => !v)}
+                aria-label={showPw ? 'Hide password' : 'Show password'}
+                aria-pressed={showPw}
+                aria-controls="auth-password"
+              >
+                <Icon name={showPw ? 'visibility_off' : 'visibility'} size={22} />
+              </button>
+              </div>
               {isRegister && (
                 <div className="fl-hint" id="auth-password-hint">
                   At least {MIN_PASSWORD_LENGTH} characters. Longer is better than complicated.

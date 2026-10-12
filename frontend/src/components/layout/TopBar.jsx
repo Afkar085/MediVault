@@ -10,7 +10,7 @@ function MemberSwitcher({ profiles, sel, onPick, onManage, onClose }) {
     <Modal onClose={onClose} className="sheet-over" boxClassName="sheet switcher" label="Switch family member">
       <div className="sheet-grip" />
       <div className="sheet-head"><h2 className="sheet-title">Family</h2></div>
-      <ul className="switcher-list">
+      <ul className="switcher-list sheet-scroll">
         {profiles.map(p => (
           <li key={p.id}>
             <button className={'switcher-row' + (p.id === sel?.id ? ' on' : '')} onClick={() => onPick(p)}
@@ -46,6 +46,12 @@ export default function TopBar() {
         <div className="band-actions">
           <button className={'band-link' + (nav.page === 'search' ? ' on' : '')} onClick={() => navigate('search')} aria-label="Search the records">
             <Icon name="search" size={20} /> Search
+          </button>
+          <button className={'band-link' + (nav.page === 'family' ? ' on' : '')} onClick={() => navigate('family')} aria-label="Family members">
+            <Icon name="group" size={20} /> Family
+          </button>
+          <button className={'band-link' + (nav.page === 'profile' ? ' on' : '')} onClick={() => navigate('profile')} aria-label="Your account and sign out">
+            <Icon name="person" size={20} /> Account
           </button>
           <button className="band-add" onClick={() => showUpload()} aria-label="Add a document to the records">
             <Icon name="add" size={20} /> Add document
