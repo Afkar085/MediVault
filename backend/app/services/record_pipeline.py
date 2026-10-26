@@ -261,6 +261,19 @@ def _refresh_embedding(record: dict, text: str, medicines: list) -> None:
         logger.warning("Embedding skipped for record %s: %s", record.get("id"), embed_err)
 
 
+def _index_for_search(record_id: str, record: dict, text: str, medicines: list) -> None:
+    """Make the record findable. Best-effort: never raises, and never changes
+    the record's status. Keyword search works without any of it."""
+    try:
+        _refresh_embedding(record, text, medicines)
+    except Exception as e:
+        logger.warning("Embedding skipped for record %s: %s", record_id, type(e).__name__)
+    try:
+        index_passages(record_id, text)
+    except Exception as e:
+        logger.warning("Passage index skipped for record %s: %s", record_id, type(e).__name__)
+
+
 def _extract(text: str) -> dict:
     # Looked up at call time, so the extractor can be swapped in tests.
     from app.services.ai_extractor import extract_medical_data
@@ -407,10 +420,6 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
             {**update_data, "status": "done", **_clear_reason(), "updated_at": now()}
         ).eq("id", record_id).execute()
 
-        _refresh_embedding({**merged, **update_data}, combined_text, data.get("medicines") or [])
-        index_passages(record_id, combined_text)
-        logger.info("Record %s read and filled in %.2fs", record_id, time.monotonic() - started)
-
     except Exception as e:
         # The reason is logged; the document text is not (it is medical data).
         logger.error(
@@ -420,6 +429,17 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
         # Only the status changes: if OCR succeeded and extraction failed, the
         # text we did get is still worth keeping. The original file is untouched.
         _mark_failed(record_id, failure_reason(e))
+        return
+
+    # Search indexing happens AFTER the record is finished, and outside the
+    # block that can fail it. These ran inside it, after "done" had already
+    # been written, so a hiccup building an embedding turned a complete,
+    # correctly read prescription into "couldn't be read". Both are
+    # best-effort by design: without them the record is still found by
+    # keyword search.
+    _index_for_search(record_id, {**merged, **update_data}, combined_text,
+                      data.get("medicines") or [])
+    logger.info("Record %s read and filled in %.2fs", record_id, time.monotonic() - started)
 
 
 def reextract(record: dict) -> dict:
@@ -450,6 +470,7 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
     never sees two overlapping copies of the same document.
     """
     had_text = False
+    finished = False
     try:
         results = read_pages(new_file_entries, content_types)
         new_texts = page_texts(results)
@@ -492,12 +513,18 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
         supabase.table("records").update(
             {**update_data, "status": "done", **_clear_reason(), "updated_at": now()}
         ).eq("id", record_id).execute()
+        finished = True
 
         meds_now = supabase.table("medicines").select("name").eq("record_id", record_id).execute().data or []
-        _refresh_embedding({**record, **update_data}, combined_text, meds_now)
-        index_passages(record_id, combined_text)
+        _index_for_search(record_id, {**record, **update_data}, combined_text, meds_now)
 
     except Exception as e:
+        if finished:
+            # The pages are merged and the record is complete; only the search
+            # index is missing. Downgrading it to "failed" here would hide a
+            # document that is perfectly readable.
+            logger.warning("Record %s finished but could not be indexed: %s", record_id, type(e).__name__)
+            return
         logger.error("Attaching pages to record %s failed: %s", record_id, type(e).__name__)
         # Back to what it was before the pages were added: readable if it had
         # text, failed if it never did.
