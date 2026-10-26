@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { attach, sleep } from './cdp.mjs';
 
 const ROOT = new URL('.', import.meta.url).pathname.replace(/^\//, '');
-const OUT = join(ROOT, 'frames');
+const STAGE = process.env.STAGE || 'stage.html';
+const OUT = join(ROOT, process.env.OUTDIR || 'frames');
 const FPS = Number(process.env.FPS || 30);
 const FROM = Number(process.env.FROM || 0);          // seconds, for spot checks
 const TO = Number(process.env.TO || 0);              // 0 = to the end
@@ -12,9 +13,10 @@ const TO = Number(process.env.TO || 0);              // 0 = to the end
 if (!process.env.KEEP) { rmSync(OUT, { recursive: true, force: true }); }
 mkdirSync(OUT, { recursive: true });
 
-const page = await attach({ url: 'http://127.0.0.1:7788/stage.html' });
+const url = 'http://127.0.0.1:7788/' + STAGE;
+const page = await attach({ url });
 await page.viewport(1920, 1080, 1);
-await page.go('http://127.0.0.1:7788/stage.html', 3000);
+await page.go(url, 3000);
 
 const total = await page.js(`await window.ready; return window.TOTAL`);
 console.log('timeline', (total / 1000).toFixed(2) + 's');

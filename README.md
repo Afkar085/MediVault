@@ -21,14 +21,30 @@
 
 ## Watch it work
 
-![Walkthrough of MediVault](docs/walkthrough.gif)
+The same walkthrough at both sizes. Every frame of the app in them is a real
+screenshot of it running — not a mockup, not a reconstruction.
 
-<sub>**[Full 77-second walkthrough &rarr; `docs/walkthrough.mp4`](docs/walkthrough.mp4)** &mdash; the whole
-story at 1080p: a handwritten prescription uploaded, read, and filed under the doctor who wrote
-it; the visit timeline; a second family member; search; and what happens when a page cannot be
-read. The GIF above is the condensed cut. Every frame of the product is a real screenshot of the
-app running against its own API &mdash; the records, dates and medicines in it came out of actual
-runs, not a mockup.</sub>
+### On a phone browser
+
+![MediVault walking through a prescription upload on a phone](docs/walkthrough-phone.gif)
+
+<sub>**[Full 76-second phone walkthrough &rarr; `docs/walkthrough-phone.mp4`](docs/walkthrough-phone.mp4)**
+&mdash; captured at 390&times;888 in a mobile browser, so it goes through the bottom tab bar, the
+raised add button and the bottom sheets the way a phone actually does.</sub>
+
+### On a desktop
+
+![MediVault walking through a prescription upload on a desktop](docs/walkthrough.gif)
+
+<sub>**[Full 77-second desktop walkthrough &rarr; `docs/walkthrough.mp4`](docs/walkthrough.mp4)**
+&mdash; the same story at 1360&times;850.</sub>
+
+Both run the same beats: a handwritten prescription uploaded, read, and filed under the
+doctor who wrote it; the record it produced, down to each medicine's dose and schedule;
+the visit timeline; a second family member with a separate history; search; and what
+happens when a page cannot be read. The records, dates, doctors and medicines on screen
+came out of actual runs. [`scripts/walkthrough/`](scripts/walkthrough) has the pipeline
+that produces them, so they can be rebuilt instead of going stale.
 
 ---
 
