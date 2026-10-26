@@ -401,3 +401,68 @@ def test_reading_again_is_refused_for_another_account_and_for_unread_records(env
     url = f"/api/v1/profiles/{env.asha}/records/{rid}/reextract"
     assert env.client.post(url, headers=env.other_auth).status_code == 404
     assert env.client.post(url, headers=env.auth).status_code == 409
+
+
+# ── a document that was read must not be failed by a later step ─────────────
+
+def test_a_failed_extraction_keeps_the_record_and_its_text(monkeypatch):
+    """Seen live: 358 characters of correct prescription text on a record the
+    app reported as "couldn't be read", because the extraction call errored."""
+    from app.services import record_pipeline as pipeline
+
+    writes = []
+
+    class _Q:
+        def __init__(self, table):
+            self.table = table
+            self._op = None
+            self._payload = None
+
+        def select(self, *_a, **_k):
+            self._op = "select"
+            return self
+
+        def insert(self, rows):
+            self._op, self._payload = "insert", rows
+            return self
+
+        def update(self, payload):
+            self._op, self._payload = "update", payload
+            return self
+
+        def delete(self):
+            self._op = "delete"
+            return self
+
+        def eq(self, *_a):
+            return self
+
+        def limit(self, _n):
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            if self._op == "update":
+                writes.append((self.table, self._payload))
+                return type("R", (), {"data": [{"id": "r-1"}]})()
+            if self.table == "records":
+                return type("R", (), {"data": [{"id": "r-1", "profile_id": "p-1"}]})()
+            return type("R", (), {"data": []})()
+
+    monkeypatch.setattr(pipeline, "supabase", type("S", (), {"table": staticmethod(_Q)})())
+    monkeypatch.setattr(pipeline, "read_pages",
+                        lambda *a, **k: [pipeline.PageResult("Dr Nambiar\nAzithromycin 500mg")])
+    monkeypatch.setattr(pipeline, "_extract", lambda _t: (_ for _ in ()).throw(RuntimeError("429")))
+    monkeypatch.setattr(pipeline, "_refresh_embedding", lambda *a, **k: None)
+    monkeypatch.setattr(pipeline, "index_passages", lambda *a, **k: None)
+    monkeypatch.setattr(pipeline, "_reason_column_exists", lambda: True)
+
+    pipeline.process_ocr("r-1", [{"file_path": "p1"}], ["image/jpeg"])
+
+    statuses = [p.get("status") for _t, p in writes if "status" in p]
+    assert "failed" not in statuses, writes
+    assert statuses[-1] == "done"
+    # The text it did read is stored, so search and Ask still work on it.
+    assert any("raw_ocr_text" in p for _t, p in writes)

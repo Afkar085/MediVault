@@ -1,11 +1,66 @@
 import json
 import logging
+import random
+import time
 from groq import Groq
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 client = Groq(api_key=settings.GROQ_API_KEY, timeout=90.0, max_retries=1)
+
+# Reading the document and understanding it are two separate model calls. The
+# second one failing used to mark the whole record unreadable, so a
+# prescription whose text had been read perfectly was shown as "couldn't be
+# read". A rate limit or a gateway error is waited out first; if it still will
+# not answer, the caller keeps the text and leaves the details blank.
+MAX_ATTEMPTS = 3
+BACKOFF_SECONDS = (1.5, 4.0)
+
+
+def _is_retryable(error: Exception) -> bool:
+    status = getattr(error, "status_code", None)
+    if status == 429 or (isinstance(status, int) and status >= 500):
+        return True
+    message = str(error).lower()
+    return any(w in message for w in ("timeout", "timed out", "connection", "temporarily"))
+
+
+def _ask(prompt: str):
+    """The model's reply, or None if it could not be obtained."""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        started = time.monotonic()
+        try:
+            return client.chat.completions.create(
+                model=settings.GROQ_TEXT_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                # gpt-oss-120b is a reasoning model: reasoning tokens count
+                # against the completion budget, so keep this generous enough
+                # to leave room for the actual JSON after internal reasoning.
+                max_tokens=3000,
+                # Guarantee the content channel is a JSON object (supported by
+                # both gpt-oss and qwen text models). The prompt asks for JSON.
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            took = time.monotonic() - started
+            if attempt < MAX_ATTEMPTS and _is_retryable(e):
+                delay = BACKOFF_SECONDS[min(attempt - 1, len(BACKOFF_SECONDS) - 1)]
+                delay += random.uniform(0, 0.5)
+                logger.info(
+                    "Extraction call failed (%s, attempt %d/%d, %.2fs); retrying in %.1fs",
+                    type(e).__name__, attempt, MAX_ATTEMPTS, took, delay,
+                )
+                time.sleep(delay)
+                continue
+            logger.warning(
+                "Extraction call failed after %d attempt(s), %.2fs: %s",
+                attempt, took, str(e)[:200],
+            )
+            return None
+    return None
+
 
 def extract_medical_data(ocr_text: str) -> dict:
     prompt = f"""
@@ -61,18 +116,9 @@ Rules for bill_amount:
 Return only the JSON, no explanation.
 """
 
-    response = client.chat.completions.create(
-        model=settings.GROQ_TEXT_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        # gpt-oss-120b is a reasoning model: reasoning tokens count against the
-        # completion budget, so keep this generous enough to leave room for the
-        # actual JSON after any internal reasoning.
-        max_tokens=3000,
-        # Guarantee the content channel is a JSON object (supported by both
-        # gpt-oss and qwen text models). The prompt already asks for JSON.
-        response_format={"type": "json_object"},
-    )
+    response = _ask(prompt)
+    if response is None:
+        return {}
 
     raw = (response.choices[0].message.content or "").strip()
     if not raw:

@@ -267,6 +267,24 @@ def _extract(text: str) -> dict:
     return extract_medical_data(text)
 
 
+def _extract_or_nothing(text: str) -> dict:
+    """The details the document gives up, or {} if the extractor would not.
+
+    Reading the document and understanding it are two steps against two
+    different models, and the second failing is no reason to throw the first
+    away. It used to be: an extraction error propagated, the whole record was
+    marked failed, and a prescription whose text had been read perfectly well
+    was shown as "couldn't be read". Now the text, which is what search and
+    Ask Your Records run on, is kept and the details are simply left blank for
+    the person to fill in.
+    """
+    try:
+        return _extract(text)
+    except Exception as e:
+        logger.warning("Extraction failed; keeping the document text: %s", type(e).__name__)
+        return {}
+
+
 # ── why a record failed ─────────────────────────────────────────────────────
 #
 # "failed" alone told the person their document could not be read, whatever had
@@ -350,8 +368,11 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
         }).eq("id", record_id).execute()
 
         extract_started = time.monotonic()
-        data = _extract(combined_text)
-        logger.info("Extraction took %.2fs", time.monotonic() - extract_started)
+        data = _extract_or_nothing(combined_text)
+        logger.info(
+            "Extraction took %.2fs (%s)", time.monotonic() - extract_started,
+            "filled" if data else "nothing read back",
+        )
 
         current = supabase.table("records").select(
             "id, profile_id, visit_group, bill_amount, " + ", ".join(EXTRACTED_FIELDS)
@@ -454,7 +475,7 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
         update_data = {"raw_ocr_text": combined_text}
 
         if added_text.strip():
-            data = _extract(added_text)
+            data = _extract_or_nothing(added_text)
 
             # Only FILL fields the record was missing (e.g. the first page was an
             # unreadable handwritten copy and the new one is a clear printout).

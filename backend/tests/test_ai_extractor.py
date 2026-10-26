@@ -1,6 +1,10 @@
 """Tests for the extraction JSON parsing (Groq client mocked, no network)."""
 from types import SimpleNamespace
+
+import pytest
+
 import app.services.ai_extractor as ai
+import app.services.ai_extractor as ai_extractor
 
 
 def _fake_response(content: str):
@@ -57,3 +61,69 @@ def test_a_null_content_channel_is_handled(mocker):
         return_value=_fake_response(None),
     )
     assert ai.extract_medical_data("some text") == {}
+
+
+# ── one failing step must not throw away the other ──────────────────────────
+#
+# Reading the document and understanding it are two calls against two models.
+# When the second failed, the exception propagated, the record was marked
+# failed, and a prescription whose text had been read perfectly well was shown
+# as "couldn't be read". Seen live: 358 characters of correct OCR text on a
+# record the app reported as unreadable.
+
+class _ApiError(Exception):
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+@pytest.fixture(autouse=True)
+def _no_waiting(monkeypatch):
+    monkeypatch.setattr(ai_extractor.time, "sleep", lambda _s: None)
+
+
+def test_a_rate_limited_extraction_is_waited_out(monkeypatch):
+    attempts = {"n": 0}
+
+    def create(**_kwargs):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise _ApiError("rate limit reached", 429)
+        return _fake_response('{"doctor_name": "Dr. Nambiar"}')
+
+    monkeypatch.setattr(ai_extractor.client.chat.completions, "create", create)
+    assert ai_extractor.extract_medical_data("some text")["doctor_name"] == "Dr. Nambiar"
+    assert attempts["n"] == 3
+
+
+def test_an_extraction_that_never_answers_gives_nothing_rather_than_raising(monkeypatch):
+    """The caller keeps the document text; the details are left blank."""
+    def create(**_kwargs):
+        raise _ApiError("service unavailable", 503)
+
+    monkeypatch.setattr(ai_extractor.client.chat.completions, "create", create)
+    assert ai_extractor.extract_medical_data("some text") == {}
+
+
+def test_extraction_retries_are_bounded(monkeypatch):
+    attempts = {"n": 0}
+
+    def create(**_kwargs):
+        attempts["n"] += 1
+        raise _ApiError("gateway timeout", 504)
+
+    monkeypatch.setattr(ai_extractor.client.chat.completions, "create", create)
+    ai_extractor.extract_medical_data("some text")
+    assert attempts["n"] == ai_extractor.MAX_ATTEMPTS
+
+
+def test_a_permanent_error_is_not_retried(monkeypatch):
+    attempts = {"n": 0}
+
+    def create(**_kwargs):
+        attempts["n"] += 1
+        raise _ApiError("invalid api key", 401)
+
+    monkeypatch.setattr(ai_extractor.client.chat.completions, "create", create)
+    assert ai_extractor.extract_medical_data("some text") == {}
+    assert attempts["n"] == 1
