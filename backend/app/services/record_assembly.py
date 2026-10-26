@@ -4,6 +4,8 @@ Shared by the records and search endpoints so both return the same shape, includ
 particular, both must hand out freshly signed document URLs rather than
 anything stored in the database.
 """
+from concurrent.futures import ThreadPoolExecutor
+
 from app.database import supabase
 from app.logger import logger
 from app.services.storage import signed_urls
@@ -47,6 +49,27 @@ def has_bill_columns() -> bool:
 
 def record_columns() -> str:
     return BASE_RECORD_COLUMNS + (", " + BILL_DETAIL_COLUMNS if has_bill_columns() else "")
+
+
+def attach_related(records: list) -> list:
+    """Attach medicines and pages, fetching both at the same time.
+
+    Each is a separate HTTPS round-trip to Supabase, and they do not depend on
+    each other, so waiting for the first before starting the second added a
+    whole round-trip to every records list and every search. Both still run on
+    the same records; the result is identical, it just arrives sooner.
+    """
+    if not records:
+        return records
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        medicines = pool.submit(attach_medicines, records)
+        files = pool.submit(attach_files, records)
+        # Both write into the same record dicts, under different keys. Results
+        # are read so that a failure in either is raised here, as it would be
+        # if they had run one after the other.
+        medicines.result()
+        files.result()
+    return records
 
 
 def attach_medicines(records: list) -> list:

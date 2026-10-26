@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import API from '../../api';
+import { saveSession } from '../../session';
 import Logo from '../common/Logo';
 import Icon from '../common/Icon';
 
@@ -58,7 +59,7 @@ export default function AuthScreen({ onLogin, notice = '' }) {
         password: pw,
         ...(isRegister ? { name: name.trim() } : {}),
       });
-      localStorage.setItem('token', r.data.access_token);
+      saveSession(r.data);
       onLogin();
     } catch (e2) {
       setErr(errorMessage(e2, mode));

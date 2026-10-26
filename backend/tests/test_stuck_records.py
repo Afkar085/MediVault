@@ -48,6 +48,15 @@ class _Supabase:
         return self.query
 
 
+# The sweep is throttled per profile (see SWEEP_INTERVAL_SECONDS), so without
+# this each test after the first would be silently skipped.
+@pytest.fixture(autouse=True)
+def _sweep_not_throttled():
+    records_endpoint._last_sweep.clear()
+    yield
+    records_endpoint._last_sweep.clear()
+
+
 @pytest.fixture
 def fake_supabase(monkeypatch):
     def install(**kwargs):
@@ -89,3 +98,32 @@ def test_only_records_older_than_the_timeout_are_touched(fake_supabase):
 def test_cleanup_failure_never_breaks_the_read(fake_supabase):
     fake_supabase(fail=True)
     _expire_stuck_processing("p-1")  # must not raise
+
+
+def test_the_sweep_is_not_repeated_on_every_poll(fake_supabase):
+    """The client polls every four seconds; a write that often, to notice
+    something that takes ten minutes to become true, was pure database load."""
+    fake = fake_supabase()
+    _expire_stuck_processing("p-1")
+    first = fake.query
+    _expire_stuck_processing("p-1")
+
+    assert fake.query is first  # the second call issued no query at all
+
+
+def test_each_member_is_swept_on_their_own_schedule(fake_supabase):
+    fake = fake_supabase()
+    _expire_stuck_processing("p-1")
+    first = fake.query
+    _expire_stuck_processing("p-2")
+
+    assert fake.query is not first
+
+
+def test_the_sweep_can_be_forced_when_it_matters(fake_supabase):
+    fake = fake_supabase()
+    _expire_stuck_processing("p-1")
+    first = fake.query
+    _expire_stuck_processing("p-1", force=True)
+
+    assert fake.query is not first

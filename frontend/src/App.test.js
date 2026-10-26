@@ -113,3 +113,53 @@ test('polling for a stuck upload stops instead of running for the whole session'
 
   jest.useRealTimers();
 });
+
+test('coming back to a member shows their records at once instead of a skeleton', async () => {
+  // Switching members used to blank the screen and reload from scratch every
+  // time, so going back and forth between two people meant watching the
+  // loading skeleton again for a list the app already had.
+  const bobRecords = deferred();
+  let bobRequests = 0;
+
+  API.get.mockImplementation((url) => {
+    if (url === '/profiles') return Promise.resolve({ data: [ALICE, BOB] });
+    if (url === '/profiles/p-alice/records') {
+      return Promise.resolve({ data: [record('r-alice', 'Alice Doc')] });
+    }
+    if (url === '/profiles/p-bob/records') {
+      bobRequests += 1;
+      return bobRequests === 1
+        ? Promise.resolve({ data: [record('r-bob', 'Bob Doc')] })
+        : bobRecords.promise;  // the second visit's refresh never lands
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  const switchTo = async (name) => {
+    userEvent.click(await screen.findByRole('button', { name: /switch family member/i }));
+    userEvent.click(await screen.findByRole('button', { name: new RegExp(`switch to ${name}'s records`, 'i') }));
+  };
+
+  render(<App />);
+  expect((await screen.findAllByText('Dr. Alice Doc')).length).toBeGreaterThan(0);
+
+  await switchTo('bob');
+  expect((await screen.findAllByText('Dr. Bob Doc')).length).toBeGreaterThan(0);
+
+  await switchTo('alice');
+  expect((await screen.findAllByText('Dr. Alice Doc')).length).toBeGreaterThan(0);
+
+  // Back to Bob with his refresh still in flight: his records are on screen
+  // straight away, and no skeleton is shown waiting for a list we have.
+  await switchTo('bob');
+  expect(screen.getAllByText('Dr. Bob Doc').length).toBeGreaterThan(0);
+  expect(screen.queryByLabelText(/loading records/i)).not.toBeInTheDocument();
+
+  // It is still refreshed in the background, so a change made elsewhere shows up.
+  expect(bobRequests).toBe(2);
+  await act(async () => {
+    bobRecords.resolve({ data: [record('r-bob2', 'Bob Doc Two')] });
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  expect(screen.getAllByText('Dr. Bob Doc Two').length).toBeGreaterThan(0);
+});

@@ -9,6 +9,19 @@ CREATE TABLE users (
     created_at       TIMESTAMP    NOT NULL DEFAULT now()
 );
 
+-- What keeps someone signed in after the access token expires. Only a hash of
+-- each token is stored; see backend/app/core/sessions.py and migration 007.
+CREATE TABLE refresh_tokens (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  TEXT        NOT NULL UNIQUE,
+    family_id   UUID        NOT NULL,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    used_at     TIMESTAMPTZ,
+    revoked_at  TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE profiles (
     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id       UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -71,6 +84,10 @@ CREATE TABLE record_files (
     created_at  TIMESTAMP    DEFAULT now()
 );
 
+CREATE INDEX idx_refresh_tokens_hash    ON refresh_tokens(token_hash);
+CREATE INDEX idx_refresh_tokens_user    ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_family  ON refresh_tokens(family_id);
+CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at);
 CREATE INDEX idx_profiles_user_id      ON profiles(user_id);
 CREATE INDEX idx_records_profile_id    ON records(profile_id);
 CREATE INDEX idx_records_status        ON records(status);
@@ -82,6 +99,12 @@ CREATE INDEX idx_medicines_record_id   ON medicines(record_id);
 CREATE INDEX idx_record_files_record   ON record_files(record_id);
 CREATE UNIQUE INDEX uq_record_files_file_path ON record_files(file_path);
 CREATE INDEX idx_records_profile_status_updated ON records(profile_id, status, updated_at);
+CREATE INDEX idx_records_profile_created ON records(profile_id, created_at DESC);
+CREATE INDEX idx_records_profile_category_date ON records(profile_id, document_category, document_date DESC);
+CREATE INDEX idx_record_edits_record ON record_edits(record_id, edited_at DESC);
+-- ILIKE '%term%' over document text needs trigrams; a btree cannot help.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_records_ocr_text_trgm ON records USING gin (raw_ocr_text gin_trgm_ops);
 
 -- Semantic search: 384-dim embedding (BAAI/bge-small-en-v1.5) + ANN index + RPC.
 ALTER TABLE records ADD COLUMN IF NOT EXISTS embedding vector(384);
@@ -111,13 +134,15 @@ $$;
 -- Supabase user) is denied everything: RLS on with no policies, and the
 -- default grants revoked. Same as migrations 002, 004 and 006, so a fresh
 -- install is locked down from the start instead of after a later migration.
-ALTER TABLE public.users        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refresh_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.records      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.medicines    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.record_edits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.record_files ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.users        FROM anon, authenticated;
+REVOKE ALL ON public.users          FROM anon, authenticated;
+REVOKE ALL ON public.refresh_tokens FROM anon, authenticated;
 REVOKE ALL ON public.profiles     FROM anon, authenticated;
 REVOKE ALL ON public.records      FROM anon, authenticated;
 REVOKE ALL ON public.medicines    FROM anon, authenticated;

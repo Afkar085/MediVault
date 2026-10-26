@@ -31,8 +31,8 @@ def verify_password(plain: str, hashed: str) -> bool:
     except (ValueError, TypeError):
         return False
 
-def create_access_token(user_id: str) -> str:
-    expire = datetime.utcnow() + timedelta(hours=settings.JWT_EXPIRE_HOURS)
+def create_access_token(user_id: str, hours: int | None = None) -> str:
+    expire = datetime.utcnow() + timedelta(hours=hours or settings.JWT_EXPIRE_HOURS)
     payload = {"sub": user_id, "exp": expire}
     return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
 

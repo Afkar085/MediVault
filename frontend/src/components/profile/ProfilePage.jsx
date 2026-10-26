@@ -1,5 +1,6 @@
 import { useContext, useState } from 'react';
 import { AppContext } from '../../App';
+import { endSessionOnServer } from '../../api';
 import Icon from '../common/Icon';
 import Modal from '../common/Modal';
 import { PageHeader } from '../common/ui';
@@ -20,9 +21,13 @@ export default function ProfilePage() {
     }
   };
 
+  // Clearing the tokens locally is not enough now that a refresh token can
+  // renew a session: the server is told to revoke it as well. Signing out
+  // never waits on that call, so a flaky connection cannot leave you stuck
+  // on a screen you asked to leave.
   const signOut = () => {
-    localStorage.removeItem('token');
     try { localStorage.removeItem('mv_member'); } catch (e) { /* storage unavailable */ }
+    endSessionOnServer();
     onLogout();
   };
 

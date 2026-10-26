@@ -38,7 +38,8 @@ async function openAsk(recordList = [RECORD]) {
   render(<App />);
   await act(async () => { await Promise.resolve(); });
   fireEvent.click(screen.getByRole('button', { name: /^Search$/ }));
-  fireEvent.click(screen.getByRole('tab', { name: /ask/i }));
+  // The search screen is code-split; its tabs appear a tick after the tap.
+  fireEvent.click(await screen.findByRole('tab', { name: /ask/i }));
 }
 
 beforeEach(() => {

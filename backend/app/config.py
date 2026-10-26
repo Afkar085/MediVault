@@ -11,7 +11,12 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_KEY: str
     JWT_SECRET: str
-    JWT_EXPIRE_HOURS: int = 24
+    # The access token is short-lived on purpose: a refresh token (see
+    # core/sessions.py) is what keeps someone signed in, and it can be revoked.
+    # Before refresh tokens existed this was 24h, which is both too long for a
+    # bearer token nothing can withdraw and too short to stay signed in.
+    JWT_EXPIRE_HOURS: int = 1
+    REFRESH_TOKEN_DAYS: int = 30
     GROQ_API_KEY: str
     GROQ_TEXT_MODEL: str = "openai/gpt-oss-120b"
     ALLOWED_ORIGINS: str = "http://localhost:3000"

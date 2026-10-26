@@ -30,7 +30,8 @@ async function openSearch() {
   render(<App />);
   await act(async () => { await Promise.resolve(); });
   fireEvent.click(screen.getByRole('button', { name: /^Search$/ }));
-  return screen.getByRole('textbox', { name: /search medical records/i });
+  // The search screen is code-split; its field appears a tick after the tap.
+  return screen.findByRole('textbox', { name: /search medical records/i });
 }
 
 beforeEach(() => {

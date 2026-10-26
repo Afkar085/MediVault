@@ -66,7 +66,7 @@ async function openRecord(record) {
   render(<App />);
   await act(async () => { await Promise.resolve(); });
   fireEvent.click(await screen.findByRole('button', { name: /^(prescription|bill),|^open the/i }));
-  return screen.getByRole('dialog');
+  return screen.findByRole('dialog');  // code-split: it arrives a tick later
 }
 
 const modal = () => screen.getByRole('dialog');
