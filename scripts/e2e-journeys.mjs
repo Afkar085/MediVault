@@ -155,7 +155,12 @@ await shot('01-file');
   const found = {};
   await js(`$$('.tab-i').find(b => /Search$/.test(b.textContent)).click(); await sleep(400);`);
   for (const [k, q] of [['doctor', 'Shetty'], ['medicine', 'montelukast'], ['diagnosis', 'rhinitis']]) {
-    found[k] = await js(`typeInto(document.querySelector('.search-input'), ${JSON.stringify(q)}); await sleep(900); return rows()`);
+    // Wait for the search to actually finish rather than for a fixed time: a
+    // 900ms sleep passed or failed depending on how busy the machine was.
+    found[k] = await js(`typeInto(document.querySelector('.search-input'), ${JSON.stringify(q)});
+      await sleep(400);
+      await until(() => !document.querySelector('.muted-line .spinner') && document.querySelector('.result-count, .empty'));
+      return rows()`);
   }
   check('10 search finds by doctor, medicine and diagnosis', ['doctor', 'medicine', 'diagnosis'].every(k => found[k].some(r => /Anil Shetty/.test(r))), JSON.stringify(found));
   await shot('10-search');

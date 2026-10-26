@@ -10,12 +10,24 @@ from app.limiter import limiter
 router = APIRouter()
 
 
+# Used only when there is no refresh token to renew the session with, which
+# means the session store is unavailable (most likely migration 007 has not
+# been applied yet). Falling back to the access token's old lifetime keeps
+# people signed in exactly as long as they were before, rather than cutting
+# their session to an hour because the half of the mechanism that renews it
+# is missing.
+LEGACY_ACCESS_TOKEN_HOURS = 24
+
+
 def _tokens(user_id: str, refresh_token: str | None = None) -> TokenResponse:
     """An access token plus the refresh token that will renew it."""
+    if refresh_token is None:
+        refresh_token = sessions.issue(user_id)
+    hours = settings.JWT_EXPIRE_HOURS if refresh_token else LEGACY_ACCESS_TOKEN_HOURS
     return TokenResponse(
-        access_token=create_access_token(user_id),
-        refresh_token=refresh_token if refresh_token is not None else sessions.issue(user_id),
-        expires_in=settings.JWT_EXPIRE_HOURS * 3600,
+        access_token=create_access_token(user_id, hours),
+        refresh_token=refresh_token,
+        expires_in=hours * 3600,
     )
 
 

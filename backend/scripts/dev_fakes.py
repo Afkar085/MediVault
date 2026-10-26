@@ -47,6 +47,10 @@ SCHEMA: Dict[str, List[str]] = {
     "record_edits": ["id", "record_id", "field_name", "old_value", "new_value", "edited_at"],
     "record_files": ["id", "record_id", "file_url", "file_path", "page_number", "created_at"],
     "document_passages": ["id", "record_id", "chunk_index", "content", "embedding", "created_at"],
+    "refresh_tokens": [
+        "id", "user_id", "token_hash", "family_id", "expires_at", "used_at", "revoked_at",
+        "created_at",
+    ],  # migration 007
 }
 
 DEFAULTS = {
@@ -62,10 +66,12 @@ FOREIGN_KEYS = {
     "record_edits": ("record_id", "records"),
     "record_files": ("record_id", "records"),
     "document_passages": ("record_id", "records"),
+    "refresh_tokens": ("user_id", "users"),
 }
 
 UNIQUE = {"users": [("email",)], "document_passages": [("record_id", "chunk_index")],
-          "record_files": [("file_path",)]}  # migration 005
+          "record_files": [("file_path",)],  # migration 005
+          "refresh_tokens": [("token_hash",)]}  # migration 007
 
 TIMESTAMP_COLUMNS = {"created_at", "updated_at", "edited_at"}
 
@@ -107,7 +113,7 @@ class FakeDB:
         self.storage_types: Dict[str, str] = {}
         self.base_url = "http://localhost:8787"
         # Counters a test or the dev console can read to check request volume.
-        self.stats = {"selects": 0, "vision_calls": 0, "text_calls": 0}
+        self.stats = {"selects": 0, "vision_calls": 0, "text_calls": 0, "signings": 0, "writes": 0}
 
     # -- integrity helpers --------------------------------------------------
 
@@ -319,6 +325,7 @@ class _Query:
                 return _Result(copy.deepcopy(created))
 
             if self.op == "update":
+                db.stats["writes"] += 1
                 db._check_columns(self.table, self.payload)
                 changed = []
                 for row in rows:
@@ -369,6 +376,9 @@ class _Storage:
         return [{"name": p} for p in removed]
 
     def _sign(self, path):
+        # Counted: against real Supabase each of these is an HTTPS round-trip,
+        # which is what the signed-URL cache in services/storage.py removes.
+        self.db.stats["signings"] += 1
         return f"{self.db.base_url}/__dev_storage/{path}?token={uuid.uuid4().hex[:12]}"
 
     def create_signed_url(self, path, expires_in):

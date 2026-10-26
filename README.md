@@ -219,16 +219,23 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 Point the frontend at `http://localhost:8000/api/v1` instead.
 
+The database needs `backend/database/schema.sql` for a new project, or every file in
+`backend/database/migrations/` in order for an existing one, run from the Supabase SQL
+editor. **Migration 007 is required**: it creates the `refresh_tokens` table that keeps
+people signed in. Until it is applied the app still works, but sessions fall back to a
+single 24-hour access token with no renewal, which is what they were before.
+
 ### Tests
 
 ```bash
-cd backend  && ruff check app tests && pytest -q                    # 261 tests
+cd backend  && ruff check app tests && pytest -q                    # 282 tests
 cd frontend && CI=true npm test -- --watchAll=false && CI=true npm run build
 ```
 
 Both run in CI on every push; the frontend build treats lint warnings as errors.
-`scripts/e2e-journeys.mjs` clicks through the 16 core journeys in headless Chrome against
-the dev stack.
+`scripts/e2e-journeys.mjs` clicks through the 17 core journeys in headless Chrome against
+the dev stack. `scripts/measure.py` reports what each hot request costs the server
+(queries, writes, signed-URL round-trips) against the same dev stack.
 
 ---
 
