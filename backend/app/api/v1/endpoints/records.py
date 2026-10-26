@@ -4,7 +4,9 @@ from app.schemas.record import RecordUpdate, RecordEditResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services import summary_cache
-from app.services.record_assembly import attach_files, attach_medicines, has_bill_columns, record_columns
+from app.services.record_assembly import (
+    attach_files, attach_medicines, attach_related, has_bill_columns, record_columns,
+)
 from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
 from app.services.rag import CONTEXT_RECORD_LIMIT, AnswerUnavailable
@@ -194,9 +196,7 @@ def get_records(
     if document_category:
         query = query.eq("document_category", document_category)
     result = query.execute()
-    records = attach_medicines(result.data)
-    records = attach_files(records)
-    return records
+    return attach_related(result.data)
 
 
 @router.get("/{profile_id}/records/status", response_model=None)
@@ -219,9 +219,7 @@ def get_record(profile_id: str, record_id: str, user_id: str = Depends(get_curre
     result = supabase.table("records").select(_detail_columns()).eq("id", record_id).eq("profile_id", profile_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Record not found")
-    records = attach_medicines(result.data)
-    records = attach_files(records)
-    return records[0]
+    return attach_related(result.data)[0]
 
 
 _BILL_DETAIL_FIELDS = ("bill_category", "bill_title", "bill_number")
@@ -294,9 +292,7 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
     result = supabase.table("records").select(_detail_columns()).eq("id", record_id).eq("profile_id", profile_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Record not found")
-    records = attach_medicines(result.data)
-    records = attach_files(records)
-    record = records[0]
+    record = attach_related(result.data)[0]
     if unsaved_fields:
         record["unsaved_fields"] = unsaved_fields
     return record
