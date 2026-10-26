@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MediVault — phone walkthrough stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+<style>
+  :root { --teal: #19c49a; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+  body { font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000d29; }
+
+  #bg {
+    position: absolute; inset: -10%;
+    background:
+      radial-gradient(55% 55% at 72% 18%, rgba(0,86,220,.40), transparent 70%),
+      radial-gradient(45% 45% at 18% 88%, rgba(25,196,154,.18), transparent 70%),
+      linear-gradient(155deg, #00112f 0%, #000d29 50%, #01061a 100%);
+  }
+  #grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(170,200,255,.085) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(78% 72% at 62% 45%, #000 32%, transparent 85%);
+  }
+  #vignette { position: absolute; inset: 0; background: radial-gradient(120% 100% at 55% 45%, transparent 46%, rgba(0,4,16,.74) 100%); }
+
+  /* ------------------------------------------------------------- phone */
+  #phoneWrap {
+    position: absolute; left: 1168px; top: 42px;
+    transform-origin: 50% 46%; will-change: transform, opacity, filter;
+  }
+  #phone {
+    padding: 13px; border-radius: 62px;
+    background: linear-gradient(150deg, #37425f 0%, #141c33 22%, #080e1d 55%, #2b3450 100%);
+    box-shadow:
+      0 60px 130px -24px rgba(0,0,0,.8),
+      0 0 0 1px rgba(170,200,255,.16),
+      0 0 110px -34px rgba(40,110,255,.55),
+      inset 0 1px 1px rgba(255,255,255,.22);
+  }
+  #phoneScreen {
+    position: relative; width: 390px; height: 888px;
+    border-radius: 50px; overflow: hidden; background: #f4f6fa;
+  }
+  /* side buttons */
+  .btn-side { position: absolute; width: 3px; border-radius: 3px; background: linear-gradient(#49547a, #1b2338); }
+  #status {
+    height: 44px; background: #001845; color: #fff;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px 0 28px; font-size: 14px; font-weight: 600; letter-spacing: .2px;
+  }
+  #camdot {
+    position: absolute; left: 50%; top: 13px; transform: translateX(-50%);
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #000; box-shadow: inset 0 0 0 1.5px #0b1430;
+  }
+  #bar {
+    height: 56px; background: #fff; border-bottom: 1px solid #e5e8ef;
+    display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  }
+  #urlpill {
+    flex: 1; height: 34px; border-radius: 17px; background: #eef1f6;
+    display: flex; align-items: center; gap: 7px; padding: 0 13px;
+    font-size: 12.5px; color: #5d667a; letter-spacing: .1px; overflow: hidden; white-space: nowrap;
+  }
+  #kebab { width: 20px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  #kebab i { width: 3.5px; height: 3.5px; border-radius: 50%; background: #5d667a; display: block; }
+  #screen { display: block; width: 390px; height: 788px; }
+
+  #overlay { position: absolute; left: 0; top: 100px; width: 390px; height: 788px; pointer-events: none; }
+  .ring {
+    position: absolute; border-radius: 16px;
+    box-shadow: 0 0 0 3px rgba(25,196,154,.95), 0 0 0 9px rgba(25,196,154,.2), 0 0 40px rgba(25,196,154,.45);
+    will-change: opacity;
+  }
+  .ringlbl {
+    position: absolute; transform: translateY(-100%);
+    background: var(--teal); color: #00231a; font-weight: 800; font-size: 12px;
+    letter-spacing: .2px; padding: 4px 9px; border-radius: 7px; white-space: nowrap;
+    box-shadow: 0 8px 20px rgba(0,0,0,.4);
+  }
+  /* a fingertip, not a mouse arrow */
+  #touch {
+    position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+    border-radius: 50%; background: rgba(255,255,255,.34);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 6px 18px rgba(0,0,0,.35);
+    backdrop-filter: blur(1px); will-change: transform, opacity;
+  }
+  #ripple {
+    position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+    border-radius: 50%; border: 3px solid rgba(25,196,154,.95); will-change: transform, opacity;
+  }
+
+  /* ------------------------------------------------------------ caption */
+  #cap { position: absolute; left: 128px; top: 430px; width: 940px; will-change: transform, opacity; }
+  #kicker { display: inline-flex; align-items: center; gap: 11px; font-size: 15px; font-weight: 700; letter-spacing: 2.8px; text-transform: uppercase; color: var(--teal); }
+  #kicker i { display: block; width: 28px; height: 2px; background: var(--teal); border-radius: 2px; }
+  #head { margin-top: 14px; font-size: 54px; line-height: 1.12; font-weight: 700; color: #fff; letter-spacing: -1.6px; }
+  #head b { color: var(--teal); font-weight: 700; }
+  #chip { position: absolute; left: 128px; top: 92px; display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #b9c9ef; }
+  #badge {
+    position: absolute; left: 128px; top: 140px; display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-radius: 999px; border: 1px solid rgba(160,190,255,.3);
+    background: rgba(10,26,64,.55); color: #cfdcff; font-size: 16px; font-weight: 600;
+  }
+  #prog { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--teal); width: 0; }
+
+  /* --------------------------------------------------------- title card */
+  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; will-change: opacity; }
+  #cardNum { font-size: 15px; font-weight: 800; letter-spacing: 5px; color: var(--teal); }
+  #cardTitle { margin-top: 18px; font-size: 88px; font-weight: 800; letter-spacing: -3.4px; color: #fff; line-height: 1.02; }
+  #cardSub { margin-top: 20px; font-size: 26px; font-weight: 400; color: #9fb2da; max-width: 1050px; }
+  #cardRule { margin-top: 34px; height: 3px; width: 0; background: var(--teal); border-radius: 3px; }
+  .mask { display: block; overflow: hidden; }
+  .mask > span { display: block; will-change: transform; }
+
+  /* ------------------------------------------------------------- outro */
+  #outro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #wordmark { display: flex; align-items: center; gap: 18px; }
+  #mkbox { width: 74px; height: 74px; border-radius: 20px; background: #fff; display: flex; align-items: center; justify-content: center; }
+  #mkbox svg { width: 42px; height: 42px; }
+  #mktext { font-size: 62px; font-weight: 800; letter-spacing: -2px; color: #fff; }
+  #mktext span { color: var(--teal); }
+  #outroSub { margin-top: 26px; font-size: 27px; color: #a6b7dc; }
+  #pills { margin-top: 44px; display: flex; gap: 14px; }
+  .pill { padding: 13px 22px; border-radius: 999px; font-size: 18px; font-weight: 600; color: #cfdcff; border: 1px solid rgba(160,190,255,.26); background: rgba(10,26,64,.6); will-change: transform, opacity; }
+  #links { margin-top: 52px; font-size: 20px; color: #8fa2cb; }
+  #links b { color: #fff; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <div id="grid"></div>
+
+  <div id="phoneWrap">
+    <div id="phone">
+      <div id="phoneScreen">
+        <div id="status">
+          <span>9:41</span>
+          <span id="camdot"></span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <svg width="17" height="12" viewBox="0 0 17 12" fill="#fff"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.4" y="5.6" width="3" height="6.4" rx="1"/><rect x="8.8" y="3" width="3" height="9" rx="1"/><rect x="13.2" y="0" width="3" height="12" rx="1" opacity=".45"/></svg>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"><path d="M1 4.2a10 10 0 0 1 14 0"/><path d="M3.6 7a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="10" r="1.1" fill="#fff" stroke="none"/></svg>
+            <svg width="24" height="12" viewBox="0 0 24 12" fill="none"><rect x=".8" y="1.2" width="19" height="9.6" rx="3" stroke="#fff" stroke-opacity=".6" stroke-width="1.3"/><rect x="2.4" y="2.8" width="13.6" height="6.4" rx="1.8" fill="#fff"/><path d="M21.4 4.4v3.2a2.4 2.4 0 0 0 0-3.2z" fill="#fff" fill-opacity=".6"/></svg>
+          </span>
+        </div>
+        <div id="bar">
+          <div id="urlpill">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7f8ba3" stroke-width="2.6"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            medi-vault-silk-five.vercel.app
+          </div>
+          <div id="kebab"><i></i><i></i><i></i></div>
+        </div>
+        <img id="screen" alt="" />
+        <div id="overlay"></div>
+      </div>
+      <span class="btn-side" style="left:-3px;top:150px;height:34px"></span>
+      <span class="btn-side" style="left:-3px;top:210px;height:62px"></span>
+      <span class="btn-side" style="left:-3px;top:288px;height:62px"></span>
+      <span class="btn-side" style="right:-3px;top:230px;height:96px"></span>
+    </div>
+  </div>
+
+  <div id="chip"></div>
+  <div id="badge">
+    <svg width="17" height="25" viewBox="0 0 24 34" fill="none" stroke="#19c49a" stroke-width="2.2">
+      <rect x="1.5" y="1.5" width="21" height="31" rx="4.5"/><path d="M9.5 28.5h5"/>
+    </svg>
+    On a phone browser — no app to install
+  </div>
+
+  <div id="cap">
+    <div id="kicker"><i></i><span id="kickerText"></span></div>
+    <div class="mask"><span><div id="head"></div></span></div>
+  </div>
+
+  <div id="card">
+    <div id="cardNum"></div>
+    <div class="mask"><span id="cardTitleWrap"><div id="cardTitle"></div></span></div>
+    <div id="cardSub"></div>
+    <div id="cardRule"></div>
+  </div>
+
+  <div id="outro">
+    <div id="wordmark">
+      <div id="mkbox"><svg viewBox="0 0 24 24" fill="none" stroke="#00236f" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+      <div id="mktext">Medi<span>Vault</span></div>
+    </div>
+    <div id="outroSub"></div>
+    <div id="pills"></div>
+    <div id="links"></div>
+  </div>
+
+  <div id="vignette"></div>
+  <div id="prog"></div>
+</div>
+
+<script type="module">
+const manifest = await (await fetch('./capture-phone/manifest.json')).json();
+const SCENES = Object.fromEntries(manifest.scenes.map(s => [s.id, s]));
+
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const outCubic = t => 1 - Math.pow(1 - t, 3);
+const outQuint = t => 1 - Math.pow(1 - t, 5);
+const inOutCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const outBack = t => 1 + 2.2 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+
+const EDIT = [
+  { type: 'card', dur: 3600, num: 'ON A PHONE', title: 'MediVault',
+    sub: 'The same vault, in the browser you already have open — nothing to install.' },
+
+  { type: 'scene', id: 'home', in: 0, out: 9241, speed: 1.2, chapter: '01 — The vault',
+    beats: [
+      { t: 0, kicker: 'One home screen', head: 'Everything on file for one person, thumb-first.' },
+      { t: 2800, kicker: 'Counted, not guessed', head: 'Doctors, prescriptions, lab reports, bills, medicines.' },
+      { t: 5400, kicker: 'Most recent first', head: 'Each record says who wrote it and what it was for.' },
+    ],
+    rings: [{ mark: 'stats', label: 'From the records themselves', hold: 2300 },
+            { mark: 'recent', label: 'The latest five', hold: 2200 }] },
+
+  { type: 'card', dur: 1700, num: '01', title: 'Photograph the page',
+    sub: 'The raised button in the tab bar, then the camera. That is the whole flow.' },
+
+  { type: 'scene', id: 'upload', in: 300, out: 10768, speed: 1.35, chapter: '02 — Adding a page',
+    beats: [
+      { t: 0, kicker: 'One bottom sheet', head: 'Who it is for, what kind of page, the page itself.' },
+      { t: 3600, kicker: 'Any photo or PDF', head: 'Printed or handwritten — straight from the camera roll.' },
+      { t: 7000, kicker: 'Nothing to type', head: 'Date and doctor are optional. <b>It reads them off the page.</b>' },
+    ] },
+
+  { type: 'scene', id: 'read', in: 0, out: 13328, speed: 1.7, chapter: '03 — It reads the page',
+    beats: [
+      { t: 0, kicker: 'Uploading', head: 'Checked on the phone before a byte leaves it.' },
+      { t: 3000, kicker: 'Reading', head: 'A vision model transcribes the page; a language model structures it.' },
+      { t: 8600, kicker: 'Done', head: 'A new record, filed under the doctor who wrote it.' },
+    ],
+    rings: [{ mark: 'newrow', label: 'Extracted from the photo', hold: 3000 }] },
+
+  { type: 'card', dur: 1700, num: '02', title: 'What it pulled out',
+    sub: 'Doctor, hospital, specialty, diagnosis — and every medicine, with its dose.' },
+
+  { type: 'scene', id: 'record', in: 0, out: 11531, speed: 1.45, chapter: '04 — The record',
+    beats: [
+      { t: 0, kicker: 'Structured, not a blob', head: 'Doctor, hospital, specialty, diagnosis — each in its own field.' },
+      { t: 5200, kicker: 'Medicines', head: 'Name, dose, when to take it, how long for.' },
+      { t: 8800, kicker: 'Always reversible', head: 'The scanned text is kept, and every edit is recorded.' },
+    ],
+    rings: [{ mark: 'details', label: 'Read off the page', hold: 2600 }] },
+
+  { type: 'scene', id: 'timeline', in: 0, out: 10350, speed: 1.3, chapter: '05 — One timeline',
+    beats: [
+      { t: 0, kicker: 'Grouped by visit', head: 'Prescription, lab report and bill from one visit stay together.' },
+      { t: 3800, kicker: 'Month by month', head: 'The whole history, newest first — nothing to file by hand.' },
+      { t: 7200, kicker: 'Summarised', head: 'An AI summary on top, the records underneath it.' },
+    ] },
+
+  { type: 'scene', id: 'family', in: 0, out: 10738, speed: 1.35, chapter: '06 — The whole family',
+    beats: [
+      { t: 0, kicker: 'One account', head: 'Switch person from the chip in the top bar.' },
+      { t: 4000, kicker: 'Separate histories', head: 'Each person keeps their own timeline, doctors and medicines.' },
+      { t: 7400, kicker: 'Never mixed up', head: 'Records are never shown under the wrong name.' },
+    ] },
+
+  { type: 'card', dur: 1700, num: '03', title: 'Find anything',
+    sub: 'By doctor, medicine, diagnosis, hospital or year — one person, or everyone.' },
+
+  { type: 'scene', id: 'search', in: 0, out: 11138, speed: 1.4, chapter: '07 — Search',
+    beats: [
+      { t: 0, kicker: 'Find, or ask', head: 'Type what you remember. Or ask it a question in your own words.' },
+      { t: 4000, kicker: 'As you type', head: 'Ranked across doctors, hospitals, diagnoses, medicines and dates.' },
+      { t: 7600, kicker: 'Two results', head: 'Including the prescription uploaded <b>a minute ago</b>.' },
+    ] },
+
+  { type: 'scene', id: 'attention', in: 0, out: 5699, speed: 1.0, chapter: '08 — When it fails',
+    beats: [
+      { t: 0, kicker: 'Honest about it', head: 'A page it cannot read says so, and keeps your original.' },
+      { t: 2800, kicker: 'Fixable', head: 'Retry it, replace it, or fill the details in yourself.' },
+    ],
+    rings: [{ mark: 'attention', label: 'Nothing silently lost', hold: 3000 }] },
+
+  { type: 'outro', dur: 6400 },
+];
+
+let T = 0;
+for (const s of EDIT) { s.start = T; s.dur = s.type === 'scene' ? Math.round((s.out - s.in) / s.speed) : s.dur; T += s.dur; }
+window.TOTAL = T;
+// Absolute time of every caption beat and card, so narration can be timed to them.
+window.SCHEDULE = EDIT.flatMap(s => {
+  if (s.type === 'scene') return s.beats.map(b => ({
+    kind: 'beat', scene: s.id, t: s.start + Math.round(b.t / s.speed),
+    end: s.start + s.dur, kicker: b.kicker, head: b.head.replace(/<[^>]*>/g, '')
+  }));
+  if (s.type === 'card') return [{ kind: 'card', scene: 'card', t: s.start, end: s.start + s.dur, kicker: s.num, head: s.title + '. ' + s.sub }];
+  return [{ kind: 'outro', scene: 'outro', t: s.start, end: s.start + s.dur, kicker: '', head: '' }];
+});
+const TOTAL = T;
+
+const cache = new Map();
+function imgFor(file) {
+  let im = cache.get(file);
+  if (!im) { im = new Image(); im.src = './capture-phone_s/' + file; cache.set(file, im); }
+  return im;
+}
+function preload(i) {
+  for (let k = i; k <= i + 1 && k < EDIT.length; k++) {
+    const s = EDIT[k];
+    if (s.type === 'scene') for (const f of SCENES[s.id].frames) imgFor(f.file);
+  }
+}
+
+const $ = id => document.getElementById(id);
+const phoneWrap = $('phoneWrap'), screen = $('screen'), overlay = $('overlay'), cap = $('cap');
+const head = $('head'), kickerText = $('kickerText'), kicker = $('kicker'), chip = $('chip'), badge = $('badge');
+const card = $('card'), cardNum = $('cardNum'), cardTitle = $('cardTitle'), cardTitleWrap = $('cardTitleWrap');
+const cardSub = $('cardSub'), cardRule = $('cardRule'), outro = $('outro'), prog = $('prog');
+const bg = $('bg'), grid = $('grid');
+
+$('outroSub').textContent = 'The same app on a phone and on a desktop';
+$('links').innerHTML = '<b>github.com/Afkar085/MediVault</b> &nbsp;·&nbsp; medi-vault-silk-five.vercel.app';
+$('pills').innerHTML = ['Handwriting OCR', 'Visit grouping', 'Bills & insurance', 'Family profiles', 'Search & ask']
+  .map(p => '<div class="pill">' + p + '</div>').join('');
+const pills = [...document.querySelectorAll('.pill')];
+
+overlay.innerHTML = '<div id="touch"></div><div id="ripple"></div>';
+const touch = $('touch'), ripple = $('ripple');
+
+let lastSrc = '';
+const PHONE_SCALE = 1.08;
+
+function hideAll() {
+  card.style.opacity = '0'; outro.style.opacity = '0';
+  phoneWrap.style.opacity = '0'; cap.style.opacity = '0';
+  chip.style.opacity = '0'; badge.style.opacity = '0';
+  touch.style.opacity = '0'; ripple.style.opacity = '0';
+  [...overlay.querySelectorAll('.ring, .ringlbl')].forEach(e => e.remove());
+}
+
+window.seek = async function seek(t) {
+  t = Math.max(0, Math.min(TOTAL - 1, t));
+  hideAll();
+  prog.style.width = (1920 * t / TOTAL).toFixed(1) + 'px';
+
+  const drift = t / 1000;
+  bg.style.transform = `translate(${(Math.sin(drift * .17) * 26).toFixed(2)}px, ${(Math.cos(drift * .13) * 20).toFixed(2)}px) scale(1.06)`;
+  grid.style.transform = `translateY(${(-drift * 2.2 % 44).toFixed(2)}px)`;
+
+  const i = EDIT.findIndex(s => t >= s.start && t < s.start + s.dur);
+  const s = EDIT[i < 0 ? EDIT.length - 1 : i];
+  const lt = t - s.start;
+  preload(i);
+
+  if (s.type === 'card') {
+    const inK = seg(lt, 0, 620), outK = seg(lt, s.dur - 420, s.dur);
+    card.style.opacity = String(clamp01(inK) * (1 - outK));
+    cardNum.textContent = s.num; cardTitle.textContent = s.title; cardSub.innerHTML = s.sub;
+    cardNum.style.opacity = String(seg(lt, 60, 460));
+    cardTitleWrap.style.transform = `translateY(${lerp(110, 0, outQuint(seg(lt, 120, 900)))}%)`;
+    cardSub.style.opacity = String(seg(lt, 420, 900));
+    cardSub.style.transform = `translateY(${lerp(16, 0, outCubic(seg(lt, 420, 980)))}px)`;
+    cardRule.style.width = `${(170 * outQuint(seg(lt, 560, 1250))).toFixed(1)}px`;
+    phoneWrap.style.opacity = String(.2 * (1 - clamp01(inK)));
+    phoneWrap.style.transform = `scale(${(PHONE_SCALE * .98).toFixed(4)})`;
+    return;
+  }
+
+  if (s.type === 'outro') {
+    outro.style.opacity = String(seg(lt, 0, 520) * (1 - seg(lt, s.dur - 500, s.dur)));
+    const wm = $('wordmark');
+    wm.style.transform = `scale(${lerp(.9, 1, outBack(seg(lt, 60, 900))).toFixed(4)})`;
+    wm.style.opacity = String(seg(lt, 60, 520));
+    $('outroSub').style.opacity = String(seg(lt, 500, 950));
+    pills.forEach((p, k) => {
+      const a = seg(lt, 800 + k * 110, 1300 + k * 110);
+      p.style.opacity = String(a);
+      p.style.transform = `translateY(${lerp(18, 0, outQuint(a)).toFixed(2)}px)`;
+    });
+    const lk = seg(lt, 1700, 2300);
+    $('links').style.opacity = String(lk);
+    $('links').style.transform = `translateY(${lerp(14, 0, outCubic(lk)).toFixed(2)}px)`;
+    return;
+  }
+
+  const sc = SCENES[s.id];
+  const media = s.in + lt * s.speed;
+  let f = sc.frames[0];
+  for (const fr of sc.frames) { if (fr.t <= media) f = fr; else break; }
+  const src = './capture-phone_s/' + f.file;
+  if (src !== lastSrc) {
+    const im = imgFor(f.file);
+    if (!im.complete) { try { await im.decode(); } catch {} }
+    screen.src = src; lastSrc = src;
+  }
+
+  const inK = outQuint(seg(lt, 0, 780));
+  const outK = seg(lt, s.dur - 420, s.dur);
+  const sc2 = PHONE_SCALE * lerp(.96, 1, inK) * (1 - .018 * outK);
+  const yy = lerp(30, 0, inK) + 18 * outK;
+  phoneWrap.style.opacity = String(clamp01(seg(lt, 0, 340)) * (1 - outK));
+  phoneWrap.style.transform = `translateY(${yy.toFixed(2)}px) scale(${sc2.toFixed(4)})`;
+  phoneWrap.style.filter = outK > 0 ? `blur(${(outK * 5).toFixed(2)}px)` : 'none';
+
+  chip.style.opacity = String(seg(lt, 220, 700) * (1 - outK));
+  chip.innerHTML = `<span style="color:#19c49a">●</span> ${s.chapter}`;
+  const bk = seg(lt, 420, 980) * (1 - outK);
+  badge.style.opacity = String(bk);
+  badge.style.transform = `translateY(${lerp(14, 0, outCubic(bk)).toFixed(2)}px)`;
+
+  let beat = s.beats[0], bStart = 0;
+  for (const b of s.beats) { const bt = Math.round(b.t / s.speed); if (lt >= bt) { beat = b; bStart = bt; } }
+  const k = seg(lt, bStart, bStart + 560) * (1 - outK);
+  kickerText.textContent = beat.kicker;
+  head.innerHTML = beat.head;
+  cap.style.opacity = String(clamp01(k * 1.8));
+  cap.style.transform = `translateY(${lerp(28, 0, outQuint(k)).toFixed(2)}px)`;
+  kicker.style.opacity = String(clamp01((k - .12) * 3));
+  kicker.querySelector('i').style.width = `${(28 * outCubic(clamp01((k - .1) / .5))).toFixed(1)}px`;
+
+  for (const r of (s.rings || [])) {
+    const m = (sc.marks || []).find(x => x.name === r.mark);
+    if (!m) continue;
+    const rs = Math.round((m.t - s.in) / s.speed);
+    const re = rs + Math.round(r.hold / s.speed);
+    if (lt < rs || lt > re) continue;
+    const a = seg(lt, rs, rs + 320) * (1 - seg(lt, re - 320, re));
+    const pad = lerp(13, 6, outBack(seg(lt, rs, rs + 420)));
+    const el = document.createElement('div');
+    el.className = 'ring';
+    el.style.cssText += `left:${m.x - pad}px;top:${m.y - pad}px;width:${m.w + pad * 2}px;height:${m.h + pad * 2}px;opacity:${a}`;
+    overlay.appendChild(el);
+    const lb = document.createElement('div');
+    lb.className = 'ringlbl';
+    lb.textContent = r.label;
+    lb.style.cssText += `left:${Math.max(2, m.x - pad)}px;top:${m.y - pad - 8}px;opacity:${seg(lt, rs + 160, rs + 520) * (1 - seg(lt, re - 300, re))}`;
+    overlay.appendChild(lb);
+  }
+
+  const evs = (sc.cursor || []).map(c => ({ ...c, lt: Math.round((c.t - s.in) / s.speed) }));
+  if (evs.length) {
+    let pos = null, clickAt = null, prev = { x: 195, y: 900 };
+    for (const e of evs) {
+      const land = e.lt, startMove = land - Math.round(e.lead / s.speed);
+      if (lt < startMove) { pos = pos || prev; break; }
+      if (lt <= land) {
+        const kk = inOutCubic(seg(lt, startMove, land));
+        pos = { x: lerp(prev.x, e.x, kk), y: lerp(prev.y, e.y, kk) };
+        break;
+      }
+      prev = { x: e.x, y: e.y };
+      if (e.click && lt - land < 520) clickAt = land;
+      pos = prev;
+    }
+    pos = pos || prev;
+    const lastLand = evs[evs.length - 1].lt;
+    const visible = lt > (evs[0].lt - Math.round(evs[0].lead / s.speed) - 240)
+                 && lt < Math.min(s.dur - 240, lastLand + 1000);
+    const press = clickAt !== null ? 1 - clamp01((lt - clickAt) / 160) : 0;
+    touch.style.opacity = visible ? String((1 - outK) * (.92 - .25 * press)) : '0';
+    touch.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) scale(${(1 - .22 * press).toFixed(3)})`;
+    if (clickAt !== null && visible) {
+      const kk = clamp01((lt - clickAt) / 500);
+      ripple.style.opacity = String((1 - kk) * .9 * (1 - outK));
+      ripple.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) scale(${(0.55 + kk * 2.1).toFixed(3)})`;
+    }
+  }
+};
+
+window.ready = (async () => {
+  await document.fonts.ready;
+  preload(0);
+  await Promise.all([...cache.values()].slice(0, 60).map(im => im.decode().catch(() => {})));
+  await window.seek(0);
+  return true;
+})();
+</script>
+</body>
+</html>

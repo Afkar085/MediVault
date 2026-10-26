@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MediVault — walkthrough stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+<style>
+  :root {
+    --navy-950: #000d29;
+    --navy-900: #001845;
+    --navy-800: #00236f;
+    --navy-200: #c9d4ff;
+    --teal: #19c49a;
+    --ink-inv: #ffffff;
+    --dim: #93a2c4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--navy-950); }
+
+  /* ---------------------------------------------------------- backdrop */
+  #bg {
+    position: absolute; inset: -10%;
+    background:
+      radial-gradient(60% 50% at 20% 10%, rgba(0,80,210,.42), transparent 70%),
+      radial-gradient(50% 45% at 85% 85%, rgba(25,196,154,.20), transparent 70%),
+      linear-gradient(160deg, #00112f 0%, #000d29 48%, #01061a 100%);
+  }
+  #grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(170,200,255,.085) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(76% 70% at 50% 42%, #000 35%, transparent 85%);
+  }
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120% 100% at 50% 45%, transparent 48%, rgba(0,4,16,.72) 100%);
+  }
+
+  /* ------------------------------------------------------------ window */
+  #win {
+    position: absolute; left: 280px; top: 24px; width: 1360px;
+    border-radius: 16px; overflow: hidden;
+    background: #0a1430;
+    box-shadow: 0 50px 120px -20px rgba(0,0,0,.75), 0 0 0 1px rgba(150,180,255,.14),
+                0 0 90px -30px rgba(40,110,255,.5);
+    transform-origin: 50% 46%;
+    will-change: transform, opacity, filter;
+  }
+  #chrome {
+    height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    background: linear-gradient(#111f45, #0c1836);
+    border-bottom: 1px solid rgba(160,190,255,.12);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  #url {
+    margin-left: 12px; flex: 1; max-width: 520px; height: 24px; border-radius: 12px;
+    background: rgba(8,18,44,.9); border: 1px solid rgba(150,180,255,.13);
+    display: flex; align-items: center; gap: 7px; padding: 0 12px;
+    font-size: 12.5px; color: #9fb2da; letter-spacing: .1px;
+  }
+  #screen { display: block; width: 1360px; height: 850px; }
+
+  /* overlay layer pinned to the app viewport inside the window */
+  #overlay { position: absolute; left: 0; top: 40px; width: 1360px; height: 850px; pointer-events: none; }
+
+  .ring {
+    position: absolute; border-radius: 14px;
+    box-shadow: 0 0 0 3px rgba(25,196,154,.95), 0 0 0 10px rgba(25,196,154,.18), 0 0 44px rgba(25,196,154,.4);
+    will-change: opacity, transform;
+  }
+  .ringlbl {
+    position: absolute; transform: translateY(-100%);
+    background: var(--teal); color: #00231a; font-weight: 800; font-size: 14px;
+    letter-spacing: .3px; padding: 5px 11px; border-radius: 8px; white-space: nowrap;
+    box-shadow: 0 10px 24px rgba(0,0,0,.4);
+  }
+
+  #cursor { position: absolute; left: 0; top: 0; width: 30px; height: 30px; will-change: transform; }
+  #ripple {
+    position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+    border-radius: 50%; border: 3px solid rgba(25,196,154,.95); will-change: transform, opacity;
+  }
+
+  /* ----------------------------------------------------------- caption */
+  #cap { position: absolute; left: 282px; top: 938px; width: 1400px; will-change: transform, opacity; }
+  #kicker {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 700; letter-spacing: 2.6px; text-transform: uppercase;
+    color: var(--teal);
+  }
+  #kicker i { display: block; width: 26px; height: 2px; background: var(--teal); border-radius: 2px; }
+  #head {
+    margin-top: 9px; font-size: 38px; line-height: 1.16; font-weight: 700;
+    color: #fff; letter-spacing: -.8px;
+  }
+  #head b { color: var(--teal); font-weight: 700; }
+
+  /* chapter chip, top-left of the frame */
+  #chip {
+    position: absolute; left: 282px; top: 0px; display: flex; align-items: center; gap: 9px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #b9c9ef;
+  }
+
+  /* progress hairline */
+  #prog { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--teal); width: 0; }
+
+  /* --------------------------------------------------------- title card */
+  #card {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    will-change: opacity;
+  }
+  #cardNum { font-size: 15px; font-weight: 800; letter-spacing: 5px; color: var(--teal); }
+  #cardTitle { margin-top: 18px; font-size: 88px; font-weight: 800; letter-spacing: -3.4px; color: #fff; line-height: 1.02; }
+  #cardSub { margin-top: 20px; font-size: 26px; font-weight: 400; color: #9fb2da; letter-spacing: -.2px; max-width: 1050px; }
+  #cardRule { margin-top: 34px; height: 3px; width: 0; background: var(--teal); border-radius: 3px; }
+
+  .mask { display: block; overflow: hidden; }
+  .mask > span { display: block; will-change: transform; }
+
+  /* ------------------------------------------------------------- outro */
+  #outro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #wordmark { display: flex; align-items: center; gap: 18px; }
+  #mkbox {
+    width: 74px; height: 74px; border-radius: 20px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #mkbox svg { width: 42px; height: 42px; }
+  #mktext { font-size: 62px; font-weight: 800; letter-spacing: -2px; color: #fff; }
+  #mktext span { color: var(--teal); }
+  #outroSub { margin-top: 26px; font-size: 27px; color: #a6b7dc; letter-spacing: -.2px; }
+  #pills { margin-top: 44px; display: flex; gap: 14px; }
+  .pill {
+    padding: 13px 22px; border-radius: 999px; font-size: 18px; font-weight: 600; color: #cfdcff;
+    border: 1px solid rgba(160,190,255,.26); background: rgba(10,26,64,.6); will-change: transform, opacity;
+  }
+  #links { margin-top: 52px; font-size: 20px; color: #8fa2cb; letter-spacing: .2px; }
+  #links b { color: #fff; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <div id="grid"></div>
+
+  <div id="win">
+    <div id="chrome">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+      <div id="url">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7f93bf" stroke-width="2.4">
+          <rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+        </svg>
+        medi-vault-silk-five.vercel.app
+      </div>
+    </div>
+    <img id="screen" alt="" />
+    <div id="overlay"></div>
+  </div>
+
+  <div id="chip"></div>
+
+  <div id="cap">
+    <div id="kicker"><i></i><span id="kickerText"></span></div>
+    <div class="mask"><span><div id="head"></div></span></div>
+  </div>
+
+  <div id="card">
+    <div id="cardNum"></div>
+    <div class="mask"><span id="cardTitleWrap"><div id="cardTitle"></div></span></div>
+    <div id="cardSub"></div>
+    <div id="cardRule"></div>
+  </div>
+
+  <div id="outro">
+    <div id="wordmark">
+      <div id="mkbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#00236f" stroke-width="2.6" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </div>
+      <div id="mktext">Medi<span>Vault</span></div>
+    </div>
+    <div id="outroSub"></div>
+    <div id="pills"></div>
+    <div id="links"></div>
+  </div>
+
+  <div id="vignette"></div>
+  <div id="prog"></div>
+</div>
+
+<script type="module">
+// ===================================================================== data
+const manifest = await (await fetch('./capture/manifest.json')).json();
+const SCENES = Object.fromEntries(manifest.scenes.map(s => [s.id, s]));
+
+// ================================================================== easing
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const outCubic = t => 1 - Math.pow(1 - t, 3);
+const outQuint = t => 1 - Math.pow(1 - t, 5);
+const inOutCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const outBack = t => 1 + 2.2 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+
+// ============================================================== the edit
+// Each scene plays the real recording; `in`/`out` trim it, `speed` paces it.
+const EDIT = [
+  { type: 'card', dur: 3600, num: 'A WALKTHROUGH', title: 'MediVault',
+    sub: 'Every prescription your family has ever been handed — read, understood and searchable.' },
+
+  { type: 'scene', id: 'home', in: 0, out: 9280, speed: 1.22, chapter: '01 — The vault',
+    beats: [
+      { t: 0, kicker: 'One home screen', head: 'Everything on file for one person, at a glance.' },
+      { t: 2600, kicker: 'Counted, not guessed', head: 'Doctors, prescriptions, lab reports, bills, medicines.' },
+      { t: 5000, kicker: 'Most recent first', head: 'Each record says who wrote it and what it was for.' },
+    ],
+    rings: [{ mark: 'stats', label: 'Counted from the records themselves', hold: 2300 },
+            { mark: 'recent', label: 'The latest five', hold: 2200 }] },
+
+  { type: 'card', dur: 1700, num: '01', title: 'Add a document',
+    sub: 'A photo of the page is all it takes.' },
+
+  { type: 'scene', id: 'upload', in: 300, out: 10120, speed: 1.3, chapter: '02 — Adding a page',
+    beats: [
+      { t: 0, kicker: 'One sheet', head: 'Who it is for, what kind of page it is, the page itself.' },
+      { t: 3200, kicker: 'Any photo or PDF', head: 'Printed or handwritten — the whole page, flat, in good light.' },
+      { t: 6400, kicker: 'Nothing to type', head: 'Date and doctor are optional. <b>It reads them off the page.</b>' },
+    ] },
+
+  { type: 'scene', id: 'read', in: 0, out: 9010, speed: 1.15, chapter: '03 — It reads the page',
+    beats: [
+      { t: 0, kicker: 'Uploading', head: 'The file is checked on the device before a byte is sent.' },
+      { t: 1700, kicker: 'Reading', head: 'A vision model transcribes the page, then a language model structures it.' },
+      { t: 5200, kicker: 'Done', head: 'A new record, filed under the doctor who wrote it.' },
+    ],
+    rings: [{ mark: 'newrow', label: 'Extracted from the photo', hold: 2600 }] },
+
+  { type: 'card', dur: 1700, num: '02', title: 'What it pulled out',
+    sub: 'Doctor, hospital, specialty, diagnosis — and every medicine, with its dose.' },
+
+  { type: 'scene', id: 'record', in: 0, out: 9490, speed: 1.12, chapter: '04 — The record',
+    beats: [
+      { t: 0, kicker: 'Structured, not a blob', head: 'Doctor, hospital, specialty, diagnosis, advice — each in its own field.' },
+      { t: 4700, kicker: 'Medicines', head: 'Name, dose, when to take it, how long for.' },
+      { t: 7500, kicker: 'Always reversible', head: 'The scanned text is kept, and every edit is recorded.' },
+    ],
+    rings: [{ mark: 'details', label: 'Read off the page', hold: 2400 }] },
+
+  { type: 'scene', id: 'timeline', in: 0, out: 10720, speed: 1.3, chapter: '05 — One timeline',
+    beats: [
+      { t: 0, kicker: 'Grouped by visit', head: 'Prescription, lab report and bill from one visit stay together.' },
+      { t: 3600, kicker: 'Month by month', head: 'The whole history, newest first — nothing to file by hand.' },
+      { t: 7000, kicker: 'Summarised', head: 'An AI summary sits on top, and the records stay underneath it.' },
+    ] },
+
+  { type: 'scene', id: 'family', in: 0, out: 10890, speed: 1.34, chapter: '06 — The whole family',
+    beats: [
+      { t: 0, kicker: 'One account', head: 'Switch between family members from the top bar.' },
+      { t: 3800, kicker: 'Separate histories', head: 'Each person keeps their own timeline, doctors and medicines.' },
+      { t: 7200, kicker: 'Never mixed up', head: 'Records are never shown under the wrong name.' },
+    ] },
+
+  { type: 'card', dur: 1700, num: '03', title: 'Find anything',
+    sub: 'By doctor, medicine, diagnosis, hospital or year — across one person or everyone.' },
+
+  { type: 'scene', id: 'search', in: 0, out: 11740, speed: 1.42, chapter: '07 — Search',
+    beats: [
+      { t: 0, kicker: 'Find, or ask', head: 'Type what you remember. Or ask it a question in your own words.' },
+      { t: 4200, kicker: 'As you type', head: 'Ranked across doctors, hospitals, diagnoses, medicines and dates.' },
+      { t: 7800, kicker: 'Two results', head: 'Including the prescription uploaded <b>a minute ago</b>.' },
+    ] },
+
+  { type: 'scene', id: 'attention', in: 0, out: 5870, speed: 1.0, chapter: '08 — When it fails',
+    beats: [
+      { t: 0, kicker: 'Honest about it', head: 'A page it cannot read says so, and keeps your original.' },
+      { t: 2800, kicker: 'Fixable', head: 'Retry it, replace it, or fill the details in yourself.' },
+    ],
+    rings: [{ mark: 'attention', label: 'Nothing silently lost', hold: 3000 }] },
+
+  { type: 'outro', dur: 6400 },
+];
+
+// absolute timing
+let T = 0;
+for (const s of EDIT) {
+  s.start = T;
+  s.dur = s.type === 'scene' ? Math.round((s.out - s.in) / s.speed) : s.dur;
+  T += s.dur;
+}
+window.TOTAL = T;
+// Absolute time of every caption beat and card, so narration can be timed to them.
+window.SCHEDULE = EDIT.flatMap(s => {
+  if (s.type === 'scene') return s.beats.map(b => ({
+    kind: 'beat', scene: s.id, t: s.start + Math.round(b.t / s.speed),
+    end: s.start + s.dur, kicker: b.kicker, head: b.head.replace(/<[^>]*>/g, '')
+  }));
+  if (s.type === 'card') return [{ kind: 'card', scene: 'card', t: s.start, end: s.start + s.dur, kicker: s.num, head: s.title + '. ' + s.sub }];
+  return [{ kind: 'outro', scene: 'outro', t: s.start, end: s.start + s.dur, kicker: '', head: '' }];
+});
+const TOTAL = T;
+
+// ============================================================ frame cache
+const cache = new Map();
+function imgFor(file) {
+  let im = cache.get(file);
+  if (!im) { im = new Image(); im.src = './capture_s/' + file; cache.set(file, im); }
+  return im;
+}
+// Keep the next scene warm, drop what is far behind.
+function preload(sceneIdx) {
+  for (let i = sceneIdx; i <= sceneIdx + 1 && i < EDIT.length; i++) {
+    const s = EDIT[i];
+    if (s.type === 'scene') for (const f of SCENES[s.id].frames) imgFor(f.file);
+  }
+}
+
+// ================================================================ elements
+const $ = id => document.getElementById(id);
+const win = $('win'), screen = $('screen'), overlay = $('overlay'), cap = $('cap');
+const head = $('head'), kickerText = $('kickerText'), kicker = $('kicker'), chip = $('chip');
+const card = $('card'), cardNum = $('cardNum'), cardTitle = $('cardTitle'), cardTitleWrap = $('cardTitleWrap');
+const cardSub = $('cardSub'), cardRule = $('cardRule'), outro = $('outro'), prog = $('prog');
+const bg = $('bg'), grid = $('grid');
+
+$('outroSub').textContent = 'AI-powered family medical records';
+$('links').innerHTML = '<b>github.com/Afkar085/MediVault</b> &nbsp;·&nbsp; medi-vault-silk-five.vercel.app';
+$('pills').innerHTML = ['Handwriting OCR', 'Visit grouping', 'Bills & insurance', 'Family profiles', 'Search & ask']
+  .map(p => '<div class="pill">' + p + '</div>').join('');
+const pills = [...document.querySelectorAll('.pill')];
+
+// cursor + ripple live in the overlay
+overlay.innerHTML = `
+  <svg id="cursor" viewBox="0 0 24 24">
+    <path d="M5 2.5 L5 19.5 L9.4 15.4 L12.3 21.6 L15.2 20.2 L12.4 14.2 L18.4 14.0 Z"
+          fill="#fff" stroke="#07132e" stroke-width="1.3" stroke-linejoin="round"
+          style="filter: drop-shadow(0 4px 10px rgba(0,0,0,.45))"/>
+  </svg>
+  <div id="ripple"></div>`;
+const cursor = $('cursor'), ripple = $('ripple');
+
+// ==================================================================== seek
+let lastSrc = '';
+
+function hideAll() {
+  card.style.opacity = '0';
+  outro.style.opacity = '0';
+  win.style.opacity = '0';
+  cap.style.opacity = '0';
+  chip.style.opacity = '0';
+  cursor.style.opacity = '0';
+  ripple.style.opacity = '0';
+  [...overlay.querySelectorAll('.ring, .ringlbl')].forEach(e => e.remove());
+}
+
+function setCaption(beat, k) {
+  kickerText.textContent = beat.kicker;
+  head.innerHTML = beat.head;
+  const y = lerp(26, 0, outQuint(k));
+  cap.style.opacity = String(clamp01(k * 1.8));
+  cap.parentElement; // no-op
+  cap.style.transform = `translateY(${y.toFixed(2)}px)`;
+  kicker.style.opacity = String(clamp01((k - .12) * 3));
+  kicker.querySelector('i').style.width = `${(26 * outCubic(clamp01((k - .1) / .5))).toFixed(1)}px`;
+}
+
+window.seek = async function seek(t) {
+  t = Math.max(0, Math.min(TOTAL - 1, t));
+  hideAll();
+  prog.style.width = (1920 * t / TOTAL).toFixed(1) + 'px';
+
+  // slow ambient drift on the backdrop, so static beats still breathe
+  const drift = t / 1000;
+  bg.style.transform = `translate(${(Math.sin(drift * .17) * 26).toFixed(2)}px, ${(Math.cos(drift * .13) * 20).toFixed(2)}px) scale(1.06)`;
+  grid.style.transform = `translateY(${(-drift * 2.2 % 44).toFixed(2)}px)`;
+
+  const i = EDIT.findIndex(s => t >= s.start && t < s.start + s.dur);
+  const s = EDIT[i < 0 ? EDIT.length - 1 : i];
+  const lt = t - s.start;
+  preload(i);
+
+  // ------------------------------------------------------------- card
+  if (s.type === 'card') {
+    const inK = seg(lt, 0, 620), outK = seg(lt, s.dur - 420, s.dur);
+    card.style.opacity = String(clamp01(inK) * (1 - outK));
+    cardNum.textContent = s.num;
+    cardTitle.textContent = s.title;
+    cardSub.innerHTML = s.sub;
+    cardNum.style.opacity = String(seg(lt, 60, 460));
+    cardTitleWrap.style.transform = `translateY(${lerp(110, 0, outQuint(seg(lt, 120, 900)))}%)`;
+    cardSub.style.opacity = String(seg(lt, 420, 900));
+    cardSub.style.transform = `translateY(${lerp(16, 0, outCubic(seg(lt, 420, 980)))}px)`;
+    cardRule.style.width = `${(170 * outQuint(seg(lt, 560, 1250))).toFixed(1)}px`;
+    // the window eases away underneath the card
+    win.style.opacity = String(.22 * (1 - clamp01(inK)));
+    win.style.transform = `scale(${(.97 - .02 * inK).toFixed(4)})`;
+    return;
+  }
+
+  // ------------------------------------------------------------ outro
+  if (s.type === 'outro') {
+    outro.style.opacity = String(seg(lt, 0, 520) * (1 - seg(lt, s.dur - 500, s.dur)));
+    const wm = document.getElementById('wordmark');
+    wm.style.transform = `scale(${lerp(.9, 1, outBack(seg(lt, 60, 900))).toFixed(4)})`;
+    wm.style.opacity = String(seg(lt, 60, 520));
+    document.getElementById('outroSub').style.opacity = String(seg(lt, 500, 950));
+    pills.forEach((p, k) => {
+      const a = seg(lt, 800 + k * 110, 1300 + k * 110);
+      p.style.opacity = String(a);
+      p.style.transform = `translateY(${lerp(18, 0, outQuint(a)).toFixed(2)}px)`;
+    });
+    const lk = seg(lt, 1700, 2300);
+    document.getElementById('links').style.opacity = String(lk);
+    document.getElementById('links').style.transform = `translateY(${lerp(14, 0, outCubic(lk)).toFixed(2)}px)`;
+    return;
+  }
+
+  // ------------------------------------------------------------ scene
+  const sc = SCENES[s.id];
+  const media = s.in + lt * s.speed;
+
+  // pick the recorded frame that was on screen at this media time
+  let f = sc.frames[0];
+  for (const fr of sc.frames) { if (fr.t <= media) f = fr; else break; }
+  const src = './capture_s/' + f.file;
+  if (src !== lastSrc) {
+    const im = imgFor(f.file);
+    if (!im.complete) { try { await im.decode(); } catch {} }
+    screen.src = src;
+    lastSrc = src;
+  }
+
+  // window: push in at the top of a scene, settle, ease out at the end
+  const inK = outQuint(seg(lt, 0, 760));
+  const outK = seg(lt, s.dur - 420, s.dur);
+  const scale = lerp(.955, 1, inK) * (1 - .018 * outK);
+  const yy = lerp(26, 0, inK) + 16 * outK;
+  win.style.opacity = String(clamp01(seg(lt, 0, 340)) * (1 - outK));
+  win.style.transform = `translateY(${yy.toFixed(2)}px) scale(${scale.toFixed(4)})`;
+  win.style.filter = outK > 0 ? `blur(${(outK * 5).toFixed(2)}px)` : 'none';
+
+  // chapter chip
+  chip.style.opacity = String(seg(lt, 220, 700) * (1 - outK));
+  chip.innerHTML = `<span style="color:#19c49a">●</span> ${s.chapter}`;
+
+  // caption beats, each with its own entrance
+  let beat = s.beats[0], bStart = 0;
+  for (const b of s.beats) { const bt = Math.round((b.t) / s.speed); if (lt >= bt) { beat = b; bStart = bt; } }
+  setCaption(beat, seg(lt, bStart, bStart + 560) * (1 - outK));
+
+  // focus rings, anchored to boxes recorded from the real DOM
+  for (const r of (s.rings || [])) {
+    const m = (sc.marks || []).find(x => x.name === r.mark);
+    if (!m) continue;
+    const rs = Math.round((m.t - s.in) / s.speed);
+    const re = rs + Math.round(r.hold / s.speed);
+    if (lt < rs || lt > re) continue;
+    const a = seg(lt, rs, rs + 320) * (1 - seg(lt, re - 320, re));
+    const grow = outBack(seg(lt, rs, rs + 420));
+    const pad = lerp(16, 7, grow);
+    const el = document.createElement('div');
+    el.className = 'ring';
+    el.style.cssText += `left:${m.x - pad}px;top:${m.y - pad}px;width:${m.w + pad * 2}px;height:${m.h + pad * 2}px;opacity:${a}`;
+    overlay.appendChild(el);
+    const lb = document.createElement('div');
+    lb.className = 'ringlbl';
+    lb.textContent = r.label;
+    lb.style.cssText += `left:${m.x - pad}px;top:${m.y - pad - 10}px;opacity:${seg(lt, rs + 160, rs + 520) * (1 - seg(lt, re - 300, re))}`;
+    overlay.appendChild(lb);
+  }
+
+  // cursor: travels to each recorded click and lands on it
+  const evs = (sc.cursor || []).map(c => ({ ...c, lt: Math.round((c.t - s.in) / s.speed) }))
+                               .filter(c => c.lt > -2000);
+  if (evs.length) {
+    let pos = null, clickAt = null;
+    let prev = { x: 1180, y: 790 };
+    for (const e of evs) {
+      const land = e.lt, startMove = land - Math.round(e.lead / s.speed);
+      if (lt < startMove) { pos = pos || prev; break; }
+      if (lt <= land) {
+        const k = inOutCubic(seg(lt, startMove, land));
+        pos = { x: lerp(prev.x, e.x, k), y: lerp(prev.y, e.y, k) };
+        break;
+      }
+      prev = { x: e.x, y: e.y };
+      if (e.click && lt - land < 520) clickAt = land;
+      pos = prev;
+    }
+    pos = pos || prev;
+    const lastLand = evs[evs.length - 1].lt;
+    const visible = lt > (evs[0].lt - Math.round(evs[0].lead / s.speed) - 260)
+                 && lt < Math.min(s.dur - 260, lastLand + 1100);
+    cursor.style.opacity = visible ? String(1 - outK) : '0';
+    const press = clickAt !== null ? 1 - clamp01((lt - clickAt) / 160) : 0;
+    cursor.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) scale(${(1 - .16 * press).toFixed(3)})`;
+    if (clickAt !== null) {
+      const k = clamp01((lt - clickAt) / 480);
+      ripple.style.opacity = String((1 - k) * .9 * (1 - outK));
+      ripple.style.transform = `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) scale(${(0.4 + k * 3.1).toFixed(3)})`;
+    }
+  }
+};
+
+// Wait for fonts and the first frames before anyone asks for a frame.
+window.ready = (async () => {
+  await document.fonts.ready;
+  preload(0);
+  await Promise.all([...cache.values()].slice(0, 40).map(im => im.decode().catch(() => {})));
+  await window.seek(0);
+  return true;
+})();
+</script>
+</body>
+</html>

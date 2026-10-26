@@ -19,7 +19,7 @@ from app.core.security import decode_access_token
 # per account, on top of their per-minute limits. Generous for a family using
 # the app, but they stop one account, or a stolen token, from running up the AI
 # bill without end. Counters live in memory, so a restart resets them: the
-# hard spending cap belongs in the Groq console (see backend/DEPLOYMENT.md).
+# hard spending cap belongs in the Groq console, not here.
 AI_UPLOADS_PER_DAY = "200/day"
 AI_QUESTIONS_PER_DAY = "150/day"
 AI_REREADS_PER_DAY = "100/day"
