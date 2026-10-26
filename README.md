@@ -249,33 +249,6 @@ the dev stack.
 
 ---
 
-## Deployment
-
-Some steps cannot be done from code — the service_role key, deny-all RLS, making the
-storage bucket private, CORS. They have to be applied in order, and a couple of them break
-the app if applied out of sequence. **[`docs/deployment.md`](docs/deployment.md)** has the
-runbook.
-
----
-
-## Not implemented
-
-- **Password reset by email.** It needs an email provider, which is a paid infrastructure
-  decision. The sign-in screen says so plainly rather than pretending to send a link.
-- Semantic search needs more RAM than a 512 MB tier provides. Without it, search and Ask
-  fall back to term-overlap ranking — everything still works, matching is just literal.
-
-## Roadmap
-
-- [ ] Bill PDF export and share
-- [ ] Lab result trend graphs — haemoglobin, blood sugar over time
-- [ ] Full medical history export as PDF
-- [ ] Prescription refill reminders
-- [ ] Multi-language OCR
-- [ ] Insurance claim status tracking
-
----
-
 <p align="center">
   Built by <a href="https://github.com/Afkar085">Afkar</a> ·
   <a href="https://medi-vault-silk-five.vercel.app/">Try it live</a>
