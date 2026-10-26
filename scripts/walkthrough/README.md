@@ -89,6 +89,18 @@ in seconds for each video. `narrate.mjs` synthesises each line, measures it, and
 never talk over the next beat. Shorten the line, move the cue, or raise the rate, and
 run it again.
 
+Two things keep the voice on the picture rather than trailing it:
+
+- **The padding is cut.** edge-tts returns every line with roughly half a second of
+  silence at each end. Left in, that is heard as lag. Each clip is run through
+  `silenceremove` at both ends, so the first sample of speech lands on the cue time —
+  measured drift across both videos is under 7 ms.
+- **Each line is anchored to the caption it describes**, starting 0.2s before that
+  beat, not at the start of the act. The line about medicines begins as the medicines
+  table appears; "including the one uploaded a minute ago" begins as the results do.
+  `narrate.mjs` prints what is on screen at every cue, so a line that has drifted off
+  its beat shows up in the build output.
+
 ```bash
 python -m venv .ttsvenv && .ttsvenv/Scripts/pip install edge-tts
 node narrate.mjs desktop walkthrough.mp4       ../../docs/walkthrough.mp4

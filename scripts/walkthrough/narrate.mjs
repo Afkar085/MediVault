@@ -35,22 +35,45 @@ function durationOf(file) {
 
 // ---------------------------------------------------------------- synthesise
 console.log(`voice ${spec.voice}  rate ${spec.rate}\n`);
+// edge-tts pads every clip with a beat of silence at each end. Left in, that
+// padding is heard as the voice lagging the caption it belongs to, so cut it:
+// the first sample of speech then lands exactly on the cue time.
+const TRIM = 'silenceremove=start_periods=1:start_duration=0:start_threshold=-50dB:detection=peak,' +
+             'areverse,silenceremove=start_periods=1:start_duration=0:start_threshold=-50dB:detection=peak,areverse';
+
 const clips = [];
 for (let i = 0; i < cues.length; i++) {
   const c = cues[i];
-  const mp3 = join(WORK, `v${String(i).padStart(2, '0')}.mp3`);
+  const raw = join(WORK, `r${String(i).padStart(2, '0')}.mp3`);
+  const mp3 = join(WORK, `v${String(i).padStart(2, '0')}.wav`);
   if (!existsSync(mp3)) {
-    // --rate=-4% must be one token: argparse would read a bare "-4%" as a flag.
+    // --rate=+5% must be one token: argparse would read a bare "+5%" as a flag.
     run(PY, ['-m', 'edge_tts', '--voice', spec.voice, `--rate=${spec.rate}`,
-             `--pitch=${spec.pitch}`, '--no-progress', '--text', c.text, '--write-media', mp3]);
+             `--pitch=${spec.pitch}`, '--no-progress', '--text', c.text, '--write-media', raw]);
+    run(FF, ['-y', '-loglevel', 'error', '-i', raw, '-af', TRIM, '-ar', '48000', '-ac', '1', mp3]);
   }
   const dur = durationOf(mp3);
+  const lead = durationOf(raw) - dur;
   const next = i + 1 < cues.length ? cues[i + 1].t : Infinity;
-  const room = next - c.t - 0.35;
+  const room = next - c.t - 0.25;
   const over = dur - room;
   clips.push({ ...c, mp3, dur, room });
   const flag = over > 0 ? `  OVER BY ${over.toFixed(2)}s` : '';
-  console.log(`${String(i).padStart(2)}  @${c.t.toFixed(1).padStart(5)}s  ${dur.toFixed(2)}s / ${isFinite(room) ? room.toFixed(2) : '  ∞'}s${flag}`);
+  console.log(`${String(i).padStart(2)}  @${c.t.toFixed(1).padStart(5)}s  ${dur.toFixed(2)}s / ${isFinite(room) ? room.toFixed(2) : '  ∞'}s  (-${lead.toFixed(2)}s silence)${flag}`);
+}
+
+// Say which caption is on screen when each line starts, so a drifting cue is
+// visible here rather than only on playback.
+const schedFile = join(ROOT, `schedule-${which}.json`);
+if (existsSync(schedFile)) {
+  const sched = JSON.parse(readFileSync(schedFile, 'utf8')).schedule;
+  console.log('\nwhat is on screen when each line starts:');
+  for (const c of clips) {
+    let cur = sched[0];
+    for (const b of sched) if (b.t / 1000 <= c.t + 0.15) cur = b;
+    const lag = (c.t - cur.t / 1000);
+    console.log(`  @${c.t.toFixed(1).padStart(5)}s  ${(cur.kicker || cur.kind).padEnd(22)} ${lag >= 0 ? '+' : ''}${lag.toFixed(1)}s  "${c.text.slice(0, 54)}…"`);
+  }
 }
 
 const over = clips.filter(c => c.dur > c.room);
