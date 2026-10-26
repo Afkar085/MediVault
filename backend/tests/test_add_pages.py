@@ -114,7 +114,11 @@ def db(monkeypatch):
         type("S", (), {"table": staticmethod(lambda n: _Table(n, store))})(),
     )
     # New page reads as some text; skip the network OCR entirely.
-    monkeypatch.setattr(pipeline, "read_pages", lambda *a, **k: ["printed page"])
+    # read_pages reports per page whether the reading service was reachable,
+    # not just the text, so that "nothing was read" can be explained.
+    monkeypatch.setattr(
+        pipeline, "read_pages", lambda *a, **k: [pipeline.PageResult("printed page")]
+    )
     # Record what gets re-indexed for retrieval without touching a real store.
     indexed = {}
     monkeypatch.setattr(pipeline, "index_passages",

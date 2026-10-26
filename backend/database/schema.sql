@@ -37,6 +37,10 @@ CREATE TABLE records (
     profile_id          UUID         NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     document_type       VARCHAR(50)  NOT NULL,
     status              VARCHAR(20)  NOT NULL DEFAULT 'processing',
+    -- Why status is 'failed': 'unreadable' (the document had no text on it) or
+    -- 'service_unavailable' (the reading service could not be reached). The two
+    -- must not look the same to the person: only one is the document's fault.
+    failure_reason      TEXT         NULL,
     file_url            TEXT,
     file_path           TEXT,
     raw_ocr_text        TEXT,

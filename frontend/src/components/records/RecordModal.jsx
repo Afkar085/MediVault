@@ -6,7 +6,7 @@ import Modal from '../common/Modal';
 import Icon from '../common/Icon';
 import { StatusPill } from '../common/ui';
 import { typeName } from '../common/Ledger';
-import { fmt, fmtRel, fmtDt, dateVal, drN, getRecordFiles, hasStoredDocument, isPending, reviewReasons } from '../../utils/format';
+import { fmt, fmtRel, fmtDt, dateVal, drN, failureAdvice, failureTitle, getRecordFiles, hasStoredDocument, isPending, reviewReasons } from '../../utils/format';
 import MedsTab from './MedsTab';
 import { DetailsForm, DetailsView } from './DetailsTab';
 
@@ -233,8 +233,8 @@ export default function RecordModal({ record, onClose }) {
             <div className="state state-failed" role="status">
               <Icon name="error" size={20} />
               <div>
-                <b>Couldn’t read this document</b>
-                <p>Try again, or delete it and add a clearer photo.</p>
+                <b>{failureTitle(record)}</b>
+                <p>{failureAdvice(record)}</p>
               </div>
             </div>
           )}

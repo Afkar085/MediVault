@@ -127,3 +127,56 @@ def test_the_sweep_can_be_forced_when_it_matters(fake_supabase):
     _expire_stuck_processing("p-1", force=True)
 
     assert fake.query is not first
+
+
+# ── why a read failed ───────────────────────────────────────────────────────
+#
+# When Groq retired the vision model, "failed" meant "we never managed to look
+# at it", but the app said "we read it and could not make it out" and advised a
+# clearer photo. The reason is stored so the two can be told apart.
+
+def test_a_service_failure_is_recorded_as_such(monkeypatch):
+    from app.services import record_pipeline as pipeline
+
+    written = {}
+
+    class _Q:
+        def __init__(self, table):
+            self.table = table
+
+        def select(self, *_a, **_k):
+            return self
+
+        def limit(self, _n):
+            return self
+
+        def update(self, payload):
+            written["payload"] = payload
+            return self
+
+        def eq(self, *_a):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": [{}]})()
+
+    monkeypatch.setattr(pipeline, "supabase", type("S", (), {"table": staticmethod(lambda n: _Q(n))})())
+    monkeypatch.setattr(pipeline, "_has_reason_column", True)
+
+    pipeline._mark_failed("r-1", pipeline.SERVICE_DOWN)
+    assert written["payload"]["status"] == "failed"
+    assert written["payload"]["failure_reason"] == pipeline.SERVICE_DOWN
+
+
+def test_an_unreadable_document_is_recorded_differently(monkeypatch):
+    from app.services import record_pipeline as pipeline
+
+    assert pipeline.failure_reason(pipeline._NothingRead(service_down=False)) == pipeline.UNREADABLE
+    assert pipeline.failure_reason(pipeline._NothingRead(service_down=True)) == pipeline.SERVICE_DOWN
+
+
+def test_an_unexplained_failure_is_treated_as_a_service_problem(monkeypatch):
+    """The safer mistake: it invites a retry instead of blaming a good photo."""
+    from app.services import record_pipeline as pipeline
+
+    assert pipeline.failure_reason(RuntimeError("something else went wrong")) == pipeline.SERVICE_DOWN

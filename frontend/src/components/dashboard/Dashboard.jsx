@@ -1,7 +1,7 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import {
-  fmt, fmtRel, drN, drInitial, isPending, isFailed, needsReview,
+  fmt, fmtRel, drN, drInitial, isPending, isFailed, failedOnService, needsReview,
   uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital } from '../../utils/format';
 import Icon from '../common/Icon';
 import Ledger, { typeName } from '../common/Ledger';
@@ -40,7 +40,12 @@ function Attention({ records, openRecord, retryRecord, navigate, dismissedDupes 
         <div className="att-block">
           <div className="att-row">
             <span className="att-icon tone-error"><Icon name="error" size={20} /></span>
-            <span className="att-text"><b>{plural(failed.length, 'document', 'documents')} couldn’t be read</b></span>
+            <span className="att-text">
+              <b>{plural(failed.length, 'document', 'documents')} couldn’t be read</b>
+              {failed.every(failedOnService) && (
+                <small>The service that reads documents couldn’t be reached. Your files are safe.</small>
+              )}
+            </span>
           </div>
           {failed.map(r => {
             const thumb = getRecordFiles(r)[0];

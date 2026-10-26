@@ -42,6 +42,7 @@ SCHEMA: Dict[str, List[str]] = {
         "doctor_name", "hospital_name", "document_date", "specialty", "diagnosis", "recommendations",
         "document_category", "bill_amount", "insurance_claimed", "visit_group", "created_at",
         "updated_at", "embedding", "bill_title", "bill_category", "bill_number",
+        "failure_reason",  # migration 008
     ],
     "medicines": ["id", "record_id", "name", "dosage", "frequency", "duration"],
     "record_edits": ["id", "record_id", "field_name", "old_value", "new_value", "edited_at"],

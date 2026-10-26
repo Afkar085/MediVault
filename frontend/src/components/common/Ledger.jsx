@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon';
-import { drN, fmt, parseDate, getRecordDate, getRecordFiles, isFailed, isPending, needsReview, catIcon } from '../../utils/format';
+import { drN, fmt, parseDate, getRecordDate, getRecordFiles, failedOnService, isFailed, isPending, needsReview, catIcon } from '../../utils/format';
 
 export const MARK = { prescription: 'Rx', lab_report: 'Lab', bill: 'Bill', discharge_summary: 'Discharge', other: 'Doc' };
 const TYPE_NAME = { prescription: 'Prescription', lab_report: 'Lab report', bill: 'Bill', discharge_summary: 'Discharge summary', other: 'Document' };
@@ -16,7 +16,7 @@ export const recordTitle = r => {
 
 function subtitle(r) {
   if (isPending(r)) return 'Reading…';
-  if (isFailed(r)) return 'Tap to retry or replace';
+  if (isFailed(r)) return failedOnService(r) ? 'Tap to try reading it again' : 'Tap to retry or replace';
   if (r.document_category === 'bill') {
     return 'Bill' + (r.bill_amount != null ? ' · ₹' + Number(r.bill_amount).toLocaleString('en-IN') : '');
   }

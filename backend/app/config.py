@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_DAYS: int = 30
     GROQ_API_KEY: str
     GROQ_TEXT_MODEL: str = "openai/gpt-oss-120b"
+    # The vision model has been retired out from under this app three times
+    # (Llama Vision, Llama 4 Scout, then qwen3.6-27b, which Groq shut down on
+    # 2026-09-14 and which silently broke every upload). It is a setting now,
+    # so the next retirement is an environment change and not a redeploy.
+    GROQ_VISION_MODEL: str = "qwen/qwen3.8-27b"
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     DEBUG: bool = False
 
