@@ -19,6 +19,19 @@
 
 ---
 
+## Watch it work
+
+![Walkthrough of MediVault](docs/walkthrough.gif)
+
+<sub>**[Full 77-second walkthrough &rarr; `docs/walkthrough.mp4`](docs/walkthrough.mp4)** &mdash; the whole
+story at 1080p: a handwritten prescription uploaded, read, and filed under the doctor who wrote
+it; the visit timeline; a second family member; search; and what happens when a page cannot be
+read. The GIF above is the condensed cut. Every frame of the product is a real screenshot of the
+app running against its own API &mdash; the records, dates and medicines in it came out of actual
+runs, not a mockup.</sub>
+
+---
+
 ## Screenshots
 
 ### Mobile
