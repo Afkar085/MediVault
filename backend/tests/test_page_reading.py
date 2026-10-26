@@ -41,9 +41,13 @@ def entries(*paths):
     return [{"file_path": p} for p in paths]
 
 
+def texts(results):
+    return pipeline.page_texts(results)
+
+
 def test_pages_come_back_in_page_order(ocr):
     ocr({"p1": "first", "p2": "second", "p3": "third"})
-    assert pipeline.read_pages(entries("p1", "p2", "p3"), ["image/png"] * 3) == [
+    assert texts(pipeline.read_pages(entries("p1", "p2", "p3"), ["image/png"] * 3)) == [
         "first", "second", "third",
     ]
 
@@ -74,12 +78,45 @@ def test_concurrency_stays_bounded(ocr, monkeypatch):
 def test_one_unreadable_page_does_not_lose_the_others(ocr):
     ocr({"p1": "first", "p3": "third"}, failing={"p2"})
     result = pipeline.read_pages(entries("p1", "p2", "p3"), ["image/png"] * 3)
-    assert result == ["first", "", "third"]
+    assert texts(result) == ["first", "", "third"]
+
+
+def test_a_page_the_service_could_not_read_is_marked_as_such(ocr):
+    """"We could not reach the reader" and "this page is blank" must not look
+    the same: only the second is the document's fault."""
+    ocr({"p1": "first", "p3": "third"}, failing={"p2"})
+    result = pipeline.read_pages(entries("p1", "p2", "p3"), ["image/png"] * 3)
+
+    assert [r.unavailable for r in result] == [False, True, False]
+    assert pipeline.any_unavailable(result)
+
+
+def test_a_genuinely_blank_page_is_not_a_service_failure(ocr):
+    ocr({"p1": "", "p2": "second"})
+    result = pipeline.read_pages(entries("p1", "p2"), ["image/png"] * 2)
+
+    assert texts(result) == ["", "second"]
+    assert not pipeline.any_unavailable(result)
+
+
+def test_the_reading_service_being_down_is_reported_as_a_service_failure(ocr, monkeypatch):
+    from app.services.ocr import OcrUnavailable
+
+    ocr({"p1": "first"})
+
+    def unavailable(_data, _ct):
+        raise OcrUnavailable("every vision model refused")
+
+    monkeypatch.setattr(pipeline, "extract_text_from_bytes", unavailable)
+    result = pipeline.read_pages(entries("p1"), ["image/png"])
+
+    assert texts(result) == [""]
+    assert pipeline.any_unavailable(result)
 
 
 def test_a_single_page_is_read_without_a_thread_pool(ocr):
     ocr({"p1": "only page"})
-    assert pipeline.read_pages(entries("p1"), ["image/png"]) == ["only page"]
+    assert texts(pipeline.read_pages(entries("p1"), ["image/png"])) == ["only page"]
 
 
 def test_no_pages_reads_nothing(ocr):
@@ -91,4 +128,4 @@ def test_no_pages_reads_nothing(ocr):
 def test_a_missing_content_type_does_not_break_the_page(ocr):
     """content_types can be shorter than the page list on legacy records."""
     ocr({"p1": "first", "p2": "second"})
-    assert pipeline.read_pages(entries("p1", "p2"), ["image/png"]) == ["first", "second"]
+    assert texts(pipeline.read_pages(entries("p1", "p2"), ["image/png"])) == ["first", "second"]

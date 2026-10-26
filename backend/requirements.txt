@@ -13,3 +13,4 @@ httpx==0.27.2
 email-validator==2.1.0
 slowapi==0.1.9
 Pillow==11.0.0   # upright + size-capped images for OCR (app/services/ocr.py prepare_image)
+pypdfium2==4.30.0  # render a scanned PDF's pages so they can be read as images

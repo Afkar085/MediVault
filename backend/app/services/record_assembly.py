@@ -17,10 +17,14 @@ BASE_RECORD_COLUMNS = (
     "created_at, updated_at"
 )
 BILL_DETAIL_COLUMNS = "bill_title, bill_category, bill_number"
+# Migration 008. Like the bill columns, optional so the app behaves the same
+# before and after the migration is applied.
+FAILURE_REASON_COLUMN = "failure_reason"
 
 # None = not known yet. Only a definite "column does not exist" answer is
 # remembered; a network error is not a reason to stop asking.
 _bill_columns = None
+_failure_reason_column = None
 
 
 def has_bill_columns() -> bool:
@@ -47,8 +51,31 @@ def has_bill_columns() -> bool:
     return _bill_columns
 
 
+def has_failure_reason_column() -> bool:
+    """Whether migration 008 (why a document could not be read) has been applied."""
+    global _failure_reason_column
+    if _failure_reason_column is not None:
+        return _failure_reason_column
+    try:
+        supabase.table("records").select(FAILURE_REASON_COLUMN).limit(1).execute()
+        _failure_reason_column = True
+    except Exception as e:
+        message = str(e).lower()
+        if "does not exist" in message or "42703" in message or "column" in message:
+            _failure_reason_column = False
+            logger.info("No failure_reason column; apply migration 008 to explain read failures")
+        else:
+            return False
+    return _failure_reason_column
+
+
 def record_columns() -> str:
-    return BASE_RECORD_COLUMNS + (", " + BILL_DETAIL_COLUMNS if has_bill_columns() else "")
+    columns = BASE_RECORD_COLUMNS
+    if has_bill_columns():
+        columns += ", " + BILL_DETAIL_COLUMNS
+    if has_failure_reason_column():
+        columns += ", " + FAILURE_REASON_COLUMN
+    return columns
 
 
 def attach_related(records: list) -> list:

@@ -1,4 +1,9 @@
-import { dedupeMedicines } from './format';
+import {
+  dedupeMedicines,
+  failedOnService,
+  failureAdvice,
+  failureTitle,
+} from './format';
 
 test('collapses brand variants from two documents, keeping the more detailed entry', () => {
   const meds = [
@@ -151,5 +156,38 @@ describe('doctorHospital', () => {
   });
   test('only bills means no hospital rather than a wrong one', () => {
     expect(doctorHospital([{ document_category: 'bill', hospital_name: 'Example Food Court' }])).toBe('');
+  });
+});
+
+// --- why a document could not be read ---------------------------------------
+//
+// "Couldn't be read, take a clearer photo" was shown whatever had gone wrong.
+// While Groq's vision model was retired (2026-09-14) that was every upload,
+// including perfectly clear prescriptions, and no photo would have helped.
+
+describe('failure wording', () => {
+  const unreadable = { status: 'failed', failure_reason: 'unreadable' };
+  const serviceDown = { status: 'failed', failure_reason: 'service_unavailable' };
+  const older = { status: 'failed' };  // recorded before the reason was stored
+
+  test('a service failure is not blamed on the document', () => {
+    expect(failedOnService(serviceDown)).toBe(true);
+    expect(failureAdvice(serviceDown)).toMatch(/couldn’t reach the service/i);
+    expect(failureAdvice(serviceDown)).not.toMatch(/clearer photo/i);
+  });
+
+  test('a document that really has no text still says so', () => {
+    expect(failedOnService(unreadable)).toBe(false);
+    expect(failureAdvice(unreadable)).toMatch(/clearer photo/i);
+  });
+
+  test('a record from before the reason was stored keeps the old wording', () => {
+    expect(failedOnService(older)).toBe(false);
+    expect(failureTitle(older)).toBe('Couldn’t read this document');
+  });
+
+  test('a service failure reads as temporary, not final', () => {
+    expect(failureTitle(serviceDown)).toMatch(/yet/);
+    expect(failureAdvice(serviceDown)).toMatch(/safe/i);
   });
 });

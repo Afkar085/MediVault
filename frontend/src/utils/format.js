@@ -142,6 +142,27 @@ export const dedupeMedicines = meds => {
 export const isPending = r => r.status === 'processing' || r.status === 'extracting';
 export const isFailed = r => r.status === 'failed';
 
+/**
+ * Whether the document itself defeated us, or we never managed to read it.
+ *
+ * These used to look the same on screen: whatever went wrong, people were told
+ * their document couldn't be read and advised to take a clearer photo. While
+ * the reading service was down that advice was shown for perfectly clear
+ * prescriptions, and no photo could ever have fixed it.
+ *
+ * Records from before the backend recorded a reason have none; those keep the
+ * original wording.
+ */
+export const failedOnService = r => r.failure_reason === 'service_unavailable';
+
+export const failureTitle = r => (failedOnService(r)
+  ? 'Couldn’t read this document yet'
+  : 'Couldn’t read this document');
+
+export const failureAdvice = r => (failedOnService(r)
+  ? 'MediVault couldn’t reach the service that reads documents. Your file is safe. Try again in a moment.'
+  : 'Try again, or delete it and add a clearer photo.');
+
 const _medKey = name => (name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 /**

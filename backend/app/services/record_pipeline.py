@@ -6,13 +6,14 @@ same record: it only fills fields that are still empty (what the person typed or
 edited always wins) and never adds a medicine the record already has.
 """
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from app.database import supabase
 from app.logger import logger
 from app.services.chunking import chunk_document
-from app.services.ocr import extract_text_from_bytes
+from app.services.ocr import OcrUnavailable, extract_text_from_bytes
 from app.services.storage import BUCKET
 
 # Fields the extractor may fill in. It only ever fills a field that is still
@@ -150,14 +151,39 @@ def existing_medicine_keys(record_id: str, key=med_key) -> set:
 
 # ── reading pages and indexing text ─────────────────────────────────────────
 
-def _read_page(entry: dict, content_type: str) -> str:
+# What reading one page produced. `unavailable` means the reading service
+# failed, which is not the same as the page having no text on it, and the two
+# must not be reported to the user the same way.
+class PageResult:
+    __slots__ = ("text", "unavailable")
+
+    def __init__(self, text: str = "", unavailable: bool = False):
+        self.text = text
+        self.unavailable = unavailable
+
+
+def _read_page(entry: dict, content_type: str) -> PageResult:
     """OCR one page. Never raises: a page that fails must not lose the others."""
+    started = time.monotonic()
     try:
         file_bytes = supabase.storage.from_(BUCKET).download(entry["file_path"])
-        return extract_text_from_bytes(file_bytes, content_type)
+    except Exception as e:
+        logger.warning("Could not fetch page %s: %s", entry.get("file_path"), e)
+        return PageResult(unavailable=True)
+    downloaded = time.monotonic()
+    try:
+        text = extract_text_from_bytes(file_bytes, content_type)
+    except OcrUnavailable as e:
+        logger.warning("Reading service unavailable for page %s: %s", entry.get("file_path"), e)
+        return PageResult(unavailable=True)
     except Exception as e:
         logger.warning("Could not read page %s: %s", entry.get("file_path"), e)
-        return ""
+        return PageResult(unavailable=True)
+    logger.info(
+        "Page read: download %.2fs, ocr %.2fs, %d characters",
+        downloaded - started, time.monotonic() - downloaded, len(text),
+    )
+    return PageResult(text=text)
 
 
 def read_pages(file_entries: list, content_types: list) -> list:
@@ -166,12 +192,23 @@ def read_pages(file_entries: list, content_types: list) -> list:
         (entry, content_types[i] if i < len(content_types) else "")
         for i, entry in enumerate(file_entries)
     ]
+    started = time.monotonic()
     if len(pairs) <= 1:
-        return [_read_page(entry, ct) for entry, ct in pairs]
+        results = [_read_page(entry, ct) for entry, ct in pairs]
+    else:
+        with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_PAGES, len(pairs))) as pool:
+            # map preserves input order, which is the page order.
+            results = list(pool.map(lambda pair: _read_page(*pair), pairs))
+    logger.info("Read %d page(s) in %.2fs", len(pairs), time.monotonic() - started)
+    return results
 
-    with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_PAGES, len(pairs))) as pool:
-        # map preserves input order, which is the page order.
-        return list(pool.map(lambda pair: _read_page(*pair), pairs))
+
+def page_texts(results: list) -> list:
+    return [r.text for r in results]
+
+
+def any_unavailable(results: list) -> bool:
+    return any(r.unavailable for r in results)
 
 
 def index_passages(record_id: str, text: str) -> None:
@@ -230,6 +267,62 @@ def _extract(text: str) -> dict:
     return extract_medical_data(text)
 
 
+# ── why a record failed ─────────────────────────────────────────────────────
+#
+# "failed" alone told the person their document could not be read, whatever had
+# actually gone wrong. When the vision model was retired that message was shown
+# for perfectly clear prescriptions, and the only advice the app could give was
+# to try again with a better photo, which could never work. The reason is
+# stored so the screen can say which of the two it was.
+
+UNREADABLE = "unreadable"        # we looked at the document and found no text
+SERVICE_DOWN = "service_unavailable"  # we never managed to look
+
+# Older deployments have no failure_reason column (migration 008). Asked once,
+# so the pipeline works the same either way.
+_has_reason_column = None
+
+
+class _NothingRead(RuntimeError):
+    def __init__(self, service_down: bool):
+        super().__init__("service unavailable" if service_down else "no text on any page")
+        self.reason = SERVICE_DOWN if service_down else UNREADABLE
+
+
+def failure_reason(error: Exception) -> str:
+    """What to tell the person about a failure. Anything we cannot attribute to
+    the document itself is a service problem, because that is the safer
+    mistake: it invites a retry rather than blaming a readable document."""
+    return getattr(error, "reason", SERVICE_DOWN)
+
+
+def _reason_column_exists() -> bool:
+    global _has_reason_column
+    if _has_reason_column is not None:
+        return _has_reason_column
+    try:
+        supabase.table("records").select("failure_reason").limit(1).execute()
+        _has_reason_column = True
+    except Exception as e:
+        if "column" in str(e).lower() or "42703" in str(e):
+            _has_reason_column = False
+            logger.info("No failure_reason column; apply migration 008 to store why a read failed")
+        else:
+            return False
+    return _has_reason_column
+
+
+def _clear_reason() -> dict:
+    return {"failure_reason": None} if _reason_column_exists() else {}
+
+
+def _mark_failed(record_id: str, reason: str) -> None:
+    update = {"status": "failed", "updated_at": now()}
+    if _reason_column_exists():
+        update["failure_reason"] = reason
+    supabase.table("records").update(update).eq("id", record_id).execute()
+
+
 # ── the jobs ────────────────────────────────────────────────────────────────
 
 def process_ocr(record_id: str, file_entries: list, content_types: list):
@@ -238,10 +331,15 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
     Safe to run more than once on the same record (that is what a retry does):
     it only fills empty fields, and never adds a medicine the record already has.
     """
+    started = time.monotonic()
     try:
-        all_texts = read_pages(file_entries, content_types)
+        results = read_pages(file_entries, content_types)
+        all_texts = page_texts(results)
         if not any(t.strip() for t in all_texts):
-            raise RuntimeError("no text could be read from any page")
+            # Nothing was read. WHY decides what the person is told: a document
+            # we looked at and found blank is not the same as one we never
+            # managed to look at because the reading service was down.
+            raise _NothingRead(service_down=any_unavailable(results))
 
         combined_text = PAGE_BREAK.join(t for t in all_texts if t.strip())
 
@@ -251,7 +349,9 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
             "updated_at": now(),
         }).eq("id", record_id).execute()
 
+        extract_started = time.monotonic()
         data = _extract(combined_text)
+        logger.info("Extraction took %.2fs", time.monotonic() - extract_started)
 
         current = supabase.table("records").select(
             "id, profile_id, visit_group, bill_amount, " + ", ".join(EXTRACTED_FIELDS)
@@ -283,18 +383,22 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
         # "done" is written last, so the record never claims to be finished
         # while its medicines are still missing.
         supabase.table("records").update(
-            {**update_data, "status": "done", "updated_at": now()}
+            {**update_data, "status": "done", **_clear_reason(), "updated_at": now()}
         ).eq("id", record_id).execute()
 
         _refresh_embedding({**merged, **update_data}, combined_text, data.get("medicines") or [])
         index_passages(record_id, combined_text)
+        logger.info("Record %s read and filled in %.2fs", record_id, time.monotonic() - started)
 
     except Exception as e:
         # The reason is logged; the document text is not (it is medical data).
-        logger.error("OCR/extraction pipeline failed for record %s: %s", record_id, type(e).__name__ + ": " + str(e)[:200])
+        logger.error(
+            "OCR/extraction pipeline failed for record %s after %.2fs: %s",
+            record_id, time.monotonic() - started, type(e).__name__ + ": " + str(e)[:200],
+        )
         # Only the status changes: if OCR succeeded and extraction failed, the
         # text we did get is still worth keeping. The original file is untouched.
-        supabase.table("records").update({"status": "failed", "updated_at": now()}).eq("id", record_id).execute()
+        _mark_failed(record_id, failure_reason(e))
 
 
 def reextract(record: dict) -> dict:
@@ -326,7 +430,8 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
     """
     had_text = False
     try:
-        new_texts = read_pages(new_file_entries, content_types)
+        results = read_pages(new_file_entries, content_types)
+        new_texts = page_texts(results)
         rec_result = supabase.table("records").select("*").eq("id", record_id).execute()
         if not rec_result.data:
             return
@@ -343,7 +448,7 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
         if not combined_text.strip():
             # Nothing on any page could be read. The pages are kept (they are the
             # originals), and the record says so instead of pretending.
-            supabase.table("records").update({"status": "failed", "updated_at": now()}).eq("id", record_id).execute()
+            _mark_failed(record_id, SERVICE_DOWN if any_unavailable(results) else UNREADABLE)
             return
 
         update_data = {"raw_ocr_text": combined_text}
@@ -364,7 +469,7 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
                 supabase.table("medicines").insert(rows).execute()
 
         supabase.table("records").update(
-            {**update_data, "status": "done", "updated_at": now()}
+            {**update_data, "status": "done", **_clear_reason(), "updated_at": now()}
         ).eq("id", record_id).execute()
 
         meds_now = supabase.table("medicines").select("name").eq("record_id", record_id).execute().data or []
@@ -375,6 +480,9 @@ def process_added_pages(record_id: str, new_file_entries: list, content_types: l
         logger.error("Attaching pages to record %s failed: %s", record_id, type(e).__name__)
         # Back to what it was before the pages were added: readable if it had
         # text, failed if it never did.
-        supabase.table("records").update(
-            {"status": "done" if had_text else "failed", "updated_at": now()}
-        ).eq("id", record_id).execute()
+        if had_text:
+            supabase.table("records").update(
+                {"status": "done", **_clear_reason(), "updated_at": now()}
+            ).eq("id", record_id).execute()
+        else:
+            _mark_failed(record_id, failure_reason(e))
