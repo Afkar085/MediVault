@@ -24,9 +24,10 @@ async function openPreview() {
   render(<App />);
   await act(async () => { await Promise.resolve(); });
   fireEvent.click(document.querySelector('.tab-add'));
-  const input = document.querySelector('[data-testid=add-files]');
-  fireEvent.change(input, { target: { files: [png()] } });
-  return screen.findByRole('dialog', { name: /add a document/i });
+  // The add sheet is code-split, so it appears a tick after the tap.
+  const sheet = await screen.findByRole('dialog', { name: /add a document/i });
+  fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
+  return sheet;
 }
 
 beforeEach(() => {
@@ -96,8 +97,8 @@ test('a document can be saved to another member’s file from the same sheet', a
   render(<App />);
   await act(async () => { await Promise.resolve(); });
   fireEvent.click(document.querySelector('.tab-add'));
-  fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
   const sheet = await screen.findByRole('dialog', { name: /add a document/i });
+  fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
   fireEvent.click(within(sheet).getByRole('button', { name: 'Bob' }));
   fireEvent.click(within(sheet).getByRole('button', { name: /save prescription/i }));
   await waitFor(() => expect(API.post).toHaveBeenCalledWith('/upload/p-bob', expect.anything(), expect.anything()));

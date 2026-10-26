@@ -29,3 +29,13 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    # Absent only if the session store could not be written to: the client then
+    # has a working (short) session rather than a failed sign-in.
+    refresh_token: Optional[str] = None
+    # Seconds until access_token expires, so the client can refresh *before* a
+    # request fails rather than after.
+    expires_in: Optional[int] = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1, max_length=512)

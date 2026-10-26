@@ -3,7 +3,7 @@ from app.schemas.profile import ProfileCreate, ProfileUpdate, ProfileResponse
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.logger import logger
-from app.services.storage import BUCKET
+from app.services.storage import BUCKET, forget_signed_urls
 from typing import List
 
 router = APIRouter()
@@ -58,6 +58,7 @@ def delete_profile(profile_id: str, user_id: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="This family member could not be deleted. Please try again.")
 
     # Deleting a person must delete their documents, not just stop showing them.
+    forget_signed_urls(paths)
     if paths:
         try:
             supabase.storage.from_(BUCKET).remove(sorted(paths))

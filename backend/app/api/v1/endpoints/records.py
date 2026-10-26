@@ -8,9 +8,11 @@ from app.services.record_assembly import attach_files, attach_medicines, has_bil
 from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
 from app.services.rag import CONTEXT_RECORD_LIMIT, AnswerUnavailable
-from app.services.storage import BUCKET
+from app.services.storage import BUCKET, forget_signed_urls
 from app.limiter import AI_QUESTIONS_PER_DAY, limiter
 from app.logger import logger
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from groq import Groq
@@ -53,8 +55,33 @@ class AskRequest(BaseModel):
 PROCESSING_TIMEOUT = timedelta(minutes=10)
 _PENDING_STATUSES = ["processing", "extracting"]
 
+# The client polls the status endpoint every four seconds while a document is
+# being read, and this ran a table UPDATE on every one of those, plus on every
+# list load: a write per profile per four seconds, to notice something that
+# only becomes true after ten minutes. Once a minute per profile sees it just
+# as soon and costs a fraction of the database traffic.
+SWEEP_INTERVAL_SECONDS = 60
+_last_sweep: dict = {}
+_sweep_lock = threading.Lock()
 
-def _expire_stuck_processing(profile_id: str) -> None:
+
+def _sweep_is_due(profile_id: str) -> bool:
+    now = time.monotonic()
+    with _sweep_lock:
+        last = _last_sweep.get(profile_id, 0.0)
+        if now - last < SWEEP_INTERVAL_SECONDS:
+            return False
+        # Bounded: one float per profile this worker has served, cleared
+        # wholesale rather than tracked individually.
+        if len(_last_sweep) > 10_000:
+            _last_sweep.clear()
+        _last_sweep[profile_id] = now
+        return True
+
+
+def _expire_stuck_processing(profile_id: str, force: bool = False) -> None:
+    if not force and not _sweep_is_due(profile_id):
+        return
     cutoff = (datetime.now(timezone.utc) - PROCESSING_TIMEOUT).isoformat()
     try:
         result = (
@@ -323,6 +350,7 @@ def delete_record(profile_id: str, record_id: str, user_id: str = Depends(get_cu
         except Exception:
             still_used = set(paths_to_delete)  # unsure: keep them rather than break another record
     orphaned = [p for p in paths_to_delete if p not in still_used]
+    forget_signed_urls(orphaned)
     if orphaned:
         try:
             supabase.storage.from_(BUCKET).remove(orphaned)

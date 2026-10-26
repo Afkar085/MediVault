@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useMemo, lazy, Suspense } from 'react';
 import './index.css';
 import API, { setSessionExpiredHandler, setServerWakingHandler, setServerAwakeHandler } from './api';
+import { clearSession, hasSession } from './session';
 import { buildDocGroups, isPending, timeOf } from './utils/format';
 import { validateFiles, describeRejections, uploadErrorMessage } from './utils/uploads';
 import useVisibleViewport from './hooks/useVisibleViewport';
@@ -9,17 +10,56 @@ import AuthScreen from './components/auth/AuthScreen';
 import TopBar from './components/layout/TopBar';
 import BottomNav from './components/layout/BottomNav';
 import Dashboard from './components/dashboard/Dashboard';
-import DoctorsPage from './components/doctors/DoctorsPage';
-import DoctorDetailPage from './components/visits/DoctorDetailPage';
-import VisitDetailPage from './components/visits/VisitDetailPage';
-import HealthJourneyScreen from './components/journey/HealthJourneyScreen';
-import SearchPage from './components/search/SearchPage';
-import FamilyPage from './components/family/FamilyPage';
-import ProfilePage from './components/profile/ProfilePage';
-import RecordModal from './components/records/RecordModal';
-import AddSheet from './components/upload/AddSheet';
-import ReviewPage from './components/review/ReviewPage';
 import Toast from './components/common/Toast';
+
+// Everything past the dashboard is loaded on demand, so the first screen does
+// not wait on code for screens nobody has opened yet. Each chunk is then
+// prefetched while the browser is idle (see usePrefetchedScreens below), so a
+// tap still goes straight there: the split costs download time at startup,
+// not when you navigate.
+const lazyScreens = {
+  doctors: () => import('./components/doctors/DoctorsPage'),
+  doctorDetail: () => import('./components/visits/DoctorDetailPage'),
+  visitDetail: () => import('./components/visits/VisitDetailPage'),
+  journey: () => import('./components/journey/HealthJourneyScreen'),
+  search: () => import('./components/search/SearchPage'),
+  family: () => import('./components/family/FamilyPage'),
+  profile: () => import('./components/profile/ProfilePage'),
+  review: () => import('./components/review/ReviewPage'),
+  record: () => import('./components/records/RecordModal'),
+  add: () => import('./components/upload/AddSheet'),
+};
+
+const DoctorsPage = lazy(lazyScreens.doctors);
+const DoctorDetailPage = lazy(lazyScreens.doctorDetail);
+const VisitDetailPage = lazy(lazyScreens.visitDetail);
+const HealthJourneyScreen = lazy(lazyScreens.journey);
+const SearchPage = lazy(lazyScreens.search);
+const FamilyPage = lazy(lazyScreens.family);
+const ProfilePage = lazy(lazyScreens.profile);
+const ReviewPage = lazy(lazyScreens.review);
+const RecordModal = lazy(lazyScreens.record);
+const AddSheet = lazy(lazyScreens.add);
+
+const idle = (fn) => (window.requestIdleCallback
+  ? window.requestIdleCallback(fn, { timeout: 3000 })
+  : setTimeout(fn, 1200));
+
+/** Pull every on-demand screen down once the first one has painted. */
+function usePrefetchedScreens() {
+  useEffect(() => {
+    let cancelled = false;
+    idle(() => {
+      if (cancelled) return;
+      Object.values(lazyScreens).forEach(load => { load().catch(() => {}); });
+    });
+    return () => { cancelled = true; };
+  }, []);
+}
+
+// Nothing visible: the chunks are prefetched and arrive in a few milliseconds,
+// and a spinner that flashes for one frame reads as jank, not as progress.
+const Loading = null;
 
 export const AppContext = createContext(null);
 
@@ -77,6 +117,11 @@ function MainApp({ onLogout }) {
   const uploadLockRef = useRef(false);
   const navRef = useRef(nav);
   const recordsRef = useRef(records);
+  // Records already fetched, by member. In memory for this tab only, so
+  // nothing medical is ever written to storage; it exists purely so that
+  // switching between family members, or coming Back to a screen, paints
+  // immediately instead of showing a skeleton for a list we already have.
+  const cachedRecordsRef = useRef(new Map());
   // Records opened from outside the loaded list (a family-wide search result),
   // so the back/forward buttons can reopen them too.
   const openedRef = useRef({});
@@ -195,8 +240,11 @@ function MainApp({ onLogout }) {
   const loadRecs = useCallback((pid) =>
     API.get('/profiles/' + pid + '/records')
       .then(r => {
-        if (activeProfileRef.current !== pid) return [];
         const sorted = [...r.data].sort((a, b) => timeOf(b.created_at) - timeOf(a.created_at));
+        // Cached whichever member is selected now, so switching back to one
+        // you were just looking at does not refetch before it can paint.
+        cachedRecordsRef.current.set(pid, sorted);
+        if (activeProfileRef.current !== pid) return [];
         setRecords(sorted);
         setLoadError(false);
         setWaking(false);
@@ -249,9 +297,17 @@ function MainApp({ onLogout }) {
     }
     try { localStorage.setItem('mv_member', sel.id); } catch (e) { /* storage unavailable */ }
     activeProfileRef.current = sel.id;
-    setRecords([]);  // never leave the previous member's records on screen
     setLoadError(false);
-    setLoading(true);
+
+    // Switching members used to blank the screen and show the skeleton again
+    // every time, even when going straight back to someone whose records were
+    // already loaded. Anything already fetched is painted at once and then
+    // quietly refreshed; only a member we have never loaded gets the skeleton.
+    // The cache is in memory for this tab only: medical records are never
+    // written to disk.
+    const known = cachedRecordsRef.current.get(sel.id);
+    setRecords(known || []);  // never leave the previous member's records on screen
+    setLoading(!known);
     loadRecs(sel.id);
   }, [sel, loadRecs]);
 
@@ -301,6 +357,7 @@ function MainApp({ onLogout }) {
   }, []);
 
   const removeProfile = useCallback((id) => {
+    cachedRecordsRef.current.delete(id);
     setProfiles(prev => {
       const next = prev.filter(p => p.id !== id);
       setSel(curSel => {
@@ -435,7 +492,7 @@ function MainApp({ onLogout }) {
 
   const deleteAccount = useCallback(async () => {
     await API.delete('/auth/account');
-    localStorage.removeItem('token');
+    clearSession();
     onLogout();
   }, [onLogout]);
 
@@ -443,7 +500,13 @@ function MainApp({ onLogout }) {
   // background, or a save, shows up in the open view without reopening it.
   const liveRec = selRec ? (records.find(r => r.id === selRec.id) || selRec) : null;
 
-  const ctx = {
+  const refreshRecords = useCallback(() => (sel ? loadRecs(sel.id) : undefined), [sel, loadRecs]);
+
+  // Every screen reads this through context, so a new object on every render
+  // re-rendered the whole app whenever anything at all changed: typing in the
+  // search box re-rendered the record list, the nav and the modal. Memoised,
+  // only the screens whose data actually changed re-render.
+  const ctx = useMemo(() => ({
     profiles,
     sel,
     setSel: handleSelChange,
@@ -456,7 +519,7 @@ function MainApp({ onLogout }) {
     loading,
     loadError,
     waking,
-    refreshRecords: () => sel && loadRecs(sel.id),
+    refreshRecords,
     docGroups,
     docNameMap,
     sortedDocs,
@@ -476,7 +539,15 @@ function MainApp({ onLogout }) {
     attachDocuments,
     visitUploading,
     onLogout,
-  };
+  }), [
+    profiles, sel, handleSelChange, addProfile, updateProfile, removeProfile, deleteAccount,
+    records, loading, loadError, waking, refreshRecords, docGroups, docNameMap, sortedDocs,
+    nav, navigate, updateNavParams, goBack, openRecord, showRecord, retryRecord, setLeaveGuard,
+    showToast, showUpload, dismissedDupes, keepDuplicates, uploadToVisit, attachDocuments,
+    visitUploading, onLogout,
+  ]);
+
+  usePrefetchedScreens();
 
   const renderPage = () => {
     switch (nav.page) {
@@ -504,10 +575,13 @@ function MainApp({ onLogout }) {
             Waking the server up. The first visit after a quiet spell can take a minute.
           </div>
         )}
-        <main className="page" id="main" tabIndex={-1}>{renderPage()}</main>
+        <main className="page" id="main" tabIndex={-1}>
+          <Suspense fallback={Loading}>{renderPage()}</Suspense>
+        </main>
         <BottomNav />
 
         {addOpen && sel && (
+          <Suspense fallback={Loading}>
           <AddSheet
             profiles={profiles}
             defaultProfileId={sel.id}
@@ -516,13 +590,13 @@ function MainApp({ onLogout }) {
             onClose={() => setAddOpen(null)}
             onReject={(msg) => showToast(msg, 'error')}
           />
+          </Suspense>
         )}
 
         {liveRec && (
-          <RecordModal
-            record={liveRec}
-            onClose={goBack}
-          />
+          <Suspense fallback={Loading}>
+            <RecordModal record={liveRec} onClose={goBack} />
+          </Suspense>
         )}
 
         {toast && <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
@@ -532,12 +606,17 @@ function MainApp({ onLogout }) {
 }
 
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
+  // hasSession(), not "is there a token": an access token that expired while
+  // the tab was closed is still a live session if its refresh token is good.
+  // Rendering the app on the token alone meant a reload after an hour showed
+  // the dashboard, fired a request, took a 401 and threw you back to sign-in.
+  const [loggedIn, setLoggedIn] = useState(hasSession);
   const [expired, setExpired] = useState(false);
   useVisibleViewport();
 
-  // A token lasts a day. When it runs out, drop to the sign-in screen and say
-  // why, rather than reloading the page and leaving the user to guess.
+  // Reached only when the refresh token was refused as well, i.e. the session
+  // really is over: expired, revoked, or signed out on another device. A plain
+  // expired access token never gets here, it is renewed in the background.
   useEffect(() => {
     setSessionExpiredHandler(() => { setExpired(true); setLoggedIn(false); });
     return () => setSessionExpiredHandler(() => {});

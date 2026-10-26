@@ -30,6 +30,15 @@ class _Bucket:
         raise AssertionError("public URLs must never be handed out for documents")
 
 
+# Signed URLs are cached in the process (see storage._cache), so one test's
+# URL would otherwise answer the next test's request.
+@pytest.fixture(autouse=True)
+def _no_cached_urls():
+    storage.forget_signed_urls()
+    yield
+    storage.forget_signed_urls()
+
+
 @pytest.fixture
 def bucket(monkeypatch):
     holder = {}
@@ -115,3 +124,59 @@ def test_every_accepted_upload_type_has_a_safe_extension():
     assert set(_EXTENSION_BY_TYPE) == ALLOWED_TYPES
     for ext in _EXTENSION_BY_TYPE.values():
         assert ext.isalnum(), ext
+
+
+# ── not signing the same path twice ─────────────────────────────────────────
+#
+# A URL is good for an hour; re-signing it on every refresh is a network
+# round-trip per page of every record, which was most of the cost of loading
+# the records list.
+
+def test_a_signed_url_is_reused_instead_of_signed_again(bucket):
+    b = bucket(_Bucket(single={"signedURL": "https://x/1"}))
+    assert storage.signed_url("a.jpg") == "https://x/1"
+    assert storage.signed_url("a.jpg") == "https://x/1"
+    assert b.single_calls == ["a.jpg"]
+
+
+def test_a_batch_only_signs_the_paths_it_does_not_already_have(bucket):
+    b = bucket(_Bucket(batch=[{"path": "a.jpg", "signedURL": "https://x/1"}]))
+    storage.signed_urls(["a.jpg"])
+
+    b._batch = [{"path": "b.jpg", "signedURL": "https://x/2"}]
+    result = storage.signed_urls(["a.jpg", "b.jpg"])
+
+    assert result == {"a.jpg": "https://x/1", "b.jpg": "https://x/2"}
+    assert b.batch_calls == [["a.jpg"], ["b.jpg"]]  # "a" was never re-signed
+
+
+def test_an_all_cached_batch_makes_no_request_at_all(bucket):
+    b = bucket(_Bucket(batch=[{"path": "a.jpg", "signedURL": "https://x/1"}]))
+    storage.signed_urls(["a.jpg"])
+    b.batch_calls.clear()
+
+    assert storage.signed_urls(["a.jpg"]) == {"a.jpg": "https://x/1"}
+    assert b.batch_calls == []
+
+
+def test_a_url_close_to_expiry_is_not_reused(bucket):
+    """Handing out a URL with seconds left would show a broken image."""
+    b = bucket(_Bucket(single={"signedURL": "https://x/1"}))
+    storage.signed_url("a.jpg", expires_in=storage._SIGNED_URL_MARGIN)
+    assert storage.signed_url("a.jpg", expires_in=storage._SIGNED_URL_MARGIN) == "https://x/1"
+    assert b.single_calls == ["a.jpg", "a.jpg"]
+
+
+def test_a_failure_is_not_cached(bucket):
+    b = bucket(_Bucket(single=RuntimeError("signing is down")))
+    assert storage.signed_url("a.jpg") is None
+    b._single = {"signedURL": "https://x/1"}
+    assert storage.signed_url("a.jpg") == "https://x/1"
+
+
+def test_a_deleted_document_is_forgotten(bucket):
+    b = bucket(_Bucket(single={"signedURL": "https://x/1"}))
+    storage.signed_url("a.jpg")
+    storage.forget_signed_urls(["a.jpg"])
+    b._single = {"signedURL": "https://x/2"}
+    assert storage.signed_url("a.jpg") == "https://x/2"

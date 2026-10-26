@@ -1,12 +1,22 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
-from app.core import login_guard
+from app.config import settings
+from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse
+from app.core import login_guard, sessions
 from app.core.security import hash_password, verify_password, create_access_token, DUMMY_HASH
 from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.limiter import limiter
 
 router = APIRouter()
+
+
+def _tokens(user_id: str, refresh_token: str | None = None) -> TokenResponse:
+    """An access token plus the refresh token that will renew it."""
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=refresh_token if refresh_token is not None else sessions.issue(user_id),
+        expires_in=settings.JWT_EXPIRE_HOURS * 3600,
+    )
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -32,8 +42,7 @@ def register(request: Request, body: RegisterRequest):
         "relationship": "Self"
     }).execute()
 
-    token = create_access_token(user_id)
-    return TokenResponse(access_token=token)
+    return _tokens(user_id)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -57,8 +66,33 @@ def login(request: Request, body: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     login_guard.record_success(body.email)
-    token = create_access_token(user["id"])
-    return TokenResponse(access_token=token)
+    return _tokens(user["id"])
+
+
+# Deliberately generous compared with /login: this is a signed-in client
+# renewing its own session, not an attempt to guess a password. Too tight a
+# limit here would sign people out, which is the exact problem refresh tokens
+# exist to solve.
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("60/minute")
+def refresh(request: Request, body: RefreshRequest):
+    """Exchange a refresh token for a new access token and a new refresh token.
+
+    No access token is required, and an expired one is fine: an expired access
+    token is the normal reason to be here.
+    """
+    rotated = sessions.rotate(body.refresh_token)
+    if not rotated:
+        raise HTTPException(status_code=401, detail="Your session has ended. Please sign in again.")
+    user_id, new_refresh = rotated
+    return _tokens(user_id, new_refresh)
+
+
+@router.post("/logout")
+def logout(body: RefreshRequest):
+    """End this session. Always succeeds, so signing out never gets stuck."""
+    sessions.revoke(body.refresh_token)
+    return {"message": "Signed out"}
 
 
 @router.delete("/account")
@@ -80,6 +114,10 @@ def delete_account(user_id: str = Depends(get_current_user)):
                 supabase.storage.from_("medical-records").remove(list(set(paths)))
             except Exception:
                 pass  # DB rows are removed below regardless; orphaned storage objects can be cleaned up manually
+
+    # Every device this account was signed in on stops working immediately,
+    # even if the row delete below were to fail partway.
+    sessions.revoke_all(user_id)
 
     # DB rows cascade: users -> profiles -> records -> medicines/record_files/record_edits (ON DELETE CASCADE in schema.sql)
     supabase.table("users").delete().eq("id", user_id).execute()
