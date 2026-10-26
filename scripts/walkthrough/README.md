@@ -29,6 +29,8 @@ page and a fingertip instead of a mouse pointer.
 3. **`render.mjs`** steps `seek()` at 30 fps and screenshots each step. `STAGE` and
    `OUTDIR` pick which stage to render and where to put the frames.
 4. `ffmpeg` encodes the PNG sequence to H.264, and a selection of ranges to the GIF.
+5. **`narrate.mjs`** reads `narration.json`, synthesises each line, and lays it on a
+   silent bed at its cue time before muxing it onto the video.
 
 Because the cursor and the focus rings are positioned from boxes measured in the
 real DOM, they land exactly on the thing being clicked, at the moment it was
@@ -78,3 +80,28 @@ the order of the acts, which recorded scene each one plays, how much of it to us
 Changing a caption means changing a string there. Adding a beat to the product
 footage means adding steps to the matching `capture*.mjs` — and the scene
 durations in `EDIT` then need the new numbers that the capture script prints.
+
+## The voiceover
+
+`narration.json` holds the script: a voice, a rate, and a list of `{ t, text }` cues
+in seconds for each video. `narrate.mjs` synthesises each line, measures it, and
+**refuses to build if any line runs past the cue that follows it** — so the voice can
+never talk over the next beat. Shorten the line, move the cue, or raise the rate, and
+run it again.
+
+```bash
+python -m venv .ttsvenv && .ttsvenv/Scripts/pip install edge-tts
+node narrate.mjs desktop walkthrough.mp4       ../../docs/walkthrough.mp4
+node narrate.mjs phone   walkthrough-phone.mp4 ../../docs/walkthrough-phone.mp4
+```
+
+The cue times line up with the caption beats. Both stages publish `window.SCHEDULE`,
+the absolute time of every caption and card, which `dump-schedule.mjs` prints — that
+is where the numbers in `narration.json` come from, so re-timing the edit shows you
+exactly which cues need to move.
+
+Synthesis uses `edge-tts`, which sends the narration text to Microsoft's Edge
+read-aloud endpoint and returns neural-quality audio. The text is the script in this
+repo and nothing else. For a fully offline build, swap the synthesis call for
+`piper-tts` with a local voice model; nothing else in the pipeline changes. Changing
+voice is the `voice` field — `--list-voices` shows what is available.

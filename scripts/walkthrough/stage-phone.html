@@ -291,6 +291,15 @@ const EDIT = [
 let T = 0;
 for (const s of EDIT) { s.start = T; s.dur = s.type === 'scene' ? Math.round((s.out - s.in) / s.speed) : s.dur; T += s.dur; }
 window.TOTAL = T;
+// Absolute time of every caption beat and card, so narration can be timed to them.
+window.SCHEDULE = EDIT.flatMap(s => {
+  if (s.type === 'scene') return s.beats.map(b => ({
+    kind: 'beat', scene: s.id, t: s.start + Math.round(b.t / s.speed),
+    end: s.start + s.dur, kicker: b.kicker, head: b.head.replace(/<[^>]*>/g, '')
+  }));
+  if (s.type === 'card') return [{ kind: 'card', scene: 'card', t: s.start, end: s.start + s.dur, kicker: s.num, head: s.title + '. ' + s.sub }];
+  return [{ kind: 'outro', scene: 'outro', t: s.start, end: s.start + s.dur, kicker: '', head: '' }];
+});
 const TOTAL = T;
 
 const cache = new Map();

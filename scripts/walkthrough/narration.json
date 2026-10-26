@@ -1,0 +1,27 @@
+{
+  "voice": "en-US-AndrewMultilingualNeural",
+  "rate": "+5%",
+  "pitch": "+0Hz",
+  "desktop": [
+    { "t": 0.8,  "text": "MediVault. Every prescription, lab report and bill your family has been handed — in one place, read and searchable." },
+    { "t": 11.5, "text": "Adding a page is one sheet. The date and the doctor are optional, because it reads them off the photo." },
+    { "t": 21.0, "text": "Checked on the device. A vision model reads the page; a language model gives it structure." },
+    { "t": 29.0, "text": "What comes back is a record, not a wall of text. Doctor, hospital, diagnosis, and every medicine with its dose." },
+    { "t": 39.0, "text": "Everything from one visit stays together. The whole history, newest first — nothing filed by hand." },
+    { "t": 47.0, "text": "One account holds the family. Each person keeps their own timeline, never under the wrong name." },
+    { "t": 55.2, "text": "Find any of it by doctor, medicine, diagnosis or year — including the prescription uploaded a minute ago." },
+    { "t": 65.0, "text": "And a page it cannot read says so, and keeps your original." },
+    { "t": 71.2, "text": "MediVault. The same app on a phone and on a desktop." }
+  ],
+  "phone": [
+    { "t": 0.8,  "text": "MediVault, in the browser already on your phone. Nothing to install. Every prescription your family has been handed, in one place." },
+    { "t": 11.6, "text": "Adding a page is one bottom sheet — straight from the camera roll. The date and the doctor are optional." },
+    { "t": 21.2, "text": "Checked on the phone. A vision model reads the page; a language model gives it structure." },
+    { "t": 29.2, "text": "What comes back is a record, not a wall of text. Doctor, hospital, diagnosis, and every medicine with its dose." },
+    { "t": 38.7, "text": "Everything from one visit stays together. The whole history, newest first — nothing filed by hand." },
+    { "t": 46.6, "text": "One account holds the family. Each person keeps their own timeline, never under the wrong name." },
+    { "t": 56.0, "text": "Find any of it by doctor, medicine or year — including the prescription uploaded a minute ago." },
+    { "t": 64.6, "text": "And a page it cannot read says so, and keeps your original." },
+    { "t": 70.2, "text": "MediVault. The same app on a phone and on a desktop." }
+  ]
+}

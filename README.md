@@ -21,23 +21,24 @@
 
 ## Watch it work
 
-The same walkthrough at both sizes. Every frame of the app in them is a real
-screenshot of it running — not a mockup, not a reconstruction.
+The same walkthrough at both sizes, both narrated. Every frame of the app in them is a
+real screenshot of it running — not a mockup, not a reconstruction. (The GIFs below are
+silent previews; the MP4s carry the voiceover.)
 
 ### On a phone browser
 
 ![MediVault walking through a prescription upload on a phone](docs/walkthrough-phone.gif)
 
 <sub>**[Full 76-second phone walkthrough &rarr; `docs/walkthrough-phone.mp4`](docs/walkthrough-phone.mp4)**
-&mdash; captured at 390&times;888 in a mobile browser, so it goes through the bottom tab bar, the
-raised add button and the bottom sheets the way a phone actually does.</sub>
+&mdash; narrated. Captured at 390&times;888 in a mobile browser, so it goes through the bottom tab
+bar, the raised add button and the bottom sheets the way a phone actually does.</sub>
 
 ### On a desktop
 
 ![MediVault walking through a prescription upload on a desktop](docs/walkthrough.gif)
 
 <sub>**[Full 77-second desktop walkthrough &rarr; `docs/walkthrough.mp4`](docs/walkthrough.mp4)**
-&mdash; the same story at 1360&times;850.</sub>
+&mdash; narrated. The same story at 1360&times;850.</sub>
 
 Both run the same beats: a handwritten prescription uploaded, read, and filed under the
 doctor who wrote it; the record it produced, down to each medicine's dose and schedule;
