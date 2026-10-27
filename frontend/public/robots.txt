@@ -5,4 +5,4 @@ User-agent: *
 Allow: /$
 Disallow: /
 
-Sitemap: https://medi-vault-silk-five.vercel.app/sitemap.xml
+Sitemap: https://mymedivault.vercel.app/sitemap.xml
