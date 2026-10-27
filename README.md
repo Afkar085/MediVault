@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://medi-vault-silk-five.vercel.app/"><strong>Live demo</strong></a> ·
+  <a href="https://mymedivault.vercel.app/"><strong>Live demo</strong></a> ·
   <a href="#watch-it-work">Walkthrough</a> ·
   <a href="#running-it-locally">Run it locally</a>
 </p>
@@ -258,5 +258,5 @@ the dev stack. `scripts/measure.py` reports what each hot request costs the serv
 
 <p align="center">
   Built by <a href="https://github.com/Afkar085">Afkar</a> ·
-  <a href="https://medi-vault-silk-five.vercel.app/">Try it live</a>
+  <a href="https://mymedivault.vercel.app/">Try it live</a>
 </p>
