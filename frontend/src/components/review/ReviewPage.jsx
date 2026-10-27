@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { AppContext } from '../../App';
-import { fmt, fmtRel, drN, getRecordFiles, reviewReasons, possibleDuplicates, duplicateGroupId } from '../../utils/format';
+import { fmt, fmtRel, drN, getRecordFiles, reviewReasons, possibleDuplicates, duplicateGroupId, thumbUrl } from '../../utils/format';
 import { PageHeader, EmptyState } from '../common/ui';
 import { LedgerRow, typeName } from '../common/Ledger';
 
@@ -37,7 +37,7 @@ export default function ReviewPage() {
                   const pages = getRecordFiles(r);
                   return (
                     <button key={r.id} className="compare-col" onClick={() => openRecord(r)} aria-label={'Open ' + typeName(r).toLowerCase() + ' added ' + fmtRel(r.created_at)}>
-                      <span className="compare-thumb">{pages[0] ? <img src={pages[0].file_url} alt="" /> : null}</span>
+                      <span className="compare-thumb">{pages[0] ? <img src={thumbUrl(pages[0])} alt="" loading="lazy" decoding="async" /> : null}</span>
                       <b>{r.doctor_name ? drN(r.doctor_name) : typeName(r)}</b>
                       <small>{fmt(r.document_date)}</small>
                       <small>{(r.files || []).length || 1} page{(r.files || []).length > 1 ? 's' : ''} · added {fmtRel(r.created_at)}</small>

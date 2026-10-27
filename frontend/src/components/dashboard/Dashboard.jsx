@@ -2,7 +2,7 @@ import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import {
   fmt, fmtRel, drN, drInitial, isPending, isFailed, failedOnService, needsReview,
-  uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital } from '../../utils/format';
+  uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital, thumbUrl } from '../../utils/format';
 import Icon from '../common/Icon';
 import Ledger, { typeName } from '../common/Ledger';
 import { EmptyState } from '../common/ui';
@@ -53,7 +53,7 @@ function Attention({ records, openRecord, retryRecord, navigate, dismissedDupes 
               <div key={r.id} className="att-doc">
                 <button className="att-doc-open" onClick={() => openRecord(r)}
                   aria-label={'Open the ' + typeName(r).toLowerCase() + ' uploaded ' + fmtRel(r.created_at)}>
-                  <span className="att-thumb">{thumb ? <img src={thumb.file_url} alt="" /> : <Icon name="description" size={18} />}</span>
+                  <span className="att-thumb">{thumb ? <img src={thumbUrl(thumb)} alt="" loading="lazy" decoding="async" /> : <Icon name="description" size={18} />}</span>
                   <span><b>{typeName(r)}</b><small>Added {fmtRel(r.created_at)}</small></span>
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => retry(r)} disabled={retrying === r.id}>

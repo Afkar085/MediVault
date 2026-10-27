@@ -258,6 +258,18 @@ export const getRecordFiles = r => {
   return [];
 };
 
+/**
+ * The URL to use where a page is shown small: a row thumbnail, the compare
+ * strip, the attention list.
+ *
+ * Lists used the stored original, so drawing a forty-pixel thumbnail meant
+ * downloading a multi-megabyte phone photo, and decoding it. Unnoticeable on
+ * a laptop; it was most of why the app felt slow on a phone. Pages uploaded
+ * before thumbnails existed, and PDFs, have no small copy and fall back to
+ * the original, so nothing ever shows a blank square.
+ */
+export const thumbUrl = f => (f ? (f.thumb_url || f.file_url) : null);
+
 export const hasStoredDocument = r => Boolean((r.files && r.files.length > 0) || r.file_path || r.file_url);
 
 const CAT_ICON = {

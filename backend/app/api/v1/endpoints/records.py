@@ -10,6 +10,7 @@ from app.services.record_assembly import (
 from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
 from app.services.rag import CONTEXT_RECORD_LIMIT, AnswerUnavailable
+from app.services.document_files import thumbnail_path
 from app.services.storage import BUCKET, forget_signed_urls
 from app.limiter import AI_QUESTIONS_PER_DAY, limiter
 from app.logger import logger
@@ -346,6 +347,8 @@ def delete_record(profile_id: str, record_id: str, user_id: str = Depends(get_cu
         except Exception:
             still_used = set(paths_to_delete)  # unsure: keep them rather than break another record
     orphaned = [p for p in paths_to_delete if p not in still_used]
+    # Each page's small copy is derived data and goes with the page itself.
+    orphaned += [thumbnail_path(p) for p in orphaned]
     forget_signed_urls(orphaned)
     if orphaned:
         try:

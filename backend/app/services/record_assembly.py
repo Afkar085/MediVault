@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from app.database import supabase
 from app.logger import logger
+from app.services.document_files import thumbnail_path
 from app.services.storage import signed_urls
 
 BASE_RECORD_COLUMNS = (
@@ -131,13 +132,27 @@ def attach_files(records: list) -> list:
 
     paths = [f["file_path"] for f in result.data if f.get("file_path")]
     paths += [r["file_path"] for r in records if r.get("file_path")]
-    url_by_path = signed_urls(paths)
+
+    # Lists show each page at about forty pixels across; they used the stored
+    # original, which on a phone meant downloading megabytes to draw a
+    # thumbnail. Both URLs are signed in the same batch, so this costs no
+    # extra round-trip, and a page with no small copy (anything uploaded
+    # before thumbnails existed, or a PDF) falls back to the original.
+    both = paths + [thumbnail_path(p) for p in paths]
+    url_by_path = signed_urls(both)
+
+    def thumb_for(path):
+        if not path:
+            return None
+        return url_by_path.get(thumbnail_path(path)) or url_by_path.get(path)
 
     by_record: dict = {}
     for file_row in result.data:
         file_row["file_url"] = url_by_path.get(file_row.get("file_path"))
+        file_row["thumb_url"] = thumb_for(file_row.get("file_path"))
         by_record.setdefault(file_row["record_id"], []).append(file_row)
     for record in records:
         record["files"] = by_record.get(record["id"], [])
         record["file_url"] = url_by_path.get(record.get("file_path"))
+        record["thumb_url"] = thumb_for(record.get("file_path"))
     return records
