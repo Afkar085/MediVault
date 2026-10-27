@@ -8,7 +8,7 @@ import hashlib
 
 from app.database import supabase
 from app.logger import logger
-from app.services.storage import BUCKET
+from app.services.storage import BUCKET, forget_signed_urls
 
 ALLOWED_TYPES = {
     "image/jpeg", "image/png", "image/jpg", "image/webp",
@@ -198,6 +198,8 @@ def _store_thumbnail(file_path: str, contents: bytes, content_type: str) -> None
             file=small,
             file_options={"content-type": "image/jpeg", "upsert": "true"},
         )
+        # In case this page's thumbnail was looked for, and missed, before now.
+        forget_signed_urls([thumbnail_path(file_path)])
     except Exception as e:
         logger.info("Could not store a thumbnail for %s: %s", file_path, type(e).__name__)
 
