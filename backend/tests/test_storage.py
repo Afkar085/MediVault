@@ -180,3 +180,66 @@ def test_a_deleted_document_is_forgotten(bucket):
     storage.forget_signed_urls(["a.jpg"])
     b._single = {"signedURL": "https://x/2"}
     assert storage.signed_url("a.jpg") == "https://x/2"
+
+
+# ── signing things that might not be there ──────────────────────────────────
+#
+# Thumbnails arrive after the pages they belong to, so many of the paths in a
+# list do not exist yet. Supabase rejects a whole batch when one path is
+# missing. Putting thumbnails in with the originals therefore made every
+# record list fall back to signing each object on its own: a 2 second list
+# became 27 seconds against the real deployment.
+
+def test_a_missing_path_never_falls_back_to_one_request_per_object(bucket):
+    b = bucket(_Bucket(batch=RuntimeError("Object not found"), single={"signedURL": "https://x/1"}))
+
+    result = storage.signed_urls_if_present(["a.thumb.jpg", "b.thumb.jpg", "c.thumb.jpg"])
+
+    assert result == {}
+    assert b.single_calls == []          # the expensive path was not taken
+    assert len(b.batch_calls) == 1       # one request, then it gave up
+
+
+def test_paths_known_to_be_missing_are_not_asked_about_again(bucket):
+    b = bucket(_Bucket(batch=RuntimeError("Object not found")))
+    storage.signed_urls_if_present(["a.thumb.jpg"])
+    storage.signed_urls_if_present(["a.thumb.jpg"])
+
+    assert len(b.batch_calls) == 1  # the second list cost nothing
+
+
+def test_the_ones_that_do_exist_still_come_back(bucket):
+    bucket(_Bucket(batch=[
+        {"path": "a.thumb.jpg", "signedURL": "https://x/a"},
+        {"path": "b.thumb.jpg", "error": "Object not found"},
+    ]))
+
+    result = storage.signed_urls_if_present(["a.thumb.jpg", "b.thumb.jpg"])
+
+    assert result == {"a.thumb.jpg": "https://x/a"}
+
+
+def test_a_thumbnail_that_appears_later_is_picked_up(bucket):
+    """The backfill makes these after the fact, so "missing" cannot be forever."""
+    b = bucket(_Bucket(batch=[{"path": "a.thumb.jpg", "error": "Object not found"}]))
+    assert storage.signed_urls_if_present(["a.thumb.jpg"]) == {}
+
+    storage.forget_signed_urls()  # what the TTL does, deterministically
+    b._batch = [{"path": "a.thumb.jpg", "signedURL": "https://x/a"}]
+    assert storage.signed_urls_if_present(["a.thumb.jpg"]) == {"a.thumb.jpg": "https://x/a"}
+
+
+def test_a_found_thumbnail_is_cached_like_any_other_url(bucket):
+    b = bucket(_Bucket(batch=[{"path": "a.thumb.jpg", "signedURL": "https://x/a"}]))
+    storage.signed_urls_if_present(["a.thumb.jpg"])
+    storage.signed_urls_if_present(["a.thumb.jpg"])
+
+    assert len(b.batch_calls) == 1
+
+
+def test_signing_real_documents_still_falls_back_when_the_batch_is_down(bucket):
+    """The opposite policy, deliberately: these exist and are worth the cost."""
+    b = bucket(_Bucket(batch=RuntimeError("batch is down"), single={"signedURL": "https://x/1"}))
+
+    assert storage.signed_urls(["a.jpg"]) == {"a.jpg": "https://x/1"}
+    assert b.single_calls == ["a.jpg"]

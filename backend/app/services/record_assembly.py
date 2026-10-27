@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from app.database import supabase
 from app.logger import logger
 from app.services.document_files import thumbnail_path
-from app.services.storage import signed_urls
+from app.services.storage import signed_urls, signed_urls_if_present
 
 BASE_RECORD_COLUMNS = (
     "id, profile_id, document_type, status, file_path, doctor_name, "
@@ -133,18 +133,34 @@ def attach_files(records: list) -> list:
     paths = [f["file_path"] for f in result.data if f.get("file_path")]
     paths += [r["file_path"] for r in records if r.get("file_path")]
 
+    url_by_path = signed_urls(paths)
+
     # Lists show each page at about forty pixels across; they used the stored
     # original, which on a phone meant downloading megabytes to draw a
-    # thumbnail. Both URLs are signed in the same batch, so this costs no
-    # extra round-trip, and a page with no small copy (anything uploaded
-    # before thumbnails existed, or a PDF) falls back to the original.
-    both = paths + [thumbnail_path(p) for p in paths]
-    url_by_path = signed_urls(both)
+    # thumbnail. The small copies are signed in a SEPARATE batch: many of them
+    # do not exist yet, Supabase rejects a batch containing a missing path,
+    # and putting them in with the originals made one bad batch fall back to
+    # signing every object one at a time, which took a 2 second record list
+    # to 27 seconds. A page with no small copy falls back to the original.
+    thumb_urls = signed_urls_if_present([thumbnail_path(p) for p in paths])
 
     def thumb_for(path):
         if not path:
             return None
-        return url_by_path.get(thumbnail_path(path)) or url_by_path.get(path)
+        return thumb_urls.get(thumbnail_path(path)) or url_by_path.get(path)
+
+    # Anything stored before thumbnails existed has none, which is every
+    # document people already had. A few are queued to be made in the
+    # background on each list, so an existing account catches up on its own
+    # instead of someone having to run a migration by hand. Best-effort and
+    # non-blocking: the list is already being returned from the originals.
+    missing = [p for p in paths if p and not thumb_urls.get(thumbnail_path(p))]
+    if missing:
+        try:
+            from app.services.thumbnail_backfill import queue_missing
+            queue_missing(missing)
+        except Exception as e:  # never let catching up break a read
+            logger.info("Could not queue thumbnail backfill: %s", type(e).__name__)
 
     by_record: dict = {}
     for file_row in result.data:

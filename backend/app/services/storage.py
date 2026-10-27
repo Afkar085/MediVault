@@ -53,14 +53,41 @@ def _remember(path: str, url: Optional[str], expires_in: int) -> None:
         _cache[path] = (url, time.monotonic() + max(expires_in - _SIGNED_URL_MARGIN, 0))
 
 
+# Paths we asked about and were told do not exist. Thumbnails arrive later
+# (see services/thumbnail_backfill), so this is forgotten periodically rather
+# than for the life of the process.
+_ABSENT_TTL = 900
+_absent: Dict[str, float] = {}
+
+
+def _known_absent(path: str) -> bool:
+    expires = _absent.get(path)
+    if expires is None:
+        return False
+    if time.monotonic() >= expires:
+        with _cache_lock:
+            _absent.pop(path, None)
+        return False
+    return True
+
+
+def _remember_absent(path: str) -> None:
+    with _cache_lock:
+        if len(_absent) >= _CACHE_MAX_ENTRIES:
+            _absent.clear()
+        _absent[path] = time.monotonic() + _ABSENT_TTL
+
+
 def forget_signed_urls(paths: Iterable[str] = ()) -> None:
     """Drop cached URLs for paths that are going away (a delete), or all of them."""
     with _cache_lock:
         if not paths:
             _cache.clear()
+            _absent.clear()
             return
         for path in paths:
             _cache.pop(path, None)
+            _absent.pop(path, None)
 
 
 def signed_url(file_path: str, expires_in: int = DEFAULT_EXPIRY) -> Optional[str]:
@@ -78,6 +105,51 @@ def signed_url(file_path: str, expires_in: int = DEFAULT_EXPIRY) -> Optional[str
         return None
     _remember(file_path, url, expires_in)
     return url
+
+
+def signed_urls_if_present(paths: Iterable[str], expires_in: int = DEFAULT_EXPIRY) -> Dict[str, str]:
+    """Sign objects that MIGHT NOT EXIST, in one request, best-effort.
+
+    Separate from signed_urls because the two want opposite things on failure.
+    signed_urls is signing documents it knows are there, so if the batch
+    endpoint is unavailable it is worth signing them one by one. These are
+    optional extras (thumbnails), and some of the paths are expected to be
+    missing: Supabase rejects the whole batch when one is, and falling back to
+    one request per object turned a 2 second record list into 27 seconds.
+
+    So: one request, and if it does not work, nothing. The caller falls back
+    to the original, which is what it would have shown anyway.
+
+    A path that comes back missing is remembered as missing, so the next
+    request does not ask about it again.
+    """
+    unique: List[str] = list(dict.fromkeys(p for p in paths if p))
+    wanted = [p for p in unique if not _known_absent(p)]
+    found = {p: url for p in wanted if (url := _cached(p))}
+    ask = [p for p in wanted if p not in found]
+    if not ask:
+        return found
+
+    try:
+        results = supabase.storage.from_(BUCKET).create_signed_urls(ask, expires_in)
+    except Exception as e:
+        # Every path in the batch is treated as absent for now, so a bad batch
+        # costs one request rather than one per object on every list.
+        logger.info("Optional signing unavailable for %d path(s): %s", len(ask), str(e)[:120])
+        for path in ask:
+            _remember_absent(path)
+        return found
+
+    for item in results or []:
+        path, url = item.get("path"), (item.get("signedURL") or item.get("signedUrl"))
+        if item.get("error") or not url or not path:
+            continue
+        found[path] = url
+        _remember(path, url, expires_in)
+    for path in ask:
+        if path not in found:
+            _remember_absent(path)
+    return found
 
 
 def signed_urls(paths: Iterable[str], expires_in: int = DEFAULT_EXPIRY) -> Dict[str, Optional[str]]:

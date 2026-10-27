@@ -18,3 +18,16 @@ os.environ.setdefault("JWT_SECRET", "test-secret-for-ci-only-not-a-real-key-0123
 os.environ.setdefault("JWT_EXPIRE_HOURS", "24")
 os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
 os.environ.setdefault("FRONTEND_ORIGINS", "*")
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_thumbnail_backfill():
+    """Catching up on old thumbnails reaches storage. Tests never should."""
+    from app.services import thumbnail_backfill
+
+    thumbnail_backfill.enabled = False
+    yield
+    thumbnail_backfill.enabled = True
