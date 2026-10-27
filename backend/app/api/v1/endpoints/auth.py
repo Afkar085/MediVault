@@ -5,6 +5,7 @@ from app.core import login_guard, sessions
 from app.core.security import hash_password, verify_password, create_access_token, DUMMY_HASH
 from app.core.dependencies import get_current_user
 from app.database import supabase
+from app.services.document_files import thumbnail_path
 from app.limiter import limiter
 
 router = APIRouter()
@@ -123,6 +124,7 @@ def delete_account(user_id: str = Depends(get_current_user)):
 
         if paths:
             try:
+                paths += [thumbnail_path(p) for p in paths]
                 supabase.storage.from_("medical-records").remove(list(set(paths)))
             except Exception:
                 pass  # DB rows are removed below regardless; orphaned storage objects can be cleaned up manually

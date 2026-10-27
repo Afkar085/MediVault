@@ -123,6 +123,58 @@ def records_holding(paths: list, profile_id: str) -> dict:
     return {r["file_path"]: r["record_id"] for r in rows if r["record_id"] in owned_ids}
 
 
+# ── thumbnails ──────────────────────────────────────────────────────────────
+#
+# A record list shows each document at about forty pixels across, and it was
+# doing that by downloading the stored original: a phone photo of several
+# megabytes, for every row. On a laptop over wifi that is invisible. On a
+# phone over mobile data it is most of what makes the app feel slow, and the
+# decoding costs the phone's CPU on top of the bytes.
+#
+# So a small copy is stored next to each page at upload time. The original is
+# never touched: it is the medical document, and the full viewer still shows
+# it. The thumbnail is derived data, and a page that has none simply falls
+# back to the original, which is what every record from before this did.
+
+THUMBNAIL_MAX_EDGE = 320
+THUMBNAIL_QUALITY = 72
+THUMBNAIL_SUFFIX = ".thumb.jpg"
+
+
+def thumbnail_path(file_path: str) -> str:
+    """Where a page's small copy lives. Derived from the page's own key, so it
+    inherits the same per-user, per-member prefix and the same access rules."""
+    return file_path + THUMBNAIL_SUFFIX
+
+
+def make_thumbnail(contents: bytes, content_type: str):
+    """A small JPEG of this page, or None if one cannot be made.
+
+    None is not an error: PDFs and anything Pillow cannot decode simply have
+    no thumbnail, and the caller falls back to the original.
+    """
+    if content_type == "application/pdf" or contents[:4] == b"%PDF":
+        return None
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:  # pragma: no cover - optional at runtime
+        return None
+    try:
+        import io
+
+        with Image.open(io.BytesIO(contents)) as img:
+            img = ImageOps.exif_transpose(img)  # upright, like the viewer shows it
+            img.thumbnail((THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE))
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=THUMBNAIL_QUALITY, optimize=True)
+            return out.getvalue()
+    except Exception as e:
+        logger.info("No thumbnail for this page (%s)", type(e).__name__)
+        return None
+
+
 def store(entries: list) -> None:
     for entry in entries:
         # upsert: the key is the content hash, so overwriting can only ever
@@ -132,6 +184,22 @@ def store(entries: list) -> None:
             file=entry["contents"],
             file_options={"content-type": entry["content_type"], "upsert": "true"},
         )
+        _store_thumbnail(entry["file_path"], entry["contents"], entry["content_type"])
+
+
+def _store_thumbnail(file_path: str, contents: bytes, content_type: str) -> None:
+    """Best-effort: an upload must never fail because the small copy did."""
+    small = make_thumbnail(contents, content_type)
+    if not small:
+        return
+    try:
+        supabase.storage.from_(BUCKET).upload(
+            path=thumbnail_path(file_path),
+            file=small,
+            file_options={"content-type": "image/jpeg", "upsert": "true"},
+        )
+    except Exception as e:
+        logger.info("Could not store a thumbnail for %s: %s", file_path, type(e).__name__)
 
 
 def discard(paths: list) -> None:
@@ -151,7 +219,7 @@ def discard(paths: list) -> None:
     if not paths:
         return
     try:
-        supabase.storage.from_(BUCKET).remove(paths)
+        supabase.storage.from_(BUCKET).remove(paths + [thumbnail_path(p) for p in paths])
     except Exception as e:
         logger.warning("Could not clean up %d stored file(s) after a failed upload: %s", len(paths), e)
 

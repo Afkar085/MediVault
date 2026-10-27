@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon';
-import { drN, fmt, parseDate, getRecordDate, getRecordFiles, failedOnService, isFailed, isPending, needsReview, catIcon } from '../../utils/format';
+import { drN, fmt, parseDate, getRecordDate, getRecordFiles, failedOnService, isFailed, isPending, needsReview, catIcon, thumbUrl } from '../../utils/format';
 
 export const MARK = { prescription: 'Rx', lab_report: 'Lab', bill: 'Bill', discharge_summary: 'Discharge', other: 'Doc' };
 const TYPE_NAME = { prescription: 'Prescription', lab_report: 'Lab report', bill: 'Bill', discharge_summary: 'Discharge summary', other: 'Document' };
@@ -41,7 +41,7 @@ export function LedgerRow({ r, onOpen, note, owner }) {
     <li>
       <button className={'rec-row' + (state ? ' is-' + state : '')} onClick={() => onOpen(r)} aria-label={label}>
         <span className={'rec-thumb cat-' + (isFailed(r) ? 'failed' : r.document_category || 'other')} aria-hidden="true">
-          {thumb && !isFailed(r) ? <img src={thumb.file_url} alt="" loading="lazy" /> : <Icon name={isFailed(r) ? 'error' : catIcon(r.document_category)} size={20} />}
+          {thumb && !isFailed(r) ? <img src={thumbUrl(thumb)} alt="" loading="lazy" decoding="async" width="40" height="40" /> : <Icon name={isFailed(r) ? 'error' : catIcon(r.document_category)} size={20} />}
         </span>
         <span className="rec-body">
           <span className="rec-title">{recordTitle(r)}</span>
