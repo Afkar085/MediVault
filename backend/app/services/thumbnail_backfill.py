@@ -27,7 +27,7 @@ from app.logger import logger
 from app.services.document_files import (
     content_type_for_path, make_thumbnail, thumbnail_path,
 )
-from app.services.storage import BUCKET
+from app.services.storage import BUCKET, forget_signed_urls
 
 # Per request, so one page load never waits on a long tail of old documents.
 MAX_PER_REQUEST = 4
@@ -60,6 +60,11 @@ def _make_one(path: str) -> None:
             file=small,
             file_options={"content-type": "image/jpeg", "upsert": "true"},
         )
+        # The list asked about this thumbnail a moment ago and was told it
+        # did not exist, which is remembered so later lists stop asking. It
+        # exists now, so say so: without this the record list keeps handing
+        # out the full-size original until that memory expires.
+        forget_signed_urls([thumbnail_path(path)])
         logger.info("Backfill: %s %d KB -> %d KB", path, len(original) // 1024, len(small) // 1024)
     except Exception as e:
         logger.info("Backfill: could not store a thumbnail for %s (%s)", path, type(e).__name__)

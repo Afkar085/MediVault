@@ -137,3 +137,47 @@ def test_a_pdf_is_left_alone(monkeypatch):
     uploaded = _bucket(monkeypatch, original=b"%PDF-1.4 a scanned page")
     backfill._make_one("u/p/scan.pdf")
     assert uploaded == []
+
+
+def test_a_new_thumbnail_is_visible_to_the_next_list(monkeypatch):
+    """The list asked for this thumbnail, was told it did not exist, and
+    remembers that so later lists stop asking. Once the backfill makes it,
+    that memory has to go, or the list keeps serving the full-size original
+    until it expires."""
+    from app.services import storage
+
+    storage.forget_signed_urls()
+    bucket_calls = []
+
+    class _B:
+        @staticmethod
+        def download(_path):
+            import io
+
+            from PIL import Image
+            buf = io.BytesIO()
+            Image.new("RGB", (1600, 1200), (9, 9, 9)).save(buf, format="JPEG")
+            return buf.getvalue()
+
+        @staticmethod
+        def upload(path, file, file_options=None):
+            bucket_calls.append(path)
+            return {"path": path}
+
+        @staticmethod
+        def create_signed_urls(paths, _expires):
+            return [{"path": p, "error": "Object not found"} for p in paths]
+
+    monkeypatch.setattr(backfill.supabase.storage, "from_", lambda _b: _B(), raising=False)
+    monkeypatch.setattr(storage.supabase.storage, "from_", lambda _b: _B(), raising=False)
+
+    thumb = backfill.thumbnail_path("u/p/a.jpg")
+
+    # A list looks, finds nothing, and remembers that.
+    assert storage.signed_urls_if_present([thumb]) == {}
+    assert storage._known_absent(thumb)
+
+    backfill._make_one("u/p/a.jpg")
+
+    assert thumb in bucket_calls
+    assert not storage._known_absent(thumb), "the next list would still serve the original"
