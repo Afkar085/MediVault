@@ -466,3 +466,84 @@ def test_a_failed_extraction_keeps_the_record_and_its_text(monkeypatch):
     assert statuses[-1] == "done"
     # The text it did read is stored, so search and Ask still work on it.
     assert any("raw_ocr_text" in p for _t, p in writes)
+
+
+def test_a_finished_record_is_not_failed_by_the_search_index(monkeypatch):
+    """Indexing runs after the record is already done. Seen live: records with
+    correct text and medicines reported as "couldn't be read" because a step
+    AFTER completion threw."""
+    from app.services import record_pipeline as pipeline
+
+    writes = []
+
+    class _Q:
+        def __init__(self, table):
+            self.table = table
+            self._op = None
+            self._payload = None
+
+        def select(self, *_a, **_k):
+            self._op = "select"
+            return self
+
+        def insert(self, rows):
+            self._op, self._payload = "insert", rows
+            return self
+
+        def update(self, payload):
+            self._op, self._payload = "update", payload
+            return self
+
+        def delete(self):
+            self._op = "delete"
+            return self
+
+        def eq(self, *_a):
+            return self
+
+        def ilike(self, *_a):
+            return self
+
+        def gte(self, *_a):
+            return self
+
+        def lte(self, *_a):
+            return self
+
+        def limit(self, _n):
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        @property
+        def not_(self):
+            return self
+
+        def is_(self, *_a):
+            return self
+
+        def execute(self):
+            if self._op == "update":
+                writes.append(self._payload)
+                return type("R", (), {"data": [{"id": "r-1"}]})()
+            if self.table == "records":
+                return type("R", (), {"data": [{"id": "r-1", "profile_id": "p-1"}]})()
+            return type("R", (), {"data": []})()
+
+    def boom(*_a, **_k):
+        raise RuntimeError("the embedding service fell over")
+
+    monkeypatch.setattr(pipeline, "supabase", type("S", (), {"table": staticmethod(_Q)})())
+    monkeypatch.setattr(pipeline, "read_pages",
+                        lambda *a, **k: [pipeline.PageResult("Dr Nambiar\nAzithromycin 500mg")])
+    monkeypatch.setattr(pipeline, "_extract", lambda _t: {"doctor_name": "Dr Nambiar"})
+    monkeypatch.setattr(pipeline, "_refresh_embedding", boom)
+    monkeypatch.setattr(pipeline, "index_passages", boom)
+    monkeypatch.setattr(pipeline, "_reason_column_exists", lambda: True)
+
+    pipeline.process_ocr("r-1", [{"file_path": "p1"}], ["image/jpeg"])
+
+    statuses = [p["status"] for p in writes if "status" in p]
+    assert statuses[-1] == "done", writes
+    assert "failed" not in statuses, writes
