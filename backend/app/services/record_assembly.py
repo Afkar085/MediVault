@@ -146,6 +146,19 @@ def attach_files(records: list) -> list:
             return None
         return url_by_path.get(thumbnail_path(path)) or url_by_path.get(path)
 
+    # Anything stored before thumbnails existed has none, which is every
+    # document people already had. A few are queued to be made in the
+    # background on each list, so an existing account catches up on its own
+    # instead of someone having to run a migration by hand. Best-effort and
+    # non-blocking: the list is already being returned from the originals.
+    missing = [p for p in paths if p and not url_by_path.get(thumbnail_path(p))]
+    if missing:
+        try:
+            from app.services.thumbnail_backfill import queue_missing
+            queue_missing(missing)
+        except Exception as e:  # never let catching up break a read
+            logger.info("Could not queue thumbnail backfill: %s", type(e).__name__)
+
     by_record: dict = {}
     for file_row in result.data:
         file_row["file_url"] = url_by_path.get(file_row.get("file_path"))
