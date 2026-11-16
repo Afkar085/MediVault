@@ -256,6 +256,31 @@ export const visitOf = r => {
 export const sameVisit = (a, b) => !!a && !!b && a.doctorKey === b.doctorKey && a.date === b.date;
 
 /**
+ * Records as a person thinks of them: one entry per visit (a doctor on a day,
+ * with everything that came from it), and a plain entry for anything that
+ * names no doctor or is still being read. Newest first.
+ */
+export const groupByVisit = (records) => {
+  const entries = [];
+  const byVisit = new Map();
+  [...(records || [])]
+    .sort((a, b) => String(getRecordDate(b) || '').localeCompare(String(getRecordDate(a) || ''))
+      || String(b.created_at).localeCompare(String(a.created_at)))
+    .forEach(r => {
+      const v = r.status === 'done' || !r.status ? visitOf(r) : null;
+      if (!v) { entries.push({ kind: 'record', id: r.id, record: r }); return; }
+      let entry = byVisit.get(v.id);
+      if (!entry) {
+        entry = { kind: 'visit', id: v.id, visit: v, records: [] };
+        byVisit.set(v.id, entry);
+        entries.push(entry);
+      }
+      entry.records.push(r);
+    });
+  return entries;
+};
+
+/**
  * How many days a prescription line runs for: "5 days", "x 2 weeks", "1 month".
  * Null when it does not say, and then nothing is claimed about it.
  */

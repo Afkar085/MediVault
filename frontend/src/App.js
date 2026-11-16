@@ -103,6 +103,8 @@ function MainApp({ onLogout }) {
   // null when closed, otherwise the type to start the add sheet on.
   const [addOpen, setAddOpen] = useState(null);
   const [addVisit, setAddVisit] = useState(null);
+  const [justFiled, setJustFiled] = useState(null);
+  const dismissFiled = useCallback(() => setJustFiled(null), []);
   // Possible-duplicate groups someone has looked at and kept. Per device: it
   // only hides a hint, and never changes a record.
   const [dismissedDupes, setDismissedDupes] = useState(() => {
@@ -247,6 +249,11 @@ function MainApp({ onLogout }) {
         // you were just looking at does not refetch before it can paint.
         cachedRecordsRef.current.set(pid, sorted);
         if (activeProfileRef.current !== pid) return [];
+        // A document that was being read a moment ago and is now done: say what
+        // it was filed as, so nobody has to go looking for it.
+        const was = new Map(recordsRef.current.map(x => [x.id, x.status]));
+        const finished = sorted.find(x => x.status === 'done' && ['processing', 'extracting'].includes(was.get(x.id)));
+        if (finished) setJustFiled(finished.id);
         setRecords(sorted);
         setLoadError(false);
         setWaking(false);
@@ -544,7 +551,7 @@ function MainApp({ onLogout }) {
     retryRecord,
     setLeaveGuard,
     showToast,
-    showUpload,
+    showUpload, justFiled, dismissFiled,
     dismissedDupes,
     keepDuplicates,
     uploadToVisit,
@@ -555,7 +562,7 @@ function MainApp({ onLogout }) {
     profiles, sel, handleSelChange, addProfile, updateProfile, removeProfile, deleteAccount,
     records, loading, loadError, waking, refreshRecords, docGroups, docNameMap, sortedDocs,
     nav, navigate, updateNavParams, goBack, openRecord, showRecord, retryRecord, setLeaveGuard,
-    showToast, showUpload, dismissedDupes, keepDuplicates, uploadToVisit, attachDocuments,
+    showToast, showUpload, justFiled, dismissFiled, dismissedDupes, keepDuplicates, uploadToVisit, attachDocuments,
     visitUploading, onLogout,
   ]);
 

@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { AppContext } from '../../App';
 import { drN, drInitial, fmt, fmtRel, getRecordDate, doctorHospital } from '../../utils/format';
 import Icon from '../common/Icon';
@@ -30,6 +30,15 @@ export default function DoctorsPage() {
   };
 
   const named = sortedDocs.filter(k => k !== 'unassigned');
+  const [q, setQ] = useState('');
+  const needle = q.trim().toLowerCase();
+  const matches = (key) => {
+    if (!needle) return true;
+    const visits = docGroups[key] || [];
+    return [docNameMap[key], visits.find(v => v.specialty)?.specialty, doctorHospital(visits)]
+      .filter(Boolean).join(' ').toLowerCase().includes(needle);
+  };
+  const shownDocs = sortedDocs.filter(matches);
 
   return (
     <div>
@@ -41,9 +50,17 @@ export default function DoctorsPage() {
         </EmptyState>
       )}
 
-      {sortedDocs.length > 0 && (
+      {named.length > 4 && (
+        <label className="field doctor-search">
+          <span className="sr-only">Find a doctor</span>
+          <input className="field-inp" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Find a doctor, hospital or specialty" />
+        </label>
+      )}
+      {sortedDocs.length > 0 && shownDocs.length === 0 && <p className="muted-line">No doctor matches “{q}”.</p>}
+
+      {shownDocs.length > 0 && (
         <div className="list-card">
-          {sortedDocs.map(key => {
+          {shownDocs.map(key => {
             const visits = docGroups[key] || [];
             const last = visits[0];
             const specialty = visits.find(v => v.specialty)?.specialty || '';

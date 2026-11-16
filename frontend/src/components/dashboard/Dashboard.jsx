@@ -2,9 +2,10 @@ import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import {
   fmt, fmtRel, drN, drInitial, isPending, isFailed, failedOnService, needsReview,
-  uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital, thumbUrl } from '../../utils/format';
+  uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital, thumbUrl, groupByVisit } from '../../utils/format';
 import Icon from '../common/Icon';
-import Ledger, { typeName } from '../common/Ledger';
+import { LedgerRow, typeName } from '../common/Ledger';
+import VisitCard from '../common/VisitCard';
 import { EmptyState } from '../common/ui';
 import { clickable } from '../../utils/interaction';
 
@@ -149,8 +150,9 @@ function Doctors({ docGroups, docNameMap, sortedDocs, navigate }) {
 export default function Dashboard() {
   const {
     sel, records, loading, loadError, docGroups, docNameMap, sortedDocs, dismissedDupes,
-    navigate, openRecord, refreshRecords, retryRecord, showUpload,
+    navigate, openRecord, refreshRecords, retryRecord, showUpload, justFiled, dismissFiled,
   } = useContext(AppContext);
+  const filed = justFiled ? records.find(r => r.id === justFiled && r.status === 'done') : null;
 
   if (loading) {
     return (
@@ -192,6 +194,22 @@ export default function Dashboard() {
         )}
       </header>
 
+      {filed && (
+        <section className="card filed-card" aria-label="Just added">
+          <div className="filed-head"><Icon name="task_alt" size={20} /> Read and filed</div>
+          <dl className="filed-rows">
+            <div><dt>Type</dt><dd>{typeName(filed)}</dd></div>
+            {filed.doctor_name && <div><dt>Doctor</dt><dd>{drN(filed.doctor_name)}</dd></div>}
+            {filed.document_date && <div><dt>Date</dt><dd>{fmt(filed.document_date)}</dd></div>}
+            {filed.medicines?.length > 0 && <div><dt>Medicines</dt><dd>{filed.medicines.length} found</dd></div>}
+          </dl>
+          <div className="filed-btns">
+            <button className="btn btn-secondary" onClick={dismissFiled}>OK</button>
+            <button className="btn btn-primary" onClick={() => { openRecord(filed); dismissFiled(); }}>Open and check</button>
+          </div>
+        </section>
+      )}
+
       <Attention records={records} openRecord={openRecord} retryRecord={retryRecord} navigate={navigate} dismissedDupes={dismissedDupes} />
 
       {records.length === 0 ? (
@@ -209,7 +227,12 @@ export default function Dashboard() {
               {records.length > 5 && <button className="link-btn" onClick={() => navigate('journey')}>See all</button>}
             </div>
             {/* Failed documents are already listed above, with their actions. */}
-            <Ledger records={records.filter(r => !isFailed(r))} onOpen={openRecord} grouped={false} limit={5} paged={false} />
+            <ul className="rec-group recent-list">
+              {groupByVisit(records.filter(r => !isFailed(r))).slice(0, 5).map(e => (e.kind === 'visit'
+                ? <VisitCard key={e.id} entry={e} onOpen={openRecord} onAdd={(v) => showUpload('auto', v)}
+                    onOpenVisit={(en) => navigate('visit-detail', { visitDate: en.visit.date, doctorKey: en.visit.doctorKey, doctorName: en.visit.doctorName })} />
+                : <LedgerRow key={e.id} r={e.record} onOpen={openRecord} />))}
+            </ul>
           </section>
 
           <Doctors docGroups={docGroups} docNameMap={docNameMap} sortedDocs={sortedDocs} navigate={navigate} />

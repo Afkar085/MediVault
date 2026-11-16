@@ -31,12 +31,15 @@ function subtitle(r) {
  * icon), who or what it is, what it was for, and when. The same row in the
  * dashboard, the full list, search and review, so a record always looks the same.
  */
+/** How a record is announced, the same wherever it can be opened from. */
+export const rowLabel = (r) => [typeName(r), recordTitle(r), r.document_date ? fmt(r.document_date) : '', needsReview(r) && !isFailed(r) && !isPending(r) ? 'needs review' : '']
+  .filter(Boolean).join(', ');
+
 export function LedgerRow({ r, onOpen, note, owner }) {
   const thumb = getRecordFiles(r)[0];
   const state = isFailed(r) ? 'failed' : isPending(r) ? 'pending' : needsReview(r) ? 'review' : null;
   const date = fmt(getRecordDate(r));
-  const label = [typeName(r), recordTitle(r), r.document_date ? fmt(r.document_date) : '', state === 'review' ? 'needs review' : '']
-    .filter(Boolean).join(', ');
+  const label = rowLabel(r);
   return (
     <li>
       <button className={'rec-row' + (state ? ' is-' + state : '')} onClick={() => onOpen(r)} aria-label={label}>
@@ -85,7 +88,12 @@ export default function Ledger({ records, onOpen, grouped = true, limit = PAGE, 
     <div className="rec-list">
       {groups.map(g => (
         <section key={g.key} aria-label={grouped ? monthLabel(g.key) : undefined}>
-          {grouped && <h3 className="month-lbl">{monthLabel(g.key)}</h3>}
+          {grouped && (
+            <h3 className="month-lbl">
+              {monthLabel(g.key)}
+              {g.key === new Date().toISOString().slice(0, 7) && <span className="month-now">This month</span>}
+            </h3>
+          )}
           <ul className="rec-group">{g.rows.map(r => <LedgerRow key={r.id} r={r} onOpen={onOpen} />)}</ul>
         </section>
       ))}
