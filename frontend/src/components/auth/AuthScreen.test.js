@@ -1,12 +1,14 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import App from '../../App';
-import API from '../../api';
+import API, { wakeServer } from '../../api';
 
 jest.mock('../../api', () => ({
   __esModule: true,
   setSessionExpiredHandler: jest.fn(),
   setServerWakingHandler: jest.fn(),
   setServerAwakeHandler: jest.fn(),
+  wakeServer: jest.fn(),
+  PATIENT_TIMEOUT: 75000,
   default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
 
@@ -31,9 +33,31 @@ test('credentials are submitted by the form, so Enter works and managers can sav
     expect(API.post).toHaveBeenCalledWith('/auth/login', {
       email: 'me@example.com',
       password: 'a-good-password',
-    }),
+    }, { timeout: 75000 }),
   );
   expect(localStorage.getItem('token')).toBe('tok');
+});
+
+test('the server is woken as soon as the sign-in screen shows', () => {
+  render(<App />);
+  expect(wakeServer).toHaveBeenCalledTimes(1);
+});
+
+test('a slow sign-in says the server is waking instead of sitting silent', async () => {
+  jest.useFakeTimers();
+  try {
+    API.post.mockReturnValue(new Promise(() => {}));  // a server still asleep
+    render(<App />);
+    fill('Email', 'me@example.com');
+    fill('Password', 'a-good-password');
+    fireEvent.submit(screen.getByRole('button', { name: /^sign in$/i }).closest('form'));
+
+    expect(screen.queryByText(/waking the server up/i)).toBeNull();
+    act(() => { jest.advanceTimersByTime(5000); });
+    expect(screen.getByText(/waking the server up/i)).toBeInTheDocument();
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test('the email and password fields are labelled for password managers', () => {
@@ -106,7 +130,7 @@ test('signing up no longer asks the server whether an email is registered', asyn
     email: 'me@example.com',
     password: 'a-good-password',
     name: 'Alice',
-  });
+  }, { timeout: 75000 });
 });
 
 test('an already-registered email points to signing in', async () => {

@@ -683,6 +683,7 @@ input[type=date].field-inp::-webkit-date-and-time-value { text-align: left; }
 .auth-err, .auth-info { margin-bottom: 14px; padding: 10px 12px; border-radius: var(--r); font-size: 14px; }
 .auth-err { background: var(--danger-bg); color: var(--danger); }
 .auth-info { background: var(--success-bg); color: var(--success); }
+.auth-info.auth-slow { margin: 12px 0 0; background: var(--warning-bg); color: var(--warning); }
 .forgot-link { margin-top: 12px; text-align: center; }
 .forgot-link .linkish { min-height: 44px; padding: 8px; font-size: 14px; }
 .auth-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 22px; font-size: 13px; color: var(--ink-3); }

@@ -8,6 +8,8 @@ jest.mock('./api', () => ({
   setSessionExpiredHandler: jest.fn(),
   setServerWakingHandler: jest.fn(),
   setServerAwakeHandler: jest.fn(),
+  wakeServer: jest.fn(),
+  PATIENT_TIMEOUT: 75000,
   default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
 }));
 

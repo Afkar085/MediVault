@@ -21,6 +21,22 @@ export const API_ORIGIN = (() => {
 
 const API = axios.create({ baseURL: BASE_URL, timeout: NORMAL_TIMEOUT });
 
+/** How long a request that may have to wake the server is given. */
+export const PATIENT_TIMEOUT = COLD_START_TIMEOUT;
+
+/**
+ * Nudge a sleeping server awake without waiting for the answer.
+ *
+ * Called when the sign-in screen appears, so the minute a cold start takes
+ * runs while the person is still typing their password rather than after they
+ * press the button. Measured before this existed: the first sign-in after a
+ * quiet spell hit the 30s timeout and failed, and the second took 15s more.
+ */
+export const wakeServer = () => {
+  if (!API_ORIGIN) return;
+  axios.get(API_ORIGIN + '/health', { timeout: COLD_START_TIMEOUT }).catch(() => {});
+};
+
 // Renewing the session must not go through the interceptors that renew the
 // session, and must not carry the access token that just expired. Exported so
 // tests can stub its transport; nothing else should use it.

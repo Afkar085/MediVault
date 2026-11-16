@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import API from '../../api';
+import { useEffect, useState } from 'react';
+import API, { PATIENT_TIMEOUT, wakeServer } from '../../api';
 import { saveSession } from '../../session';
 import Logo from '../common/Logo';
 import Icon from '../common/Icon';
@@ -7,6 +7,10 @@ import Icon from '../common/Icon';
 // Mirrors backend/app/schemas/auth.py so the requirement is stated up front
 // rather than after a failed submit.
 const MIN_PASSWORD_LENGTH = 8;
+
+// A warm server answers a sign-in in a second or two. Past this, it is almost
+// certainly waking up, and saying so beats a button that just sits there.
+const SLOW_AFTER_MS = 5000;
 
 function errorMessage(e, mode) {
   if (!e.response) return 'Can’t reach MediVault. Check your connection and try again.';
@@ -35,6 +39,16 @@ export default function AuthScreen({ onLogin, notice = '' }) {
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
   const [ld, setLd] = useState(false);
+  const [slow, setSlow] = useState(false);
+
+  // Start waking the server the moment this screen shows.
+  useEffect(() => { wakeServer(); }, []);
+
+  useEffect(() => {
+    if (!ld) { setSlow(false); return undefined; }
+    const timer = setTimeout(() => setSlow(true), SLOW_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [ld]);
 
   const isRegister = mode === 'register';
 
@@ -58,7 +72,7 @@ export default function AuthScreen({ onLogin, notice = '' }) {
         email: email.trim(),
         password: pw,
         ...(isRegister ? { name: name.trim() } : {}),
-      });
+      }, { timeout: PATIENT_TIMEOUT });
       saveSession(r.data);
       onLogin();
     } catch (e2) {
@@ -180,6 +194,11 @@ export default function AuthScreen({ onLogin, notice = '' }) {
                 ? (isRegister ? 'Creating account…' : 'Signing in…')
                 : (isRegister ? 'Create account' : 'Sign in')}
             </button>
+            {slow && (
+              <div className="auth-info auth-slow" role="status">
+                Waking the server up. The first visit after a quiet spell can take up to a minute.
+              </div>
+            )}
           </form>
 
           {!isRegister && (
