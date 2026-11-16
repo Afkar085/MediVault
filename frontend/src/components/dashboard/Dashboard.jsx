@@ -165,7 +165,7 @@ export default function Dashboard() {
   if (!sel) {
     return (
       <EmptyState icon="group" title="Add a family member"
-        action={<button className="btn btn-primary" onClick={() => navigate('family', { add: true })}>Add member</button>}>
+        action={<button className="btn btn-primary" onClick={() => navigate('profile', { add: true })}>Add member</button>}>
         Each person gets their own records.
       </EmptyState>
     );

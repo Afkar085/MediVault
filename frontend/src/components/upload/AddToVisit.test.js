@@ -72,49 +72,53 @@ test('a bill added from an open prescription is sent with that visit’s doctor 
   fireEvent.click(within(record).getByRole('button', { name: /add a bill or report/i }));
   const sheet = await screen.findByRole('dialog', { name: /add to this visit/i });
 
-  // The visit is already picked, the type is already Bill, and there is
-  // nothing to type.
+  // The visit is already picked and there is nothing to type.
   expect(within(sheet).getByRole('button', { name: /shreya/i })).toHaveAttribute('aria-pressed', 'true');
   expect(within(sheet).queryByLabelText(/^date/i)).toBeNull();
 
   fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
-  fireEvent.click(within(sheet).getByRole('button', { name: /save bill/i }));
+  fireEvent.click(within(sheet).getByRole('button', { name: /^done/i }));
 
   await waitFor(() => expect(API.post).toHaveBeenCalledTimes(1));
   const [url, body] = API.post.mock.calls[0];
   expect(url).toBe('/upload/p-alice');
-  expect(body.get('document_category')).toBe('bill');
+  // What kind of document it is, is read from the page.
+  expect(body.get('document_category')).toBeNull();
   expect(body.get('doctor_name')).toBe('DR. SHREYA');
   expect(body.get('document_date')).toBe('2026-11-07');
 });
 
-test('the + button offers recent visits, and New visit brings the fields back', async () => {
+test('the + button offers recent visits as an option, and none is assumed', async () => {
   API.post.mockResolvedValue({ data: { record_id: 'r-new', status: 'processing', duplicate: false } });
   await start([PRESCRIPTION, OLDER]);
   fireEvent.click(document.querySelector('.tab-add'));
   const sheet = await screen.findByRole('dialog', { name: /add a document/i });
 
-  // Nothing is assumed: a plain add starts as a new visit.
-  expect(within(sheet).getByRole('button', { name: /new visit/i })).toHaveAttribute('aria-pressed', 'true');
-  expect(within(sheet).getByLabelText(/^date/i)).toBeInTheDocument();
+  const kabir = within(sheet).getByRole('button', { name: /kabir/i });
+  expect(kabir).toHaveAttribute('aria-pressed', 'false');
+  expect(within(sheet).getByRole('button', { name: /shreya/i })).toHaveAttribute('aria-pressed', 'false');
 
-  fireEvent.click(within(sheet).getByRole('button', { name: /kabir/i }));
-  expect(within(sheet).queryByLabelText(/^date/i)).toBeNull();
-
+  fireEvent.click(kabir);
   fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
-  fireEvent.click(within(sheet).getByRole('button', { name: /save prescription/i }));
+  fireEvent.click(within(sheet).getByRole('button', { name: /^done/i }));
   await waitFor(() => expect(API.post).toHaveBeenCalledTimes(1));
   const body = API.post.mock.calls[0][1];
   expect(body.get('doctor_name')).toBe('Kabir');
   expect(body.get('document_date')).toBe('2026-10-20');
 });
 
-test('a bill can name who prescribed it when it starts a new visit', async () => {
-  await start([]);
+test('tapping a picked visit again lets the app decide after all', async () => {
+  API.post.mockResolvedValue({ data: { record_id: 'r-new', status: 'processing', duplicate: false } });
+  await start([PRESCRIPTION]);
   fireEvent.click(document.querySelector('.tab-add'));
   const sheet = await screen.findByRole('dialog', { name: /add a document/i });
-  fireEvent.click(within(sheet).getByRole('button', { name: /^bill$/i }));
-  expect(within(sheet).getByLabelText(/prescribed by/i)).toBeInTheDocument();
+  const shreya = within(sheet).getByRole('button', { name: /shreya/i });
+  fireEvent.click(shreya);
+  fireEvent.click(shreya);
+  fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
+  fireEvent.click(within(sheet).getByRole('button', { name: /^done/i }));
+  await waitFor(() => expect(API.post).toHaveBeenCalledTimes(1));
+  expect(API.post.mock.calls[0][1].get('doctor_name')).toBeNull();
 });
 
 test('an open document shows what else came from the same visit and opens it', async () => {

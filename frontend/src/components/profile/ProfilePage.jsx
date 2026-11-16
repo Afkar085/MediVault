@@ -1,12 +1,14 @@
 import { useContext, useState } from 'react';
 import { AppContext } from '../../App';
 import { endSessionOnServer } from '../../api';
+import { isDemo, setDemo } from '../../demo';
+import FamilyPage from '../family/FamilyPage';
 import Icon from '../common/Icon';
 import Modal from '../common/Modal';
 import { PageHeader } from '../common/ui';
 
 export default function ProfilePage() {
-  const { onLogout, sel, profiles, deleteAccount, showToast, navigate } = useContext(AppContext);
+  const { onLogout, sel, profiles, deleteAccount, showToast } = useContext(AppContext);
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -27,6 +29,8 @@ export default function ProfilePage() {
   // on a screen you asked to leave.
   const signOut = () => {
     try { localStorage.removeItem('mv_member'); } catch (e) { /* storage unavailable */ }
+    // Leaving the demo has no server session to end.
+    if (isDemo()) { setDemo(false); onLogout(); return; }
     endSessionOnServer();
     onLogout();
   };
@@ -43,16 +47,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="list-card">
-        <button className="list-row" onClick={() => navigate('family')}>
-          <div className="cat-icon tone-navy"><Icon name="group" size={18} /></div>
-          <div className="list-row-body">
-            <div className="list-row-title">Family members</div>
-            <div className="list-row-sub">Add, edit or switch</div>
-          </div>
-          <Icon name="chevron_right" size={20} style={{ color: 'var(--ink-4)' }} />
-        </button>
-      </div>
+      <FamilyPage />
 
       {/* Information, not controls: these used to look tappable and did nothing. */}
       <h2 className="eyebrow eyebrow-section">Privacy</h2>

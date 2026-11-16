@@ -2,9 +2,9 @@ import { useContext } from 'react';
 import { AppContext } from '../../App';
 import Icon from '../common/Icon';
 
-const TOP_PAGES = ['home', 'search', 'family', 'profile'];
+const TOP_PAGES = ['home', 'search', 'summary', 'profile'];
 // Screens reached from Home keep Home lit, so the bar always says where you are.
-const SECTION = { doctors: 'home', 'doctor-detail': 'home', 'visit-detail': 'home', journey: 'home', review: 'home', records: 'home' };
+const SECTION = { doctors: 'home', 'doctor-detail': 'home', 'visit-detail': 'home', journey: 'home', review: 'home', records: 'home', family: 'profile' };
 
 function Tab({ id, label, icon, page, navigate }) {
   const on = page === id;
@@ -27,7 +27,7 @@ export default function BottomNav() {
         <button className="tab-add" onClick={() => showUpload()} aria-label="Add a document">
           <Icon name="add" size={28} />
         </button>
-        <Tab id="family" label="Family" icon="group" page={page} navigate={navigate} />
+        <Tab id="summary" label="Summary" icon="assignment" page={page} navigate={navigate} />
         <Tab id="profile" label="Profile" icon="person" page={page} navigate={navigate} />
       </div>
     </nav>

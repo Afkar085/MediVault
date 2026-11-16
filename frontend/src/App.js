@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, createContext, useMemo, lazy, Suspense } from 'react';
 import './index.css';
 import API, { setSessionExpiredHandler, setServerWakingHandler, setServerAwakeHandler } from './api';
+import { isDemo, setDemo } from './demo';
 import { clearSession, hasSession } from './session';
 import { buildDocGroups, drN, isPending, recentVisits, timeOf } from './utils/format';
 import { validateFiles, describeRejections, uploadErrorMessage } from './utils/uploads';
@@ -23,7 +24,7 @@ const lazyScreens = {
   visitDetail: () => import('./components/visits/VisitDetailPage'),
   journey: () => import('./components/journey/HealthJourneyScreen'),
   search: () => import('./components/search/SearchPage'),
-  family: () => import('./components/family/FamilyPage'),
+  summary: () => import('./components/summary/SummaryPage'),
   profile: () => import('./components/profile/ProfilePage'),
   review: () => import('./components/review/ReviewPage'),
   record: () => import('./components/records/RecordModal'),
@@ -35,7 +36,7 @@ const DoctorDetailPage = lazy(lazyScreens.doctorDetail);
 const VisitDetailPage = lazy(lazyScreens.visitDetail);
 const HealthJourneyScreen = lazy(lazyScreens.journey);
 const SearchPage = lazy(lazyScreens.search);
-const FamilyPage = lazy(lazyScreens.family);
+const SummaryPage = lazy(lazyScreens.summary);
 const ProfilePage = lazy(lazyScreens.profile);
 const ReviewPage = lazy(lazyScreens.review);
 const RecordModal = lazy(lazyScreens.record);
@@ -79,7 +80,7 @@ const postFiles = (url, files, details = {}, onUploadProgress) => {
 // user refresh, the server will have settled the record's status by then.
 const POLL_LIMIT = Math.ceil((11 * 60 * 1000) / POLL);
 
-const TOP_PAGES = new Set(['home', 'search', 'family', 'profile']);
+const TOP_PAGES = new Set(['home', 'search', 'summary', 'profile']);
 
 // What a history entry may carry: the page and small navigation params. Never
 // record contents (see the note on navigate below).
@@ -375,7 +376,8 @@ function MainApp({ onLogout }) {
   // prescription it goes with.
   const showUpload = useCallback((type, visit) => {
     setAddVisit(visit && visit.doctorName ? visit : null);
-    setAddOpen(typeof type === 'string' ? type : 'prescription');
+    // 'auto' means the reader decides what kind of document it is.
+    setAddOpen(typeof type === 'string' && type ? type : 'auto');
   }, []);
 
   const acceptFiles = useCallback((picked, existing = []) => {
@@ -568,7 +570,9 @@ function MainApp({ onLogout }) {
       case 'visit-detail': return <VisitDetailPage />;
       case 'journey': return <HealthJourneyScreen />;
       case 'review': return <ReviewPage />;
-      case 'family': return <FamilyPage />;
+      case 'summary': return <SummaryPage />;
+      // Old links and history entries still say 'family'. It is part of Profile now.
+      case 'family': return <ProfilePage />;
       case 'profile': return <ProfilePage />;
       default: return <Dashboard />;
     }
@@ -579,6 +583,9 @@ function MainApp({ onLogout }) {
       <div className="app">
         <a className="skip-link" href="#main">Skip to content</a>
         <TopBar />
+        {isDemo() && (
+          <div className="demo-banner" role="status">Demo with a sample family. Nothing here is real, and nothing is saved.</div>
+        )}
         {waking && (
           <div className="waking-banner" role="status">
             <span className="spinner spinner-sm" />
@@ -595,7 +602,7 @@ function MainApp({ onLogout }) {
           <AddSheet
             profiles={profiles}
             defaultProfileId={sel.id}
-            initialType={addOpen}
+            typeHint={addOpen === 'auto' ? '' : addOpen}
             visits={visits}
             visitsProfileId={sel.id}
             initialVisit={addVisit}
@@ -623,7 +630,7 @@ export default function App() {
   // the tab was closed is still a live session if its refresh token is good.
   // Rendering the app on the token alone meant a reload after an hour showed
   // the dashboard, fired a request, took a 401 and threw you back to sign-in.
-  const [loggedIn, setLoggedIn] = useState(hasSession);
+  const [loggedIn, setLoggedIn] = useState(() => hasSession() || isDemo());
   const [expired, setExpired] = useState(false);
   useVisibleViewport();
 
@@ -641,6 +648,7 @@ export default function App() {
     <AuthScreen
       notice={expired ? 'Your session ended. Please sign in again. Your records are safe.' : ''}
       onLogin={() => { setExpired(false); setLoggedIn(true); }}
+      onDemo={() => { setDemo(true); setExpired(false); setLoggedIn(true); }}
     />
   );
 }

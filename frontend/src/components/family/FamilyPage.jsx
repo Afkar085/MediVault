@@ -1,15 +1,18 @@
 import { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../App';
 import API from '../../api';
-import { clickable } from '../../utils/interaction';
 import Modal from '../common/Modal';
 import Icon from '../common/Icon';
-import { PageHeader } from '../common/ui';
 
 const RELATIONSHIPS = ['Self', 'Father', 'Mother', 'Spouse', 'Son', 'Daughter', 'Brother', 'Sister', 'Other'];
 
+/**
+ * The family list, with add and edit. It lives inside Profile and nowhere else:
+ * it used to be reachable from the top toggle, a bottom tab and Profile, three
+ * doors to one room. Switching whose records are shown is the toggle's job.
+ */
 export default function FamilyPage() {
-  const { profiles, sel, setSel, addProfile, updateProfile, removeProfile, showToast, navigate, nav, updateNavParams } = useContext(AppContext);
+  const { profiles, sel, addProfile, updateProfile, removeProfile, showToast, navigate, nav, updateNavParams } = useContext(AppContext);
   const [modal, setModal] = useState(null); // null | 'add' | profile object being edited
   const [form, setForm] = useState({ name: '', relationship: '' });
   const [ld, setLd] = useState(false);
@@ -71,13 +74,11 @@ export default function FamilyPage() {
 
   return (
     <div>
-      <PageHeader title="Family" />
+      <h2 className="eyebrow eyebrow-section">Family</h2>
 
       <div className="list-card">
         {profiles.map(p => (
-          <div key={p.id} className={'list-row' + (sel?.id === p.id ? ' selected' : '')}
-            {...clickable(() => setSel(p), 'Show records for ' + p.name + ', ' + p.relationship)}
-            aria-current={sel?.id === p.id ? 'true' : undefined}>
+          <div key={p.id} className={'list-row' + (sel?.id === p.id ? ' selected' : '')}>
             <div className={'avatar' + (sel?.id === p.id ? ' avatar-teal' : '')}>{p.name[0].toUpperCase()}</div>
             <div className="list-row-body">
               <div className="list-row-title">{p.name}</div>

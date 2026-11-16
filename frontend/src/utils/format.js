@@ -255,6 +255,57 @@ export const visitOf = r => {
 
 export const sameVisit = (a, b) => !!a && !!b && a.doctorKey === b.doctorKey && a.date === b.date;
 
+/**
+ * How many days a prescription line runs for: "5 days", "x 2 weeks", "1 month".
+ * Null when it does not say, and then nothing is claimed about it.
+ */
+export const durationDays = (text) => {
+  const m = /(\d+)\s*(day|d\b|week|wk|month)/i.exec(text || '');
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!n) return null;
+  const unit = m[2].toLowerCase();
+  return n * (unit.startsWith('w') ? 7 : unit.startsWith('m') ? 30 : 1);
+};
+
+const isoDay = (date) => date.toISOString().slice(0, 10);
+
+/**
+ * What a doctor asks for first, from the records alone.
+ *
+ * "Taking now" is only what the paper itself supports: the prescription has a
+ * date, the line says for how many days, and that run has not ended. A medicine
+ * with no date or no duration is never listed as current, because a wrong
+ * "taking now" shown to a doctor is worse than a missing one.
+ */
+export const summaryOf = (records, today = new Date()) => {
+  const done = (records || []).filter(r => r.status === 'done' || !r.status);
+  const todayIso = isoDay(today);
+  const now = [];
+  done.forEach(r => {
+    const start = r.document_date?.slice(0, 10);
+    if (!start) return;
+    (r.medicines || []).forEach(m => {
+      const days = durationDays(m.duration);
+      if (!days || !m.name) return;
+      const end = new Date(start + 'T00:00:00Z');
+      end.setUTCDate(end.getUTCDate() + days);
+      const until = isoDay(end);
+      if (until >= todayIso && start <= todayIso) {
+        now.push({ key: r.id + ':' + (m.id || m.name), name: m.name, how: [m.dosage || m.dose, m.frequency].filter(Boolean).join(' · '), until, record: r });
+      }
+    });
+  });
+  const visits = recentVisits(done, 3).map(v => {
+    const inVisit = done.filter(r => sameVisit(visitOf(r), v));
+    return { ...v, diagnosis: inVisit.find(r => r.diagnosis)?.diagnosis || '', record: inVisit[0] };
+  });
+  const report = done
+    .filter(r => r.document_category === 'lab_report')
+    .sort((a, b) => timeOf(b.document_date || b.created_at) - timeOf(a.document_date || a.created_at))[0] || null;
+  return { now, visits, report };
+};
+
 /** The latest visits among these records, newest first. */
 export const recentVisits = (records, limit = 3) => {
   const seen = new Map();

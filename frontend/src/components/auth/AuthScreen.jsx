@@ -30,7 +30,7 @@ function errorMessage(e, mode) {
   return 'Something went wrong. Please try again.';
 }
 
-export default function AuthScreen({ onLogin, notice = '' }) {
+export default function AuthScreen({ onLogin, onDemo, notice = '' }) {
   const [mode, setMode] = useState('login');
   const [showHelp, setShowHelp] = useState(false);
   const [email, setEmail] = useState('');
@@ -216,6 +216,12 @@ export default function AuthScreen({ onLogin, notice = '' }) {
             </div>
           )}
         </div>
+        {onDemo && (
+          <div className="auth-demo">
+            <button type="button" className="btn-auth btn-auth-quiet" onClick={onDemo}>Try the demo</button>
+            <p>Opens a sample family right away. No account, no waiting.</p>
+          </div>
+        )}
       </div>
     </div>
   );

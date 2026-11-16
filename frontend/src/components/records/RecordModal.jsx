@@ -254,7 +254,7 @@ export default function RecordModal({ record, onClose }) {
                   </button>
                 ))}
                 <button type="button" className="visit-chip visit-chip-add"
-                  onClick={() => showUpload(isBill ? 'prescription' : 'bill', visit)}>
+                  onClick={() => showUpload('auto', visit)}>
                   <Icon name="add" size={18} />Add a bill or report
                 </button>
               </div>

@@ -36,18 +36,19 @@ beforeEach(() => {
 });
 afterEach(() => localStorage.clear());
 
-test('the type and date travel with the files in one request', async () => {
+test('nothing has to be filled in: the page alone is sent and the reader decides the rest', async () => {
   API.post.mockResolvedValue({ data: { record_id: 'r-new', status: 'processing', duplicate: false } });
   await openPreview();
-  fireEvent.change(screen.getByLabelText(/^date/i), { target: { value: '2026-09-20' } });
-  fireEvent.click(screen.getByRole('button', { name: /save prescription/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^done/i }));
 
   await waitFor(() => expect(API.post).toHaveBeenCalledTimes(1));
   const [url, body] = API.post.mock.calls[0];
   expect(url).toBe('/upload/p-alice');
-  expect(body.get('document_category')).toBe('prescription');
-  expect(body.get('document_date')).toBe('2026-09-20');
-  // No follow-up edit that the background reader could overwrite.
+  expect(body.getAll('files')).toHaveLength(1);
+  // No type, date or doctor is guessed on the person's behalf.
+  expect(body.get('document_category')).toBeNull();
+  expect(body.get('document_date')).toBeNull();
+  expect(body.get('doctor_name')).toBeNull();
   expect(API.put).not.toHaveBeenCalled();
 });
 
@@ -55,7 +56,7 @@ test('pressing save twice sends the upload once', async () => {
   let finish;
   API.post.mockReturnValue(new Promise((r) => { finish = r; }));
   await openPreview();
-  const save = screen.getByRole('button', { name: /save prescription/i });
+  const save = screen.getByRole('button', { name: /^done/i });
   fireEvent.click(save);
   fireEvent.click(save);
   expect(API.post).toHaveBeenCalledTimes(1);
@@ -74,7 +75,7 @@ test('a document that is already saved is opened instead of duplicated', async (
     if (url === '/profiles/p-alice/records') return Promise.resolve({ data: [existing] });
     return Promise.resolve({ data: [] });
   });
-  fireEvent.click(screen.getByRole('button', { name: /save prescription/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^done/i }));
   expect(await screen.findByText(/already saved/i)).toBeInTheDocument();
   expect(await screen.findByRole('dialog', { name: /record: dr\. kumar/i })).toBeInTheDocument();
 });
@@ -82,7 +83,7 @@ test('a document that is already saved is opened instead of duplicated', async (
 test('a lost connection keeps the files and says retrying is safe', async () => {
   API.post.mockRejectedValue(new Error('Network Error'));
   await openPreview();
-  fireEvent.click(screen.getByRole('button', { name: /save prescription/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^done/i }));
   expect(await screen.findByRole('alert')).toHaveTextContent(/won’t be saved twice/i);
   expect(screen.getByRole('dialog', { name: /add a document/i })).toBeInTheDocument();
 });
@@ -100,7 +101,7 @@ test('a document can be saved to another member’s file from the same sheet', a
   const sheet = await screen.findByRole('dialog', { name: /add a document/i });
   fireEvent.change(document.querySelector('[data-testid=add-files]'), { target: { files: [png()] } });
   fireEvent.click(within(sheet).getByRole('button', { name: 'Bob' }));
-  fireEvent.click(within(sheet).getByRole('button', { name: /save prescription/i }));
+  fireEvent.click(within(sheet).getByRole('button', { name: /^done/i }));
   await waitFor(() => expect(API.post).toHaveBeenCalledWith('/upload/p-bob', expect.anything(), expect.anything()));
   expect(await screen.findByText(/saved to bob’s file/i)).toBeInTheDocument();
 });

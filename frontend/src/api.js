@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { demoAdapter, isDemo } from './demo';
 import {
   accessTokenNeedsRenewal, clearSession, getAccessToken, getRefreshToken, saveSession,
 } from './session';
@@ -20,6 +21,12 @@ export const API_ORIGIN = (() => {
 })();
 
 const API = axios.create({ baseURL: BASE_URL, timeout: NORMAL_TIMEOUT });
+
+// The demo answers every request from sample data bundled with the app, so it
+// opens instantly and works with the server asleep or gone.
+// Decided per request, so starting or leaving the demo needs no reload.
+const realAdapter = axios.getAdapter(API.defaults.adapter);
+API.defaults.adapter = (config) => (isDemo() ? demoAdapter(config) : realAdapter(config));
 
 /** How long a request that may have to wake the server is given. */
 export const PATIENT_TIMEOUT = COLD_START_TIMEOUT;

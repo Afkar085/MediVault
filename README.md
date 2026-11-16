@@ -16,7 +16,7 @@
   <a href="https://github.com/Afkar085/MediVault/actions/workflows/ci.yml"><img src="https://github.com/Afkar085/MediVault/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/React-19-0d9488" alt="React 19" />
   <img src="https://img.shields.io/badge/FastAPI-Python%203.11-0d9488" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/tests-261%20backend-0d9488" alt="261 backend tests" />
+  <img src="https://img.shields.io/badge/tests-337%20backend%20%C2%B7%20170%20frontend-0d9488" alt="337 backend and 170 frontend tests" />
 </p>
 
 ---
@@ -161,14 +161,16 @@ single sheet.
 
 <table>
   <tr>
-    <td width="33%"><img src="screenshots/mobile-dashboard.png" alt="Dashboard" /></td>
-    <td width="33%"><img src="screenshots/mobile-record-detail.png" alt="Record detail" /></td>
-    <td width="33%"><img src="screenshots/mobile-upload.png" alt="Upload flow" /></td>
+    <td width="25%"><img src="screenshots/mobile-dashboard.png" alt="Home" /></td>
+    <td width="25%"><img src="screenshots/mobile-record-detail.png" alt="A document and its visit" /></td>
+    <td width="25%"><img src="screenshots/mobile-upload.png" alt="Adding a document" /></td>
+    <td width="25%"><img src="screenshots/mobile-summary.png" alt="Summary to show a doctor" /></td>
   </tr>
   <tr>
-    <td align="center">Dashboard</td>
-    <td align="center">Record details</td>
-    <td align="center">Upload</td>
+    <td align="center">Home</td>
+    <td align="center">A document and its visit</td>
+    <td align="center">Add a document</td>
+    <td align="center">Summary for the doctor</td>
   </tr>
 </table>
 
@@ -228,7 +230,7 @@ single 24-hour access token with no renewal, which is what they were before.
 ### Tests
 
 ```bash
-cd backend  && ruff check app tests && pytest -q                    # 282 tests
+cd backend  && ruff check app tests && pytest -q                    # 337 tests
 cd frontend && CI=true npm test -- --watchAll=false && CI=true npm run build
 ```
 
