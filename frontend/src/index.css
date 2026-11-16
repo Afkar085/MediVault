@@ -599,6 +599,12 @@ input[type=date].field-inp::-webkit-date-and-time-value { text-align: left; }
 /* ── Visits and doctors ───────────────────────────────────────────────── */
 .card { padding: 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); box-shadow: var(--shadow); }
 .stack { display: flex; flex-direction: column; gap: 10px; }
+.visit-strip { margin: 4px 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+.visit-strip-lbl { margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.visit-strip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.visit-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14px; font-weight: 500; }
+.visit-chip:hover { border-color: var(--navy-800); }
+.visit-chip-add { border-style: dashed; color: var(--navy-800); font-weight: 600; }
 .visit-summary { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
 .vs-block .eyebrow { margin-bottom: 4px; }
 .vs-diag { font-size: 17px; font-weight: 600; }

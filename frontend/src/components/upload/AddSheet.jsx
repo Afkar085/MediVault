@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../common/Icon';
 import Modal from '../common/Modal';
-import { todayISO } from '../../utils/format';
+import { drN, fmt, sameVisit, todayISO } from '../../utils/format';
 import { ACCEPT_ATTR, formatBytes, isPdf, validateFiles, describeRejections } from '../../utils/uploads';
+
+/** "7 Nov" this year, "7 Nov 2025" otherwise: the year is noise on a recent visit. */
+const shortDate = (d) => (fmt(d) || d || '').replace(' ' + new Date().getFullYear(), '');
 
 const TYPES = [
   { key: 'prescription', label: 'Prescription', icon: 'description' },
@@ -17,13 +20,23 @@ const TYPES = [
  * the person it was for was whoever happened to be selected. Everything that
  * decides where the document ends up is now visible on the one screen where
  * the Save button is.
+ *
+ * "Visit" is a tap, not typing. A pharmacy bill has no doctor's name on it, so
+ * nothing read from the page could ever tie it to the prescription it belongs
+ * with; picking the visit does. Opened from inside a document, that document's
+ * visit is already picked.
  */
-export default function AddSheet({ profiles, defaultProfileId, initialType = 'prescription', onSubmit, onClose, onReject }) {
+export default function AddSheet({
+  profiles, defaultProfileId, initialType = 'prescription',
+  visits = [], visitsProfileId = null, initialVisit = null,
+  onSubmit, onClose, onReject,
+}) {
   const [profileId, setProfileId] = useState(defaultProfileId);
   const [type, setType] = useState(initialType);
   const [files, setFiles] = useState([]);
   const [docDate, setDocDate] = useState('');
   const [doctor, setDoctor] = useState('');
+  const [visit, setVisit] = useState(initialVisit);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const cameraRef = useRef(null);
@@ -41,6 +54,16 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
     if (accepted.length) setFiles(prev => [...prev, ...accepted]);
   };
 
+  // Visits are only known for the member whose records are on screen.
+  const visitChoices = useMemo(() => {
+    if (profileId !== visitsProfileId) return [];
+    // From inside a document the question is already answered, so only that
+    // visit is shown. From the + button, the two latest: enough to catch
+    // "yesterday's bill" without a wall of buttons above the camera.
+    return initialVisit ? [initialVisit] : visits.slice(0, 2);
+  }, [profileId, visitsProfileId, visits, initialVisit]);
+  const chosen = visitChoices.find(v => sameVisit(v, visit)) || null;
+
   const save = async () => {
     if (busy || !files.length) return;
     setBusy(true);
@@ -48,7 +71,10 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
     const ok = await onSubmit({
       profileId,
       files,
-      details: { document_category: type, document_date: docDate, doctor_name: doctor.trim() },
+      details: chosen
+        ? { document_category: type, document_date: chosen.date, doctor_name: chosen.doctorName }
+        : { document_category: type, document_date: docDate, doctor_name: doctor.trim() },
+      visit: chosen,
       onProgress: (e) => { if (e.total) setProgress(Math.round((e.loaded / e.total) * 100)); },
     });
     // On failure the sheet stays, with the pages still in it, so trying again is one tap.
@@ -59,10 +85,10 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
   const total = files.reduce((n, f) => n + f.size, 0);
 
   return (
-    <Modal onClose={() => !busy && onClose()} className="sheet-over" boxClassName="sheet add-sheet" label="Add a document">
+    <Modal onClose={() => !busy && onClose()} className="sheet-over" boxClassName="sheet add-sheet" label={initialVisit ? 'Add to this visit' : 'Add a document'}>
       <div className="sheet-grip" />
       <div className="sheet-head">
-        <h2 className="sheet-title">Add a document</h2>
+        <h2 className="sheet-title">{initialVisit ? 'Add to this visit' : 'Add a document'}</h2>
         <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Close"><Icon name="close" size={22} /></button>
       </div>
 
@@ -80,6 +106,40 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
             ))}
           </div>
         </fieldset>
+      )}
+
+      {visitChoices.length > 0 && (
+        <fieldset className="choice">
+          <legend className="choice-lbl">Visit <span className="choice-note">keeps it with that visit’s documents</span></legend>
+          <div className="choice-row">
+            {visitChoices.map(v => (
+              <button key={v.id} type="button" className={'choice-opt' + (sameVisit(v, chosen) ? ' on' : '')}
+                aria-pressed={sameVisit(v, chosen)} onClick={() => setVisit(v)} disabled={busy}>
+                {drN(v.doctorName)} · {shortDate(v.date)}
+              </button>
+            ))}
+            <button type="button" className={'choice-opt' + (!chosen ? ' on' : '')}
+              aria-pressed={!chosen} onClick={() => setVisit(null)} disabled={busy}>
+              New visit
+            </button>
+          </div>
+        </fieldset>
+      )}
+
+      {!chosen && (
+      <div className="field-pair">
+        <label className="field">
+          <span className="field-lbl">Date <span className="optional">optional</span></span>
+          <input className="field-inp" type="date" value={docDate} max={todayISO()}
+            onChange={e => setDocDate(e.target.value)} disabled={busy} />
+        </label>
+        <label className="field">
+          <span className="field-lbl">{type === 'bill' ? 'Prescribed by' : 'Doctor'} <span className="optional">optional</span></span>
+          <input className="field-inp" value={doctor} maxLength={200}
+            placeholder={type === 'bill' ? 'Links it to that doctor' : 'We’ll read it if blank'}
+            onChange={e => setDoctor(e.target.value)} disabled={busy} />
+        </label>
+      </div>
       )}
 
       <fieldset className="choice">
@@ -115,21 +175,6 @@ export default function AddSheet({ profiles, defaultProfileId, initialType = 'pr
           <input ref={pickRef} type="file" hidden multiple accept={ACCEPT_ATTR} onChange={add} data-testid="add-files" />
         </div>
         {!files.length && <p className="hint">Whole page, flat, good light. PDFs work too.</p>}
-      </div>
-
-      <div className="field-pair">
-        <label className="field">
-          <span className="field-lbl">Date <span className="optional">optional</span></span>
-          <input className="field-inp" type="date" value={docDate} max={todayISO()}
-            onChange={e => setDocDate(e.target.value)} disabled={busy} />
-        </label>
-        {type !== 'bill' && (
-          <label className="field">
-            <span className="field-lbl">Doctor <span className="optional">optional</span></span>
-            <input className="field-inp" value={doctor} maxLength={200} placeholder="We’ll read it if blank"
-              onChange={e => setDoctor(e.target.value)} disabled={busy} />
-          </label>
-        )}
       </div>
 
       {busy && (

@@ -6,7 +6,7 @@ import Modal from '../common/Modal';
 import Icon from '../common/Icon';
 import { StatusPill } from '../common/ui';
 import { typeName } from '../common/Ledger';
-import { fmt, fmtRel, fmtDt, dateVal, drN, failureAdvice, failureTitle, getRecordFiles, hasStoredDocument, isPending, reviewReasons } from '../../utils/format';
+import { fmt, fmtRel, fmtDt, dateVal, drN, failureAdvice, failureTitle, getRecordDate, getRecordFiles, hasStoredDocument, isPending, reviewReasons, visitOf } from '../../utils/format';
 import MedsTab from './MedsTab';
 import { DetailsForm, DetailsView } from './DetailsTab';
 
@@ -30,7 +30,7 @@ const REVIEW_TEXT = { date: 'date', doctor: 'doctor', amount: 'amount' };
 const DISCARD = 'Discard your unsaved changes?';
 
 export default function RecordModal({ record, onClose }) {
-  const { sel, setRecords, showToast, showRecord, retryRecord, setLeaveGuard } = useContext(AppContext);
+  const { sel, setRecords, showToast, showRecord, retryRecord, setLeaveGuard, docGroups, showUpload } = useContext(AppContext);
   // A family-wide search result can belong to a member other than the selected
   // one, so trust the record rather than the current selection.
   const profileId = record.profile_id || sel?.id;
@@ -199,6 +199,20 @@ export default function RecordModal({ record, onClose }) {
   const title = isBill ? (record.bill_title || record.hospital_name || 'Bill')
     : record.doctor_name ? drN(record.doctor_name) : record.hospital_name || typeName(record);
 
+  // The other documents from the same visit (same doctor, same day), and the
+  // way to add one. Opening a prescription used to be a dead end: the bill for
+  // it could only be added from a visit page three screens away.
+  const visit = visitOf(record);
+  const siblings = visit
+    ? ((docGroups || {})[visit.doctorKey] || []).filter(r => r.id !== record.id && getRecordDate(r) === visit.date)
+    : [];
+  const siblingLabel = (r) => {
+    if (r.document_category === 'bill') {
+      return 'Bill' + (r.bill_amount != null ? ' · ₹' + Number(r.bill_amount).toLocaleString('en-IN') : '');
+    }
+    return typeName(r);
+  };
+
   return (
     <>
       <Modal onClose={requestClose} className="sheet-over sheet-over-full" boxClassName="sheet record" label={'Record: ' + title}>
@@ -228,6 +242,24 @@ export default function RecordModal({ record, onClose }) {
             {!isBill && record.hospital_name && record.doctor_name ? ' · ' + record.hospital_name : ''}
             {' · added '}{fmtRel(record.created_at)}
           </p>
+
+          {visit && !editing && (
+            <section className="visit-strip" aria-label="This visit">
+              <div className="visit-strip-lbl">This visit{siblings.length > 0 ? ' also has' : ''}</div>
+              <div className="visit-strip-row">
+                {siblings.map(r => (
+                  <button key={r.id} type="button" className="visit-chip" onClick={() => showRecord(r)}>
+                    <Icon name={r.document_category === 'bill' ? 'receipt_long' : r.document_category === 'lab_report' ? 'science' : 'description'} size={18} />
+                    {siblingLabel(r)}
+                  </button>
+                ))}
+                <button type="button" className="visit-chip visit-chip-add"
+                  onClick={() => showUpload(isBill ? 'prescription' : 'bill', visit)}>
+                  <Icon name="add" size={18} />Add a bill or report
+                </button>
+              </div>
+            </section>
+          )}
 
           {failed && (
             <div className="state state-failed" role="status">

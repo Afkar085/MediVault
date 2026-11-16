@@ -239,6 +239,32 @@ export const doctorHospital = records =>
 
 export const getRecordDate = r => r.document_date?.slice(0, 10) || r.created_at?.slice(0, 10) || null;
 
+/**
+ * The visit a record belongs to: one doctor on one day. Null when the record
+ * names no doctor, because there is then nothing to group it with.
+ *
+ * This is the same rule the visit page applies. Keeping it in one place is
+ * what lets "add to this visit" promise that the document lands there.
+ */
+export const visitOf = r => {
+  const doctorKey = normalizeDrKey(r?.doctor_name);
+  const date = r ? getRecordDate(r) : null;
+  if (!doctorKey || !date) return null;
+  return { id: doctorKey + '|' + date, doctorKey, doctorName: r.doctor_name, date };
+};
+
+export const sameVisit = (a, b) => !!a && !!b && a.doctorKey === b.doctorKey && a.date === b.date;
+
+/** The latest visits among these records, newest first. */
+export const recentVisits = (records, limit = 3) => {
+  const seen = new Map();
+  (records || []).forEach(r => {
+    const v = visitOf(r);
+    if (v && !seen.has(v.id)) seen.set(v.id, v);
+  });
+  return [...seen.values()].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, limit);
+};
+
 export const getActivityLabel = r => {
   const cat = r.document_category || '';
   if (cat === 'prescription') return 'Prescription uploaded';

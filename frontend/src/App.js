@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, createContext, useMemo, lazy,
 import './index.css';
 import API, { setSessionExpiredHandler, setServerWakingHandler, setServerAwakeHandler } from './api';
 import { clearSession, hasSession } from './session';
-import { buildDocGroups, isPending, timeOf } from './utils/format';
+import { buildDocGroups, drN, isPending, recentVisits, timeOf } from './utils/format';
 import { validateFiles, describeRejections, uploadErrorMessage } from './utils/uploads';
 import useVisibleViewport from './hooks/useVisibleViewport';
 
@@ -101,6 +101,7 @@ function MainApp({ onLogout }) {
   const [visitUploading, setVisitUploading] = useState(false);
   // null when closed, otherwise the type to start the add sheet on.
   const [addOpen, setAddOpen] = useState(null);
+  const [addVisit, setAddVisit] = useState(null);
   // Possible-duplicate groups someone has looked at and kept. Per device: it
   // only hides a hint, and never changes a record.
   const [dismissedDupes, setDismissedDupes] = useState(() => {
@@ -340,6 +341,7 @@ function MainApp({ onLogout }) {
   }, [hasPending, sel, loadRecs]);
 
   const { docGroups, docNameMap, sortedDocs } = useMemo(() => buildDocGroups(records), [records]);
+  const visits = useMemo(() => recentVisits(records), [records]);
 
   const handleSelChange = useCallback((profile) => {
     setSel(profile);
@@ -368,7 +370,13 @@ function MainApp({ onLogout }) {
     });
   }, []);
 
-  const showUpload = useCallback((type) => setAddOpen(typeof type === 'string' ? type : 'prescription'), []);
+  // Opened plain from the + button, or from inside a document with the visit
+  // it belongs to, so a bill added a day later still lands beside the
+  // prescription it goes with.
+  const showUpload = useCallback((type, visit) => {
+    setAddVisit(visit && visit.doctorName ? visit : null);
+    setAddOpen(typeof type === 'string' ? type : 'prescription');
+  }, []);
 
   const acceptFiles = useCallback((picked, existing = []) => {
     const { accepted, rejected } = validateFiles(picked, existing);
@@ -403,7 +411,7 @@ function MainApp({ onLogout }) {
   // The add sheet. Resolves true when the sheet can close, false to keep it
   // open (with its pages) after a failure. The ref is the double-tap lock:
   // state updates are async, so a second tap could otherwise send it twice.
-  const submitUpload = useCallback(async ({ profileId, files, details, onProgress }) => {
+  const submitUpload = useCallback(async ({ profileId, files, details, onProgress, visit }) => {
     if (uploadLockRef.current) return false;
     uploadLockRef.current = true;
     try {
@@ -413,7 +421,9 @@ function MainApp({ onLogout }) {
         const who = profiles.find(p => p.id === profileId)?.name || 'their';
         showToast(data.duplicate ? 'Already in ' + who + '’s file.' : 'Saved to ' + who + '’s file. Reading it now.');
       } else if (!data.duplicate) {
-        showToast('Saved. Reading the details now');
+        showToast(visit
+          ? 'Added to the visit with ' + drN(visit.doctorName) + '. Reading it now'
+          : 'Saved. Reading the details now');
       }
       return true;
     } catch (e) {
@@ -586,6 +596,9 @@ function MainApp({ onLogout }) {
             profiles={profiles}
             defaultProfileId={sel.id}
             initialType={addOpen}
+            visits={visits}
+            visitsProfileId={sel.id}
+            initialVisit={addVisit}
             onSubmit={submitUpload}
             onClose={() => setAddOpen(null)}
             onReject={(msg) => showToast(msg, 'error')}
