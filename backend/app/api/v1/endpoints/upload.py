@@ -16,13 +16,13 @@ from app.logger import logger
 from app.services import document_files as files_svc
 from app.services.document_files import UploadRejected
 from app.services.record_pipeline import (
-    EXTRACTED_FIELDS, now, process_added_pages, process_ocr, reextract,
+    DOCUMENT_CATEGORIES, EXTRACTED_FIELDS, now, process_added_pages, process_ocr, reextract,
 )
 from app.services.storage import signed_url
 
 router = APIRouter()
 
-UPLOAD_CATEGORIES = {"prescription", "lab_report", "bill", "discharge_summary", "other"}
+UPLOAD_CATEGORIES = DOCUMENT_CATEGORIES
 
 _NOT_SAVED = "The document could not be saved. Nothing was stored. Please try again."
 
@@ -123,6 +123,11 @@ async def upload_file(
             "status": "processing",
             "file_path": paths[0],
             "updated_at": now(),
+            # Stored empty when the person did not pick a type, so the type the
+            # reader works out can fill it. Leaving the column out let its
+            # database default ('prescription') win, and every bill and report
+            # added with no type was filed as a prescription.
+            "document_category": None,
             **user_fields,
         }).execute()
         record_id = result.data[0]["id"]

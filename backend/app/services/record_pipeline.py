@@ -23,6 +23,10 @@ EXTRACTED_FIELDS = ("document_type", "doctor_name", "hospital_name", "document_d
 
 PAGE_BREAK = "\n\n--- Page Break ---\n\n"
 
+# The document types the app files things under. The reader is asked for one of
+# these; anything else it returns is not stored.
+DOCUMENT_CATEGORIES = {"prescription", "lab_report", "bill", "discharge_summary", "other"}
+
 # Each page is an independent network round-trip plus a vision call, so reading
 # them one after another made a five-page upload take five times as long as it
 # needed to. Bounded, because the vision API is rate limited and one upload must
@@ -63,6 +67,8 @@ def _accept_extracted(field: str, value, category) -> bool:
     """
     if field == "doctor_name" and category == "bill":
         return bool(_DOCTOR_MARKERS.search(str(value)))
+    if field == "document_category":
+        return value in DOCUMENT_CATEGORIES
     return True
 
 
@@ -396,6 +402,10 @@ def process_ocr(record_id: str, file_entries: list, content_types: list):
         record = current[0]
 
         update_data = fields_to_fill(record, data)
+        if not (record.get("document_category") or update_data.get("document_category")):
+            # Nobody picked a type and the reader gave none it is allowed to:
+            # file it as "other" rather than guessing prescription.
+            update_data["document_category"] = "other"
 
         bill_amount = data.get("bill_amount")
         if bill_amount is not None and record.get("bill_amount") is None:

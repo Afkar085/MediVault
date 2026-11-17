@@ -547,3 +547,40 @@ def test_a_finished_record_is_not_failed_by_the_search_index(monkeypatch):
     statuses = [p["status"] for p in writes if "status" in p]
     assert statuses[-1] == "done", writes
     assert "failed" not in statuses, writes
+
+
+# ── adding with no type picked ───────────────────────────────────────────────
+# The + sheet sends no type: the app works the type out. The database column
+# defaults to 'prescription', and extraction only fills blank fields, so the
+# type the reader returned used to be thrown away and every bill was filed as
+# a prescription.
+
+def test_a_bill_added_with_no_type_is_filed_as_a_bill(env, monkeypatch):
+    _extract_returning(monkeypatch, {"hospital_name": "Radha Medical", "document_category": "bill",
+                                     "bill_amount": 240})
+    upload(env, env.asha, "bill_readable.png")
+    assert records(env, env.asha)[0]["document_category"] == "bill"
+
+
+def test_a_lab_report_added_with_no_type_is_filed_as_a_lab_report(env, monkeypatch):
+    _extract_returning(monkeypatch, {"document_category": "lab_report", "doctor_name": "Dr. Anil Shetty"})
+    upload(env, env.asha, "rx_readable.png")
+    assert records(env, env.asha)[0]["document_category"] == "lab_report"
+
+
+def test_a_type_the_person_picked_still_wins(env, monkeypatch):
+    _extract_returning(monkeypatch, {"document_category": "bill"})
+    upload(env, env.asha, "rx_readable.png", document_category="prescription")
+    assert records(env, env.asha)[0]["document_category"] == "prescription"
+
+
+def test_no_type_from_the_person_or_the_reader_is_kept_as_other(env, monkeypatch):
+    _extract_returning(monkeypatch, {"doctor_name": "Dr. Meera Rao"})
+    upload(env, env.asha, "rx_readable.png")
+    assert records(env, env.asha)[0]["document_category"] == "other"
+
+
+def test_an_unknown_type_from_the_reader_is_not_stored(env, monkeypatch):
+    _extract_returning(monkeypatch, {"document_category": "x-ray film"})
+    upload(env, env.asha, "rx_readable.png")
+    assert records(env, env.asha)[0]["document_category"] == "other"
