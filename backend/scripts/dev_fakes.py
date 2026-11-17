@@ -52,6 +52,7 @@ SCHEMA: Dict[str, List[str]] = {
         "id", "user_id", "token_hash", "family_id", "expires_at", "used_at", "revoked_at",
         "created_at",
     ],  # migration 007
+    "user_medicines": ["id", "user_id", "name", "brand_clean", "created_at"],  # migration 009
 }
 
 DEFAULTS = {
@@ -68,11 +69,13 @@ FOREIGN_KEYS = {
     "record_files": ("record_id", "records"),
     "document_passages": ("record_id", "records"),
     "refresh_tokens": ("user_id", "users"),
+    "user_medicines": ("user_id", "users"),
 }
 
 UNIQUE = {"users": [("email",)], "document_passages": [("record_id", "chunk_index")],
           "record_files": [("file_path",)],  # migration 005
-          "refresh_tokens": [("token_hash",)]}  # migration 007
+          "refresh_tokens": [("token_hash",)],  # migration 007
+          "user_medicines": [("user_id", "brand_clean")]}  # migration 009
 
 TIMESTAMP_COLUMNS = {"created_at", "updated_at", "edited_at"}
 
@@ -317,9 +320,18 @@ class _Query:
                     db._check_columns(self.table, values)
                     row = self._new_row(values)
                     db._check_fk(self.table, row)
+                    clash = None
                     for cols in UNIQUE.get(self.table, []):
-                        if any(all(e.get(c) == row.get(c) for c in cols) for e in staged):
-                            raise FakeAPIError(f"duplicate key value violates unique constraint on {self.table}{cols}")
+                        clash = next((e for e in staged if all(e.get(c) == row.get(c) for c in cols)), None)
+                        if clash is not None:
+                            break
+                    if clash is not None:
+                        if self.op != "upsert":
+                            raise FakeAPIError(f"duplicate key value violates unique constraint on {self.table}")
+                        # ON CONFLICT DO UPDATE: the existing row takes the new values.
+                        clash.update(copy.deepcopy(values))
+                        created.append(clash)
+                        continue
                     staged.append(row)
                     created.append(row)
                 db.tables[self.table] = staged  # all-or-nothing, like one INSERT statement

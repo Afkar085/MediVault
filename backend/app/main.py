@@ -7,7 +7,7 @@ from app.config import settings
 from app.limiter import limiter
 from app.logger import logger
 from app.services.document_files import MAX_FILES, MAX_SIZE
-from app.api.v1.endpoints import assistant, auth, profile, records, search, upload
+from app.api.v1.endpoints import assistant, auth, medicines, profile, records, search, upload
 
 app = FastAPI(
     title="MediVault API",
@@ -81,6 +81,7 @@ app.include_router(upload.router,  prefix="/api/v1",          tags=["upload"])
 app.include_router(records.router, prefix="/api/v1/profiles", tags=["records"])
 app.include_router(search.router,  prefix="/api/v1",          tags=["search"])
 app.include_router(assistant.router, prefix="/api/v1",        tags=["assistant"])
+app.include_router(medicines.router, prefix="/api/v1",        tags=["medicines"])
 
 
 @app.get("/")
