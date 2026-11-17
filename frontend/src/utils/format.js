@@ -295,6 +295,25 @@ export const durationDays = (text) => {
 
 const isoDay = (date) => date.toISOString().slice(0, 10);
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const daysBetween = (fromIso, toIso) =>
+  Math.round((new Date(toIso + 'T00:00:00Z') - new Date(fromIso + 'T00:00:00Z')) / DAY_MS);
+
+// How many recently finished medicines the summary lists under "Earlier".
+export const EARLIER_LIMIT = 5;
+
+/**
+ * When a course ends, said the way a person would: "ends today", "ends
+ * tomorrow", "ends Friday" within the week, otherwise the date.
+ */
+export const endsText = (untilIso, today = new Date()) => {
+  const left = daysBetween(isoDay(today), untilIso);
+  if (left <= 0) return 'ends today';
+  if (left === 1) return 'ends tomorrow';
+  if (left < 7) return 'ends ' + new Date(untilIso + 'T00:00:00Z').toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' });
+  return 'ends ' + fmt(untilIso);
+};
+
 /**
  * What a doctor asks for first, from the records alone.
  *
@@ -302,11 +321,15 @@ const isoDay = (date) => date.toISOString().slice(0, 10);
  * date, the line says for how many days, and that run has not ended. A medicine
  * with no date or no duration is never listed as current, because a wrong
  * "taking now" shown to a doctor is worse than a missing one.
+ *
+ * The prescription date is day 1, so "5 days" from the 14th runs to the 18th
+ * and is under Earlier on the 19th. Each current line says which day it is on.
  */
 export const summaryOf = (records, today = new Date()) => {
   const done = (records || []).filter(r => r.status === 'done' || !r.status);
   const todayIso = isoDay(today);
   const now = [];
+  const earlier = [];
   done.forEach(r => {
     const start = r.document_date?.slice(0, 10);
     if (!start) return;
@@ -314,13 +337,15 @@ export const summaryOf = (records, today = new Date()) => {
       const days = durationDays(m.duration);
       if (!days || !m.name) return;
       const end = new Date(start + 'T00:00:00Z');
-      end.setUTCDate(end.getUTCDate() + days);
+      end.setUTCDate(end.getUTCDate() + days - 1);
       const until = isoDay(end);
-      if (until >= todayIso && start <= todayIso) {
-        now.push({ key: r.id + ':' + (m.id || m.name), name: m.name, how: [m.dosage || m.dose, m.frequency].filter(Boolean).join(' · '), until, record: r });
-      }
+      const item = { key: r.id + ':' + (m.id || m.name), name: m.name, how: [m.dosage || m.dose, m.frequency].filter(Boolean).join(' · '), until, days, record: r };
+      if (start > todayIso) return;
+      if (until >= todayIso) now.push({ ...item, day: daysBetween(start, todayIso) + 1 });
+      else earlier.push(item);
     });
   });
+  earlier.sort((a, b) => (a.until < b.until ? 1 : a.until > b.until ? -1 : 0));
   const visits = recentVisits(done, 3).map(v => {
     const inVisit = done.filter(r => sameVisit(visitOf(r), v));
     return { ...v, diagnosis: inVisit.find(r => r.diagnosis)?.diagnosis || '', record: inVisit[0] };
@@ -328,7 +353,7 @@ export const summaryOf = (records, today = new Date()) => {
   const report = done
     .filter(r => r.document_category === 'lab_report')
     .sort((a, b) => timeOf(b.document_date || b.created_at) - timeOf(a.document_date || a.created_at))[0] || null;
-  return { now, visits, report };
+  return { now, earlier: earlier.slice(0, EARLIER_LIMIT), visits, report };
 };
 
 /** The latest visits among these records, newest first. */
