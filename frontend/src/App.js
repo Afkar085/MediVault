@@ -3,7 +3,7 @@ import './index.css';
 import API, { setSessionExpiredHandler, setServerWakingHandler, setServerAwakeHandler } from './api';
 import { isDemo, setDemo } from './demo';
 import { clearSession, hasSession } from './session';
-import { buildDocGroups, drN, isPending, recentVisits, timeOf } from './utils/format';
+import { buildDocGroups, drN, isPending, isUnchecked, recentVisits, timeOf } from './utils/format';
 import { validateFiles, describeRejections, uploadErrorMessage } from './utils/uploads';
 import useVisibleViewport from './hooks/useVisibleViewport';
 
@@ -29,6 +29,7 @@ const lazyScreens = {
   review: () => import('./components/review/ReviewPage'),
   record: () => import('./components/records/RecordModal'),
   add: () => import('./components/upload/AddSheet'),
+  reviewCard: () => import('./components/review/ReviewCard'),
 };
 
 const DoctorsPage = lazy(lazyScreens.doctors);
@@ -41,6 +42,7 @@ const ProfilePage = lazy(lazyScreens.profile);
 const ReviewPage = lazy(lazyScreens.review);
 const RecordModal = lazy(lazyScreens.record);
 const AddSheet = lazy(lazyScreens.add);
+const ReviewCard = lazy(lazyScreens.reviewCard);
 
 const idle = (fn) => (window.requestIdleCallback
   ? window.requestIdleCallback(fn, { timeout: 3000 })
@@ -104,6 +106,14 @@ function MainApp({ onLogout }) {
   const [addOpen, setAddOpen] = useState(null);
   const [addVisit, setAddVisit] = useState(null);
   const [justFiled, setJustFiled] = useState(null);
+  // The review card: opens by itself when a document finishes reading.
+  const [reviewRec, setReviewRec] = useState(null);
+  const reviewRef = useRef(null);
+  // Set by the review card while it has unsaved fixes: asked before Back closes it.
+  const reviewGuardRef = useRef(null);
+  const setReviewGuard = useCallback((guard) => { reviewGuardRef.current = guard; }, []);
+  const selRecRef = useRef(null);
+  const addOpenRef = useRef(null);
   const dismissFiled = useCallback(() => setJustFiled(null), []);
   // Possible-duplicate groups someone has looked at and kept. Per device: it
   // only hides a hint, and never changes a record.
@@ -140,6 +150,9 @@ function MainApp({ onLogout }) {
 
   useEffect(() => { navRef.current = nav; }, [nav]);
   useEffect(() => { recordsRef.current = records; }, [records]);
+  useEffect(() => { reviewRef.current = reviewRec; }, [reviewRec]);
+  useEffect(() => { selRecRef.current = selRec; }, [selRec]);
+  useEffect(() => { addOpenRef.current = addOpen; }, [addOpen]);
 
   const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
 
@@ -203,11 +216,36 @@ function MainApp({ onLogout }) {
     setSelRec(record);
   }, []);
 
+  // The review card is a history step too, so the phone's Back closes it.
+  const openReview = useCallback((record) => {
+    if (!record) return;
+    setReviewRec(record);
+    const { page, ...params } = navRef.current;
+    window.history.pushState({ kind: 'review', recordId: record.id, page, params }, '');
+  }, []);
+
+  const closeReview = useCallback(() => {
+    if (window.history.state?.kind === 'review') window.history.back();
+    else setReviewRec(null);
+  }, []);
+
   useEffect(() => {
     const s = window.history.state;
     if (!s || !s.kind) window.history.replaceState(pageState('home'), '');
     const onPopState = (e) => {
       const state = e.state;
+      if (reviewRef.current && !(state && state.kind === 'review')) {
+        if (reviewGuardRef.current && !reviewGuardRef.current()) {
+          // Stay on the card: put its history entry back.
+          const r = reviewRef.current;
+          const { page, ...params } = navRef.current;
+          window.history.pushState({ kind: 'review', recordId: r.id, page, params }, '');
+          return;
+        }
+        reviewGuardRef.current = null;
+        setReviewRec(null);
+      }
+      if (state && state.kind === 'review') return;
       const open = openStateRef.current;
       const leavingRecord = open && !(state && state.kind === 'modal' && state.recordId === open.recordId);
       if (leavingRecord && leaveGuardRef.current) {
@@ -253,7 +291,13 @@ function MainApp({ onLogout }) {
         // it was filed as, so nobody has to go looking for it.
         const was = new Map(recordsRef.current.map(x => [x.id, x.status]));
         const finished = sorted.find(x => x.status === 'done' && ['processing', 'extracting'].includes(was.get(x.id)));
-        if (finished) setJustFiled(finished.id);
+        // Straight to the review card, unless the person is busy with
+        // something else: then it waits under "to check" on Home.
+        if (finished && isUnchecked(finished) && !reviewRef.current && !selRecRef.current && !addOpenRef.current) {
+          setReviewRec(finished);
+          const { page, ...params } = navRef.current;
+          window.history.pushState({ kind: 'review', recordId: finished.id, page, params }, '');
+        } else if (finished) setJustFiled(finished.id);
         setRecords(sorted);
         setLoadError(false);
         setWaking(false);
@@ -546,7 +590,7 @@ function MainApp({ onLogout }) {
     navigate,
     updateNavParams,
     goBack,
-    openRecord,
+    openRecord, openReview, setReviewGuard,
     showRecord,
     retryRecord,
     setLeaveGuard,
@@ -561,7 +605,7 @@ function MainApp({ onLogout }) {
   }), [
     profiles, sel, handleSelChange, addProfile, updateProfile, removeProfile, deleteAccount,
     records, loading, loadError, waking, refreshRecords, docGroups, docNameMap, sortedDocs,
-    nav, navigate, updateNavParams, goBack, openRecord, showRecord, retryRecord, setLeaveGuard,
+    nav, navigate, updateNavParams, goBack, openRecord, openReview, setReviewGuard, showRecord, retryRecord, setLeaveGuard,
     showToast, showUpload, justFiled, dismissFiled, dismissedDupes, keepDuplicates, uploadToVisit, attachDocuments,
     visitUploading, onLogout,
   ]);
@@ -623,6 +667,12 @@ function MainApp({ onLogout }) {
         {liveRec && (
           <Suspense fallback={Loading}>
             <RecordModal record={liveRec} onClose={goBack} />
+          </Suspense>
+        )}
+
+        {reviewRec && (
+          <Suspense fallback={Loading}>
+            <ReviewCard key={reviewRec.id} record={records.find(r => r.id === reviewRec.id) || reviewRec} onClose={closeReview} />
           </Suspense>
         )}
 

@@ -5,7 +5,7 @@ from app.core.dependencies import get_current_user
 from app.database import supabase
 from app.services import summary_cache
 from app.services.record_assembly import (
-    attach_files, attach_medicines, attach_related, has_bill_columns, record_columns,
+    attach_files, attach_medicines, attach_related, has_bill_columns, has_checked_column, record_columns,
 )
 from app.services.retrieval import select_context_records, vector_search
 from app.services import rag
@@ -237,6 +237,7 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
 
     data = body.model_dump(exclude_none=True)
     medicines_data = data.pop("medicines", None)
+    checked = data.pop("checked", None)
 
     # The bill detail columns come with migration 005. Until it is applied they
     # cannot be stored, and the client is told so instead of being shown
@@ -281,6 +282,11 @@ def update_record(profile_id: str, record_id: str, body: RecordUpdate, user_id: 
             })
             if not data:
                 supabase.table("records").update({"updated_at": _now()}).eq("id", record_id).execute()
+
+    # Saving the review card marks the record checked. After the edits above,
+    # so a save that failed part way never claims the record was checked.
+    if checked and has_checked_column():
+        supabase.table("records").update({"checked_at": _now()}).eq("id", record_id).eq("profile_id", profile_id).execute()
 
     # History is written after the change it describes has landed, so it can
     # never claim an edit that failed. Losing a history row must not undo a save.

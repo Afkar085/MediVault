@@ -46,6 +46,7 @@ def env(monkeypatch, tmp_path):
         monkeypatch.setattr(importlib.import_module(name), "client", dev_fakes.FakeGroq())
     monkeypatch.setattr(importlib.import_module("app.api.v1.endpoints.records"), "Groq", dev_fakes.FakeGroq)
     monkeypatch.setattr(importlib.import_module("app.services.record_assembly"), "_bill_columns", None)
+    monkeypatch.setattr(importlib.import_module("app.services.record_assembly"), "_checked_column", None)
     from app.limiter import limiter
     monkeypatch.setattr(limiter, "enabled", False)
 
@@ -584,3 +585,48 @@ def test_an_unknown_type_from_the_reader_is_not_stored(env, monkeypatch):
     _extract_returning(monkeypatch, {"document_category": "x-ray film"})
     upload(env, env.asha, "rx_readable.png")
     assert records(env, env.asha)[0]["document_category"] == "other"
+
+
+# ── the review card: checked or not ─────────────────────────────────────────
+# A new document is read and saved, but not checked: checked_at stays empty
+# until the person saves the review card, and that save is not an edit.
+
+def test_a_new_document_is_read_but_not_checked(env):
+    upload(env, env.asha, "rx_readable.png")
+    rec = records(env, env.asha)[0]
+    assert rec["status"] == "done"
+    assert "checked_at" in rec and rec["checked_at"] is None
+
+
+def test_saving_the_review_card_marks_it_checked_with_the_fixes(env):
+    rid = upload(env, env.asha, "rx_readable.png").json()["record_id"]
+    r = env.client.put(f"/api/v1/profiles/{env.asha}/records/{rid}", headers=env.auth, json={
+        "doctor_name": "Dr. Anusha S Shetty", "checked": True,
+        "medicines": [{"name": "Pantocid 40", "dosage": "40 mg", "frequency": "1-0-0", "duration": "5 days"}],
+    })
+    assert r.status_code == 200
+    assert r.json()["checked_at"] and r.json()["doctor_name"] == "Dr. Anusha S Shetty"
+    assert meds(env, rid) == ["Pantocid 40"]
+    history = env.client.get(f"/api/v1/profiles/{env.asha}/records/{rid}/history", headers=env.auth).json()
+    assert "checked_at" not in {h["field_name"] for h in history}
+    assert "doctor_name" in {h["field_name"] for h in history}
+
+
+def test_saving_with_nothing_changed_still_marks_it_checked(env):
+    rid = upload(env, env.asha, "rx_readable.png").json()["record_id"]
+    r = env.client.put(f"/api/v1/profiles/{env.asha}/records/{rid}", headers=env.auth, json={"checked": True})
+    assert r.status_code == 200 and r.json()["checked_at"]
+    assert env.client.get(f"/api/v1/profiles/{env.asha}/records/{rid}/history", headers=env.auth).json() == []
+
+
+def test_an_ordinary_edit_does_not_mark_it_checked(env):
+    rid = upload(env, env.asha, "rx_readable.png").json()["record_id"]
+    r = env.client.put(f"/api/v1/profiles/{env.asha}/records/{rid}", headers=env.auth, json={"diagnosis": "Cold"})
+    assert r.status_code == 200 and r.json()["checked_at"] is None
+
+
+def test_someone_else_cannot_mark_a_record_checked(env):
+    rid = upload(env, env.asha, "rx_readable.png").json()["record_id"]
+    r = env.client.put(f"/api/v1/profiles/{env.asha}/records/{rid}", headers=env.other_auth, json={"checked": True})
+    assert r.status_code in (403, 404)
+    assert records(env, env.asha)[0]["checked_at"] is None

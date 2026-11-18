@@ -205,7 +205,14 @@ export const reviewReasons = r => {
   if (r.document_category === 'bill' && r.bill_amount == null) reasons.push('amount');
   return reasons;
 };
-export const needsReview = r => reviewReasons(r).length > 0;
+/**
+ * Read but not checked yet: the review card was closed without Save. Only
+ * records that carry checked_at at all (migration 010) can be unchecked, so
+ * before that migration, and in the demo, nothing is flagged.
+ */
+export const isUnchecked = r => r.status === 'done'
+  && Object.prototype.hasOwnProperty.call(r, 'checked_at') && !r.checked_at;
+export const needsReview = r => reviewReasons(r).length > 0 || isUnchecked(r);
 
 /**
  * Groups of records that may be the same document saved twice, for a person to

@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { AppContext } from '../../App';
-import { fmt, fmtRel, drN, getRecordFiles, reviewReasons, possibleDuplicates, duplicateGroupId, thumbUrl } from '../../utils/format';
+import { fmt, fmtRel, drN, getRecordFiles, isUnchecked, reviewReasons, possibleDuplicates, duplicateGroupId, thumbUrl } from '../../utils/format';
 import { PageHeader, EmptyState } from '../common/ui';
 import { LedgerRow, typeName } from '../common/Ledger';
 
@@ -15,16 +15,28 @@ const REASON = { date: 'date', doctor: 'doctor', amount: 'amount' };
  * first), or mark the pair as both genuine.
  */
 export default function ReviewPage() {
-  const { records, openRecord, goBack, dismissedDupes, keepDuplicates } = useContext(AppContext);
-  const incomplete = records.filter(r => reviewReasons(r).length);
+  const { records, openRecord, openReview, goBack, dismissedDupes, keepDuplicates } = useContext(AppContext);
+  const toCheck = records.filter(isUnchecked);
+  const incomplete = records.filter(r => !isUnchecked(r) && reviewReasons(r).length);
   const dupes = possibleDuplicates(records, dismissedDupes);
 
   return (
     <div>
       <PageHeader title="Review" onBack={goBack} />
 
-      {!incomplete.length && !dupes.length && (
+      {!toCheck.length && !incomplete.length && !dupes.length && (
         <EmptyState icon="task_alt" title="All good">Nothing needs checking.</EmptyState>
+      )}
+
+      {toCheck.length > 0 && (
+        <section className="review-block">
+          <h2 className="section-lbl">New, not checked yet</h2>
+          <ul className="ledger-plain">
+            {toCheck.map(r => (
+              <LedgerRow key={r.id} r={r} onOpen={openReview} note="Check what was read" />
+            ))}
+          </ul>
+        </section>
       )}
 
       {dupes.length > 0 && (
