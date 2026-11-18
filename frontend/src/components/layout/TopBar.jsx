@@ -60,7 +60,7 @@ export default function TopBar() {
         {sel && (
           <button className="member-chip" onClick={() => setOpen(true)} aria-label={'Switch family member, currently ' + sel.name}>
             <span className="member-av">{sel.name[0].toUpperCase()}</span>
-            <span className="member-name">{sel.name.split(' ')[0]}</span>
+            <span className="member-name">{sel.name}</span>
             <Icon name="expand_more" size={18} />
           </button>
         )}

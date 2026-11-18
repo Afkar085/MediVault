@@ -705,7 +705,12 @@ export default function App() {
     <AuthScreen
       notice={expired ? 'Your session ended. Please sign in again. Your records are safe.' : ''}
       onLogin={() => { setExpired(false); setLoggedIn(true); }}
-      onDemo={() => { setDemo(true); setExpired(false); setLoggedIn(true); }}
+      onDemo={() => {
+        // Always open on Home: signing out from Profile left the history on
+        // Profile, and the demo used to start there.
+        window.history.replaceState(pageState('home'), '');
+        setDemo(true); setExpired(false); setLoggedIn(true);
+      }}
     />
   );
 }

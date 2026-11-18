@@ -36,7 +36,8 @@ from typing import Any, Dict, List, Optional
 
 SCHEMA: Dict[str, List[str]] = {
     "users": ["id", "email", "hashed_password", "created_at"],
-    "profiles": ["id", "user_id", "name", "relationship", "date_of_birth", "gender", "created_at"],
+    "profiles": ["id", "user_id", "name", "relationship", "date_of_birth", "gender", "created_at",
+                 "allergies", "conditions", "long_term_medicines", "blood_group"],  # migration 011
     "records": [
         "id", "profile_id", "document_type", "status", "file_url", "file_path", "raw_ocr_text",
         "doctor_name", "hospital_name", "document_date", "specialty", "diagnosis", "recommendations",
@@ -59,6 +60,7 @@ SCHEMA: Dict[str, List[str]] = {
 DEFAULTS = {
     "records": {"status": "processing", "document_category": "prescription", "insurance_claimed": False},
     "record_files": {"page_number": 1},
+    "profiles": {"allergies": [], "conditions": [], "long_term_medicines": []},  # migration 011
 }
 
 # child table -> (fk column, parent table); all ON DELETE CASCADE in schema.sql

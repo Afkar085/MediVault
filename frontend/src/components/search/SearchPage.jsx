@@ -230,7 +230,7 @@ export default function SearchPage() {
           </ul>
         )}
 
-        {showResults && !searching && !failed && count === 0 && emptyMsg && (
+        {showResults && !searching && !failed && count === 0 && emptyMsg && (!isSearching || results !== null) && (
           <EmptyState icon={emptyMsg.icon} title={emptyMsg.title}
             action={isSearching && !wholeFamily
               ? <button className="btn btn-secondary" onClick={() => setScope(true)}>Search the whole family</button>

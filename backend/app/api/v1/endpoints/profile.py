@@ -9,6 +9,21 @@ from typing import List
 
 router = APIRouter()
 
+HEALTH_FIELDS = ("allergies", "conditions", "long_term_medicines", "blood_group")
+NEEDS_MIGRATION = "Health details can be saved once migration 011 has been run in Supabase."
+
+
+def _write(query_for, data: dict):
+    """Run an insert or update. If the health columns are not there yet
+    (migration 011 not run), say so instead of failing with a 500."""
+    try:
+        return query_for(data).execute()
+    except Exception as e:
+        message = str(e).lower()
+        if any(f in data for f in HEALTH_FIELDS) and ("column" in message or "42703" in message):
+            raise HTTPException(status_code=400, detail=NEEDS_MIGRATION) from e
+        raise
+
 @router.get("", response_model=List[ProfileResponse])
 def get_profiles(user_id: str = Depends(get_current_user)):
     result = supabase.table("profiles").select("*").eq("user_id", user_id).execute()
@@ -20,7 +35,7 @@ def create_profile(body: ProfileCreate, user_id: str = Depends(get_current_user)
     if "date_of_birth" in data and data["date_of_birth"]:
         data["date_of_birth"] = str(data["date_of_birth"])
     data["user_id"] = user_id
-    result = supabase.table("profiles").insert(data).execute()
+    result = _write(lambda d: supabase.table("profiles").insert(d), data)
     return result.data[0]
 
 @router.get("/{profile_id}", response_model=ProfileResponse)
@@ -38,7 +53,7 @@ def update_profile(profile_id: str, body: ProfileUpdate, user_id: str = Depends(
     data = body.model_dump(exclude_none=True)
     if "date_of_birth" in data and data["date_of_birth"]:
         data["date_of_birth"] = str(data["date_of_birth"])
-    result = supabase.table("profiles").update(data).eq("id", profile_id).execute()
+    result = _write(lambda d: supabase.table("profiles").update(d).eq("id", profile_id), data)
     return result.data[0]
 
 @router.delete("/{profile_id}")

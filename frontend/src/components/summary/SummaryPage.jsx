@@ -10,13 +10,39 @@ import { drN, endsText, fmt, summaryOf } from '../../utils/format';
  * visits were for, and the latest report. Built only from this person's own
  * documents, and every line opens the document it came from.
  */
-function SummaryBody({ summary, onOpen, big = false }) {
+function SummaryBody({ summary, health, onOpen, big = false }) {
   const { now, earlier = [], visits, report } = summary;
+  const allergies = health?.allergies || [];
+  const conditions = health?.conditions || [];
+  const everyDay = (health?.long_term_medicines || []).filter(m => m.name);
   return (
     <div className={'summary' + (big ? ' summary-big' : '')}>
+      {allergies.length > 0 && (
+        <section className="card summary-card summary-allergy" aria-labelledby="sum-allergy">
+          <h2 id="sum-allergy" className="summary-lbl">Allergies</h2>
+          <p className="summary-allergy-list">{allergies.join(', ')}</p>
+        </section>
+      )}
+
+      {(conditions.length > 0 || health?.blood_group) && (
+        <section className="card summary-card" aria-labelledby="sum-conditions">
+          <h2 id="sum-conditions" className="summary-lbl">Conditions</h2>
+          <div className="summary-health-line">
+            {conditions.map(c => <span key={c} className="pill pill-warning">{c}</span>)}
+            {health?.blood_group && <span className="pill">Blood group {health.blood_group}</span>}
+          </div>
+        </section>
+      )}
+
       <section className="card summary-card" aria-labelledby="sum-now">
         <h2 id="sum-now" className="summary-lbl tone-success-text">Taking now</h2>
-        {now.length === 0 && <p className="summary-none">Nothing current on the prescriptions saved here.</p>}
+        {everyDay.map(m => (
+          <div key={'ltm:' + m.name} className="summary-row summary-row-static">
+            <span className="summary-main">{m.name}</span>
+            <span className="summary-side">{[m.dosage, m.frequency, 'every day', m.for_what && 'for ' + m.for_what].filter(Boolean).join(' · ')}</span>
+          </div>
+        ))}
+        {now.length === 0 && everyDay.length === 0 && <p className="summary-none">Nothing current on the prescriptions saved here.</p>}
         {now.map(m => (
           <button key={m.key} className="summary-row" onClick={() => onOpen(m.record)}>
             <span className="summary-main">{m.name}</span>
@@ -62,7 +88,7 @@ function SummaryBody({ summary, onOpen, big = false }) {
 }
 
 export default function SummaryPage() {
-  const { records, sel, loading, openRecord, showUpload } = useContext(AppContext);
+  const { records, sel, loading, openRecord, showUpload, navigate } = useContext(AppContext);
   const [showing, setShowing] = useState(false);
   const summary = useMemo(() => summaryOf(records), [records]);
   const first = sel?.name?.split(' ')[0] || 'Your';
@@ -82,7 +108,12 @@ export default function SummaryPage() {
   return (
     <div>
       <PageHeader title={sel ? first + '’s summary' : 'Summary'} sub="One screen to show any doctor" />
-      <SummaryBody summary={summary} onOpen={openRecord} />
+      {sel && !(sel.allergies?.length || sel.conditions?.length || sel.long_term_medicines?.length) && (
+        <button className="summary-add-health no-print" onClick={() => navigate('profile')}>
+          <Icon name="favorite" size={16} /> Add allergies, conditions and daily medicines
+        </button>
+      )}
+      <SummaryBody summary={summary} health={sel} onOpen={openRecord} />
       <div className="summary-actions no-print">
         <button className="btn btn-primary btn-block" onClick={() => setShowing(true)}>Show to the doctor</button>
         <button className="btn btn-secondary btn-block" onClick={() => window.print()}>Save as PDF or print</button>
@@ -96,7 +127,7 @@ export default function SummaryPage() {
             <span className="record-bar-type">{sel?.name}</span>
           </div>
           <div className="sheet-scroll summary-show-body">
-            <SummaryBody summary={summary} onOpen={() => {}} big />
+            <SummaryBody summary={summary} health={sel} onOpen={() => {}} big />
           </div>
         </Modal>
       )}
