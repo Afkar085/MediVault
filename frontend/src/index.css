@@ -770,10 +770,21 @@ input[type=date].field-inp::-webkit-date-and-time-value { text-align: left; }
 .rv-med-text b { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .rv-med-text small { font-size: 13px; color: var(--ink-3); }
 .rv-med-editing { padding: 12px 0; }
-.rv-dot { flex-shrink: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--line-strong); }
-.rv-dot-green, .rv-dot-confirmed { background: var(--success); }
-.rv-dot-amber { background: #e59f00; }
-.rv-dot-red { background: var(--danger); }
+/* The dots glow so they read as status at a glance. Amber and red also pulse:
+   those are the lines that need a look. Still for anyone who asked for less motion. */
+.rv-dot { flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--line-strong); }
+.rv-dot-green, .rv-dot-confirmed { background: #12a26b; box-shadow: 0 0 0 3px rgba(18, 162, 107, 0.18), 0 0 10px 2px rgba(18, 162, 107, 0.55); }
+.rv-dot-amber { background: #f0a800; box-shadow: 0 0 0 3px rgba(240, 168, 0, 0.22), 0 0 12px 3px rgba(240, 168, 0, 0.65); animation: rvGlowAmber 1.6s ease-in-out infinite; }
+.rv-dot-red { background: #e0332b; box-shadow: 0 0 0 3px rgba(224, 51, 43, 0.2), 0 0 12px 3px rgba(224, 51, 43, 0.6); animation: rvGlowRed 1.6s ease-in-out infinite; }
+@keyframes rvGlowAmber {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(240, 168, 0, 0.22), 0 0 8px 2px rgba(240, 168, 0, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(240, 168, 0, 0.16), 0 0 16px 5px rgba(240, 168, 0, 0.75); }
+}
+@keyframes rvGlowRed {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(224, 51, 43, 0.2), 0 0 8px 2px rgba(224, 51, 43, 0.4); }
+  50% { box-shadow: 0 0 0 5px rgba(224, 51, 43, 0.14), 0 0 16px 5px rgba(224, 51, 43, 0.7); }
+}
+@media (prefers-reduced-motion: reduce) { .rv-dot-amber, .rv-dot-red { animation: none; } }
 .rv-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 0 12px 24px; font-size: 14px; color: var(--ink-2); }
 .rv-med-amber .rv-hint > span { color: var(--warning); font-weight: 600; }
 .rv-med-red .rv-hint > span { color: var(--danger); font-weight: 600; }
