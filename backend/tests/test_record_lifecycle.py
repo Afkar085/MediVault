@@ -630,3 +630,13 @@ def test_someone_else_cannot_mark_a_record_checked(env):
     r = env.client.put(f"/api/v1/profiles/{env.asha}/records/{rid}", headers=env.other_auth, json={"checked": True})
     assert r.status_code in (403, 404)
     assert records(env, env.asha)[0]["checked_at"] is None
+
+
+def test_the_first_sweep_runs_even_just_after_the_machine_started(env, monkeypatch):
+    # The flaky CI failure: on a fresh runner the monotonic clock is under 60 s,
+    # and a never-swept profile used to count as swept at time 0.
+    import app.api.v1.endpoints.records as rec
+    monkeypatch.setattr(rec.time, "monotonic", lambda: 5.0)
+    monkeypatch.setattr(rec, "_last_sweep", {})
+    assert rec._sweep_is_due("p-new") is True
+    assert rec._sweep_is_due("p-new") is False      # then throttled as before

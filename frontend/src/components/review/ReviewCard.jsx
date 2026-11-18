@@ -60,6 +60,10 @@ const medsOf = (r) => (r.medicines || []).map(m => ({
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+// "Pantoprazole (40mg)" -> "Pantoprazole". The strength belongs to one product
+// of the brand, not to what was read off this page, so showing it misleads.
+export const genericName = (g) => String(g || '').replace(/\s*\([^)]*\)/g, '').trim();
+
 function Dot({ status }) {
   const s = status || 'unchecked';
   return <span className={'rv-dot rv-dot-' + s} role="img" aria-label={DOT_LABEL[s] || DOT_LABEL.unchecked} title={DOT_LABEL[s]} />;
@@ -297,14 +301,14 @@ export default function ReviewCard({ record, onClose }) {
                     <div className="rv-hint">
                       <span>Did you mean</span>
                       <button className="chip rv-fix" onClick={() => applySuggestion(i, best.name)}>{best.name}</button>
-                      {best.generic && <small className="muted">{best.generic}</small>}
+                      {best.generic && <small className="muted">{genericName(best.generic)}</small>}
                     </div>
                   )}
                   {status === 'red' && m.name && (
                     <div className="rv-hint">
                       <span>Not in our medicine list.</span>
-                      {best && <button className="chip rv-fix" onClick={() => applySuggestion(i, best.name)}>{best.name}?</button>}
                       <button className="chip" onClick={() => markRight(m.name.trim())}>It’s right</button>
+                      <button className="chip" onClick={() => startMed(i)}>Fix the name</button>
                     </div>
                   )}
                 </div>

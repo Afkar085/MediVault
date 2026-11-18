@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
@@ -37,6 +38,29 @@ if settings.DEBUG:
     logger.warning("DEBUG is on: API docs are public at /docs. Turn it off in production.")
 if "*" in allowed_origins:
     logger.warning("ALLOWED_ORIGINS contains '*': any website may call this API from a browser.")
+
+class CatchUnhandledErrors(BaseHTTPMiddleware):
+    """Turn an unexpected error into a JSON 500 *inside* the CORS middleware.
+
+    Without this an unhandled exception was answered by Starlette's outermost
+    error handler, after CORS, so the 500 had no Access-Control-Allow-Origin
+    header. The browser then reported a blank network failure, the app could
+    not read the reply, and a save that failed looked like nothing happened.
+    Added before CORSMiddleware, so CORS wraps it.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+            return JSONResponse(
+                {"detail": "Something went wrong on our side. Nothing was changed; please try again."},
+                status_code=500,
+            )
+
+
+app.add_middleware(CatchUnhandledErrors)
 
 app.add_middleware(
     CORSMiddleware,
