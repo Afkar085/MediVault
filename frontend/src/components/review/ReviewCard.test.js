@@ -165,3 +165,12 @@ test('the list still works when the medicine check cannot be reached', async () 
   await waitFor(() => expect(within(card).getAllByRole('img', { name: 'Not checked against the list' })).toHaveLength(3));
   expect(within(card).getByRole('button', { name: 'Save' })).toBeEnabled();
 });
+
+test('a red medicine offers no guessed name, only "It’s right" or fixing it', async () => {
+  await start([READ]);
+  fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
+  const card = await screen.findByRole('dialog', { name: 'Check what was read' });
+  await waitFor(() => within(card).getByRole('button', { name: 'It’s right' }));
+  expect(within(card).getByRole('button', { name: 'Fix the name' })).toBeInTheDocument();
+  expect(within(card).getByText('Pantoprazole')).toBeInTheDocument();   // no "(40mg)"
+});

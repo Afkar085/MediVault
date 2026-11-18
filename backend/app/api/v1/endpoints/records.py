@@ -71,8 +71,11 @@ _sweep_lock = threading.Lock()
 def _sweep_is_due(profile_id: str) -> bool:
     now = time.monotonic()
     with _sweep_lock:
-        last = _last_sweep.get(profile_id, 0.0)
-        if now - last < SWEEP_INTERVAL_SECONDS:
+        # Never swept before means due. Defaulting to 0.0 read the monotonic
+        # clock as "last swept at boot", so for the first minute a machine was
+        # up (a fresh CI runner, a restarted server) nothing was ever swept.
+        last = _last_sweep.get(profile_id)
+        if last is not None and now - last < SWEEP_INTERVAL_SECONDS:
             return False
         # Bounded: one float per profile this worker has served, cleared
         # wholesale rather than tracked individually.
