@@ -1,7 +1,7 @@
 import { useState, useContext } from 'react';
 import { AppContext } from '../../App';
 import {
-  fmt, fmtRel, drN, drInitial, isPending, isFailed, failedOnService, needsReview,
+  fmt, fmtRel, drN, drInitial, isPending, isFailed, failedOnService, isUnchecked, reviewReasons,
   uniqueMedicines, getRecordFiles, possibleDuplicates, doctorHospital, thumbUrl, groupByVisit } from '../../utils/format';
 import Icon from '../common/Icon';
 import { LedgerRow, typeName } from '../common/Ledger';
@@ -18,13 +18,14 @@ function greeting() {
  * Only what needs the person, one line each, with the action that resolves it.
  * Every line is computed from the records, so fixing the record removes it.
  */
-function Attention({ records, openRecord, retryRecord, navigate, dismissedDupes }) {
+function Attention({ records, openRecord, openReview, retryRecord, navigate, dismissedDupes }) {
   const [retrying, setRetrying] = useState(null);
   const pending = records.filter(isPending);
   const failed = records.filter(isFailed);
-  const review = records.filter(needsReview);
+  const toCheck = records.filter(isUnchecked);
+  const review = records.filter(r => !isUnchecked(r) && reviewReasons(r).length > 0);
   const dupes = possibleDuplicates(records, dismissedDupes);
-  if (!pending.length && !failed.length && !review.length && !dupes.length) return null;
+  if (!pending.length && !failed.length && !toCheck.length && !review.length && !dupes.length) return null;
 
   const retry = async (r) => { setRetrying(r.id); await retryRecord(r); setRetrying(null); };
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
@@ -63,6 +64,13 @@ function Attention({ records, openRecord, retryRecord, navigate, dismissedDupes 
               </div>
             );
           })}
+        </div>
+      )}
+      {toCheck.length > 0 && (
+        <div className="att-row">
+          <span className="att-icon tone-warning"><Icon name="fact_check" size={20} /></span>
+          <span className="att-text"><b>{plural(toCheck.length, 'new document', 'new documents')} to check</b></span>
+          <button className="btn btn-secondary btn-sm" onClick={() => (toCheck.length === 1 ? openReview(toCheck[0]) : navigate('review'))}>Check</button>
         </div>
       )}
       {review.length > 0 && (
@@ -150,7 +158,7 @@ function Doctors({ docGroups, docNameMap, sortedDocs, navigate }) {
 export default function Dashboard() {
   const {
     sel, records, loading, loadError, docGroups, docNameMap, sortedDocs, dismissedDupes,
-    navigate, openRecord, refreshRecords, retryRecord, showUpload, justFiled, dismissFiled,
+    navigate, openRecord, openReview, refreshRecords, retryRecord, showUpload, justFiled, dismissFiled,
   } = useContext(AppContext);
   const filed = justFiled ? records.find(r => r.id === justFiled && r.status === 'done') : null;
 
@@ -205,12 +213,12 @@ export default function Dashboard() {
           </dl>
           <div className="filed-btns">
             <button className="btn btn-secondary" onClick={dismissFiled}>OK</button>
-            <button className="btn btn-primary" onClick={() => { openRecord(filed); dismissFiled(); }}>Open and check</button>
+            <button className="btn btn-primary" onClick={() => { (isUnchecked(filed) ? openReview : openRecord)(filed); dismissFiled(); }}>Open and check</button>
           </div>
         </section>
       )}
 
-      <Attention records={records} openRecord={openRecord} retryRecord={retryRecord} navigate={navigate} dismissedDupes={dismissedDupes} />
+      <Attention records={records} openRecord={openRecord} openReview={openReview} retryRecord={retryRecord} navigate={navigate} dismissedDupes={dismissedDupes} />
 
       {records.length === 0 ? (
         <EmptyState icon="add_a_photo" title="No records yet"

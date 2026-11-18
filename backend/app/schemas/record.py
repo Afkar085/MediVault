@@ -85,6 +85,9 @@ class RecordUpdate(BaseModel):
     bill_number: Optional[str] = Field(default=None, max_length=_SHORT)
     # A record's medicines are replaced wholesale, so this is the whole list.
     medicines: Optional[List[MedicineInput]] = None
+    # True when the person saved the review card: marks the record checked.
+    # Not an edit to the record, so it is never written to the edit history.
+    checked: Optional[bool] = None
 
 
 class RecordEditResponse(BaseModel):

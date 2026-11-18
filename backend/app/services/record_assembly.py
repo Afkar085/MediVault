@@ -21,11 +21,14 @@ BILL_DETAIL_COLUMNS = "bill_title, bill_category, bill_number"
 # Migration 008. Like the bill columns, optional so the app behaves the same
 # before and after the migration is applied.
 FAILURE_REASON_COLUMN = "failure_reason"
+# Migration 010: when a person saved the review card. Optional in the same way.
+CHECKED_COLUMN = "checked_at"
 
 # None = not known yet. Only a definite "column does not exist" answer is
 # remembered; a network error is not a reason to stop asking.
 _bill_columns = None
 _failure_reason_column = None
+_checked_column = None
 
 
 def has_bill_columns() -> bool:
@@ -70,12 +73,32 @@ def has_failure_reason_column() -> bool:
     return _failure_reason_column
 
 
+def has_checked_column() -> bool:
+    """Whether migration 010 (when a record was checked) has been applied."""
+    global _checked_column
+    if _checked_column is not None:
+        return _checked_column
+    try:
+        supabase.table("records").select(CHECKED_COLUMN).limit(1).execute()
+        _checked_column = True
+    except Exception as e:
+        message = str(e).lower()
+        if "does not exist" in message or "42703" in message or "column" in message:
+            _checked_column = False
+            logger.info("No checked_at column; apply migration 010 to track checked records")
+        else:
+            return False
+    return _checked_column
+
+
 def record_columns() -> str:
     columns = BASE_RECORD_COLUMNS
     if has_bill_columns():
         columns += ", " + BILL_DETAIL_COLUMNS
     if has_failure_reason_column():
         columns += ", " + FAILURE_REASON_COLUMN
+    if has_checked_column():
+        columns += ", " + CHECKED_COLUMN
     return columns
 
 
