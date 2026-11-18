@@ -3,7 +3,7 @@ import { AppContext } from '../../App';
 import Icon from '../common/Icon';
 import Modal from '../common/Modal';
 import { EmptyState, PageHeader } from '../common/ui';
-import { drN, fmt, summaryOf } from '../../utils/format';
+import { drN, endsText, fmt, summaryOf } from '../../utils/format';
 
 /**
  * One screen to hand to a doctor: what is being taken now, what the last
@@ -11,7 +11,7 @@ import { drN, fmt, summaryOf } from '../../utils/format';
  * documents, and every line opens the document it came from.
  */
 function SummaryBody({ summary, onOpen, big = false }) {
-  const { now, visits, report } = summary;
+  const { now, earlier = [], visits, report } = summary;
   return (
     <div className={'summary' + (big ? ' summary-big' : '')}>
       <section className="card summary-card" aria-labelledby="sum-now">
@@ -20,10 +20,22 @@ function SummaryBody({ summary, onOpen, big = false }) {
         {now.map(m => (
           <button key={m.key} className="summary-row" onClick={() => onOpen(m.record)}>
             <span className="summary-main">{m.name}</span>
-            <span className="summary-side">{[m.how, 'until ' + fmt(m.until)].filter(Boolean).join(' · ')}</span>
+            <span className="summary-side">{[m.how, 'Day ' + m.day + ' of ' + m.days, endsText(m.until)].filter(Boolean).join(' · ')}</span>
           </button>
         ))}
       </section>
+
+      {earlier.length > 0 && (
+        <section className="card summary-card" aria-labelledby="sum-earlier">
+          <h2 id="sum-earlier" className="summary-lbl">Earlier</h2>
+          {earlier.map(m => (
+            <button key={m.key} className="summary-row" onClick={() => onOpen(m.record)}>
+              <span className="summary-main">{m.name}</span>
+              <span className="summary-side">{[m.days === 1 ? '1 day' : m.days + ' days', 'ended ' + fmt(m.until), m.record.doctor_name && drN(m.record.doctor_name)].filter(Boolean).join(' · ')}</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       <section className="card summary-card" aria-labelledby="sum-visits">
         <h2 id="sum-visits" className="summary-lbl">Recent visits</h2>

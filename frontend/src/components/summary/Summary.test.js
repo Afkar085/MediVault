@@ -1,4 +1,4 @@
-import { durationDays, summaryOf } from '../../utils/format';
+import { durationDays, endsText, summaryOf } from '../../utils/format';
 
 const TODAY = new Date('2026-11-16T09:00:00Z');
 const rx = (id, date, doctor, meds, extra = {}) => ({
@@ -21,7 +21,44 @@ test('taking now lists only medicines whose dated course has not ended', () => {
     rx('b', '2026-08-12', 'Anil Shetty', [{ id: 'm2', name: 'Paracetamol 650 mg', duration: '5 days' }]),
   ], TODAY);
   expect(s.now.map(m => m.name)).toEqual(['Naproxen 250 mg']);
-  expect(s.now[0].until).toBe('2026-11-19');
+  // 5 days from the 14th: the 14th is day 1, the 18th is the last day.
+  expect(s.now[0].until).toBe('2026-11-18');
+});
+
+test('a 5 day course dated 3 days ago is on day 4 of 5, and on day 6 it is under Earlier', () => {
+  const recs = [rx('a', '2026-11-13', 'Leela Menon', [{ id: 'm1', name: 'Azee 500', duration: '5 days' }])];
+  const s = summaryOf(recs, TODAY);
+  expect(s.now.map(m => [m.name, m.day, m.days])).toEqual([['Azee 500', 4, 5]]);
+  expect(s.earlier).toEqual([]);
+
+  const later = summaryOf(recs, new Date('2026-11-18T09:00:00Z'));
+  expect(later.now).toEqual([]);
+  expect(later.earlier.map(m => [m.name, m.until])).toEqual([['Azee 500', '2026-11-17']]);
+});
+
+test('the last day of a course is still today', () => {
+  const s = summaryOf([rx('a', '2026-11-12', 'Leela Menon', [{ id: 'm1', name: 'Dolo 650', duration: '5 days' }])], TODAY);
+  expect(s.now.map(m => [m.day, m.days])).toEqual([[5, 5]]);
+});
+
+test('earlier medicines are newest first and only the latest few', () => {
+  const recs = [1, 2, 3, 4, 5, 6, 7].map(n =>
+    rx('r' + n, '2026-10-0' + n, 'Anil Shetty', [{ id: 'm' + n, name: 'Med ' + n, duration: '3 days' }]));
+  const s = summaryOf(recs, TODAY);
+  expect(s.earlier.map(m => m.name)).toEqual(['Med 7', 'Med 6', 'Med 5', 'Med 4', 'Med 3']);
+});
+
+test('a prescription dated after today is not listed yet', () => {
+  const s = summaryOf([rx('a', '2026-11-20', 'Leela Menon', [{ id: 'm1', name: 'X', duration: '5 days' }])], TODAY);
+  expect(s.now).toEqual([]);
+  expect(s.earlier).toEqual([]);
+});
+
+test('the end of a course is said in plain words', () => {
+  expect(endsText('2026-11-16', TODAY)).toBe('ends today');
+  expect(endsText('2026-11-17', TODAY)).toBe('ends tomorrow');
+  expect(endsText('2026-11-20', TODAY)).toBe('ends Friday');
+  expect(endsText('2026-12-01', TODAY)).toMatch(/^ends 1 Dec 2026$/);
 });
 
 test('a medicine with no duration or no date is never called current', () => {
