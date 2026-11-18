@@ -791,3 +791,26 @@ input[type=date].field-inp::-webkit-date-and-time-value { text-align: left; }
 .rv-hint .chip { min-height: 32px; padding: 4px 12px; }
 .rv-fix { border-color: var(--navy-800); color: var(--navy-800); font-weight: 600; }
 .rv-add { margin-top: 12px; }
+
+/* ── Health details on a family member (components/family/HealthFields.jsx) ── */
+.add-modal { max-height: calc(var(--vvh, 100dvh) - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.health-fields { margin: 4px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.hf-head { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 15px; font-weight: 700; }
+.hf-head .muted { font-size: 13px; font-weight: 500; }
+.hf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.hf-chips .chip { display: inline-flex; align-items: center; gap: 4px; }
+.hf-chip-allergy { border-color: var(--danger-line); color: var(--danger); font-weight: 600; }
+.hf-add { display: flex; gap: 8px; }
+.hf-add .field-inp { flex: 1; min-width: 0; }
+.hf-med { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.hf-med-row { display: flex; gap: 6px; }
+.hf-med-row .field-inp { flex: 1; min-width: 0; }
+.hf-add-med { align-self: flex-start; }
+
+/* ── Health on the summary ── */
+.summary-allergy { border: 1px solid var(--danger-line); background: #fff4f3; }
+.summary-allergy .summary-lbl { color: var(--danger); }
+.summary-allergy-list { font-size: 17px; font-weight: 700; color: var(--danger); }
+.summary-health-line { display: flex; flex-wrap: wrap; gap: 6px; }
+.summary-health-line .pill { font-size: 14px; }
+.summary-add-health { display: inline-flex; align-items: center; gap: 6px; margin: 0 2px 12px; font-size: 14px; font-weight: 600; color: var(--navy-800); }

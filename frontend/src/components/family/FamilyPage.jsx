@@ -3,6 +3,7 @@ import { AppContext } from '../../App';
 import API from '../../api';
 import Modal from '../common/Modal';
 import Icon from '../common/Icon';
+import HealthFields, { emptyHealth, healthOf, healthPayload } from './HealthFields';
 
 const RELATIONSHIPS = ['Self', 'Father', 'Mother', 'Spouse', 'Son', 'Daughter', 'Brother', 'Sister', 'Other'];
 
@@ -15,17 +16,19 @@ export default function FamilyPage() {
   const { profiles, sel, addProfile, updateProfile, removeProfile, showToast, navigate, nav, updateNavParams } = useContext(AppContext);
   const [modal, setModal] = useState(null); // null | 'add' | profile object being edited
   const [form, setForm] = useState({ name: '', relationship: '' });
+  const [health, setHealth] = useState(emptyHealth);
   const [ld, setLd] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
 
-  const openAdd = () => { setForm({ name: '', relationship: '' }); setModal('add'); };
-  const openEdit = (p) => { setForm({ name: p.name, relationship: p.relationship }); setModal(p); };
+  const openAdd = () => { setForm({ name: '', relationship: '' }); setHealth(emptyHealth()); setModal('add'); };
+  const openEdit = (p) => { setForm({ name: p.name, relationship: p.relationship }); setHealth(healthOf(p)); setModal(p); };
   const closeModal = () => { setModal(null); setConfirmDel(null); };
 
   // The "+" folder tab lands here asking to add someone straight away.
   useEffect(() => {
     if (nav.add) {
       setForm({ name: '', relationship: '' });
+      setHealth(emptyHealth());
       setModal('add');
       updateNavParams({ add: false });
     }
@@ -38,16 +41,25 @@ export default function FamilyPage() {
     return 'Please check your connection and try again.';
   };
 
+  // Health details go only when there is something to save, or the member
+  // already has them, so adding someone still works before migration 011.
+  const healthBody = () => {
+    const body = healthPayload(health, modal !== 'add');
+    const anything = body.allergies.length || body.conditions.length || body.long_term_medicines.length || body.blood_group;
+    const hadColumns = modal !== 'add' && modal && 'allergies' in modal;
+    return anything || hadColumns ? body : {};
+  };
+
   const handleSave = async () => {
     if (!form.name.trim() || !form.relationship) return;
     setLd(true);
     try {
       if (modal === 'add') {
-        const r = await API.post('/profiles', { ...form, name: form.name.trim() });
+        const r = await API.post('/profiles', { ...form, name: form.name.trim(), ...healthBody() });
         addProfile(r.data);
         showToast('Family member added');
       } else {
-        const r = await API.put('/profiles/' + modal.id, { ...form, name: form.name.trim() });
+        const r = await API.put('/profiles/' + modal.id, { ...form, name: form.name.trim(), ...healthBody() });
         updateProfile(modal.id, r.data);
         showToast('Family member updated');
       }
@@ -108,6 +120,7 @@ export default function FamilyPage() {
               {RELATIONSHIPS.map(r => <option key={r}>{r}</option>)}
             </select>
           </label>
+          <HealthFields value={health} onChange={setHealth} showBloodGroup={Boolean(editing)} />
           <div className="dialog-btns">
             {editing && (
               <button className="btn btn-danger-quiet" onClick={() => setConfirmDel(true)} disabled={ld}>Delete</button>
