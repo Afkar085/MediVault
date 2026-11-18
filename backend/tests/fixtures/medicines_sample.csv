@@ -1,0 +1,21 @@
+id,name,price(₹),Is_discontinued,manufacturer_name,type,pack_size_label,short_composition1,short_composition2
+1,Augmentin 625 Duo Tablet,223.42,FALSE,Glaxo SmithKline Pharmaceuticals Ltd,allopathy,strip of 10 tablets,Amoxycillin  (500mg) ,  Clavulanic Acid (125mg)
+8,Azee 500 Tablet,132.38,FALSE,Cipla Ltd,allopathy,strip of 5 tablets,Azithromycin (500mg),
+40,Arachitol 6L Injection,407.76,FALSE,Abbott,allopathy,packet of 6 injections,Vitamin D3 (600000IU),
+33924,Crocin Advance Tablet,22.62,FALSE,GlaxoSmithKline Consumer Healthcare,allopathy,strip of 20 tablets,Paracetamol (500mg),
+33928,Calpol 500mg Tablet,16.65,FALSE,Glaxo SmithKline Pharmaceuticals Ltd,allopathy,strip of 15 tablets,Paracetamol (500mg),
+58235,Dolo 650 Tablet,34.27,FALSE,Micro Labs Ltd,allopathy,strip of 15 tablets,Paracetamol (650mg),
+94174,Glycomet-GP 1 Tablet PR,116.5,FALSE,USV Ltd,allopathy,strip of 15 Tablet pr,Glimepiride (1mg) , Metformin (500mg)
+94178,Glycomet-GP 2 Tablet PR,170.75,FALSE,USV Ltd,allopathy,strip of 15 Tablet pr,Glimepiride (2mg) , Metformin (500mg)
+133381,Montair LC Kid Syrup,127.17,FALSE,Cipla Ltd,allopathy,bottle of 60 ml Syrup,Levocetirizine (2.5mg/5ml) , Montelukast (4mg/5ml)
+133400,Mox 500mg Capsule,120.4,FALSE,Sun Pharmaceutical Industries Ltd,allopathy,strip of 15 capsules,Amoxycillin (500mg),
+133445,Montair LC Kid Tablet DT,129.55,FALSE,Cipla Ltd,allopathy,strip of 10 tablet dt,Levocetirizine (2.5mg) , Montelukast (4mg)
+136521,Mox 500mg Injection,57,TRUE,Sun Pharmaceutical Industries Ltd,allopathy,vial of 2 ml Injection,Amoxycillin (500mg),
+173580,Pantocid DSR Capsule,215,FALSE,Sun Pharmaceutical Industries Ltd,allopathy,strip of 15 capsule pr,Domperidone (30mg) , Pantoprazole (40mg)
+173591,Pantocid Tablet,172,FALSE,Sun Pharmaceutical Industries Ltd,allopathy,strip of 15 tablets,Pantoprazole (40mg),
+174287,Panto 40mg Tablet,96,FALSE,Micro Labs Ltd,allopathy,strip of 10 tablets,Pantoprazole (40mg),
+174459,Panto D Tablet,49,FALSE,Siesta Pharmaceuticals,allopathy,strip of 10 tablets,Domperidone (10mg) , Pantoprazole (40mg)
+180267,Pantocad 40mg Tablet,55,FALSE,Surien Pharmaceuticals,allopathy,strip of 10 tablets,Pantoprazole (40mg),
+199518,Sinarest New Tablet,99.98,FALSE,Centaur Pharmaceuticals Pvt Ltd,allopathy,strip of 15 tablets,Chlorpheniramine Maleate (2mg) , Paracetamol (500mg) 
+214810,Thyronorm 50mcg Tablet,146.24,FALSE,Abbott,allopathy,bottle of 120 tablets,Thyroxine (50mcg),
+246379,Zerodol-SP Tablet,118.3,FALSE,Ipca Laboratories Ltd,allopathy,strip of 10 tablets,Aceclofenac (100mg) , Paracetamol (325mg) 
